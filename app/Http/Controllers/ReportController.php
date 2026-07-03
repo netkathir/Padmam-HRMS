@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Attendance;
 use App\Models\Contractor;
-use App\Models\ContractWorkerPayroll;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\PayrollRecord;
@@ -27,6 +26,7 @@ class ReportController extends Controller
             ->whereBetween('date', [$fromDate, $toDate])
             ->when($request->filled('employee_id'), fn($q) => $q->where('employee_id', $request->employee_id))
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
+            ->when($request->filled('contractor_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('contractor_id', $request->contractor_id)))
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
             ->orderBy('date')->orderBy('employee_id');
 
@@ -40,6 +40,7 @@ class ReportController extends Controller
         $summaryQuery = Attendance::whereBetween('date', [$fromDate, $toDate])
             ->when($request->filled('employee_id'), fn($q) => $q->where('employee_id', $request->employee_id))
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
+            ->when($request->filled('contractor_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('contractor_id', $request->contractor_id)))
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status));
 
         $summary = $summaryQuery
@@ -127,6 +128,7 @@ class ReportController extends Controller
             ->where('month', $month)->where('year', $year)
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
+            ->when($request->filled('contractor_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('contractor_id', $request->contractor_id)))
             ->orderBy('employee_id');
 
         if ($request->filled('export')) {
@@ -138,7 +140,8 @@ class ReportController extends Controller
         // Summary — same filters as records query
         $summaryQuery = PayrollRecord::where('month', $month)->where('year', $year)
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
-            ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)));
+            ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
+            ->when($request->filled('contractor_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('contractor_id', $request->contractor_id)));
 
         $totals = $summaryQuery
             ->selectRaw('COUNT(*) as count, SUM(gross_earnings) as gross, SUM(total_deductions) as deductions, SUM(net_salary) as net')
@@ -154,12 +157,27 @@ class ReportController extends Controller
         $month = (int) $request->input('month', now()->month);
         $year  = (int) $request->input('year', now()->year);
 
-        $contractors = Contractor::withCount('contractWorkers')->orderBy('name')->get();
+        $periodStart = \Carbon\Carbon::create($year, $month, 1)->startOfMonth();
+        $periodEnd   = \Carbon\Carbon::create($year, $month, 1)->endOfMonth();
 
-        $payrollSummary = ContractWorkerPayroll::where('month', $month)->where('year', $year)
-            ->selectRaw('contractor_id, COUNT(*) as worker_count, SUM(gross_wages) as total_gross, SUM(net_wages) as total_net')
-            ->selectRaw("SUM(CASE WHEN payment_status = 'paid' THEN 1 ELSE 0 END) as paid_count")
-            ->groupBy('contractor_id')
+        // Only count workers who were actually assigned to the contractor during the
+        // selected month — joined on/before the period end and not exited before it started.
+        $contractors = Contractor::withCount(['employees' => function ($q) use ($periodStart, $periodEnd) {
+            $q->where('date_of_joining', '<=', $periodEnd)
+                ->where(function ($q2) use ($periodStart) {
+                    $q2->whereDoesntHave('exitRecord')
+                        ->orWhereHas('exitRecord', fn($e) => $e->where('exit_date', '>=', $periodStart));
+                });
+        }])->orderBy('name')->get();
+
+        $payrollSummary = PayrollRecord::query()
+            ->join('employees', 'payroll_records.employee_id', '=', 'employees.id')
+            ->whereNotNull('employees.contractor_id')
+            ->where('payroll_records.month', $month)
+            ->where('payroll_records.year', $year)
+            ->selectRaw('employees.contractor_id as contractor_id, COUNT(*) as worker_count, SUM(payroll_records.gross_earnings) as total_gross, SUM(payroll_records.net_salary) as total_net')
+            ->selectRaw("SUM(CASE WHEN payroll_records.status = 'paid' THEN 1 ELSE 0 END) as paid_count")
+            ->groupBy('employees.contractor_id')
             ->get()
             ->keyBy('contractor_id');
 

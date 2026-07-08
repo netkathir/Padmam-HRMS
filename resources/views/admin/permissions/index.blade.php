@@ -1,8 +1,9 @@
 {{--
     File: resources/views/admin/permissions/index.blade.php
-    Purpose: Permissions listing — System Admin module
+    Purpose: Permissions listing — module-grouped summary, with a per-module
+             detail drill-down for the underlying editable records
     Author: System
-    Date: 2026-06-30
+    Date: 2026-07-08
 --}}
 @extends('layouts.app')
 
@@ -16,6 +17,61 @@
         <i class="bi bi-plus-lg"></i> Add Permission
     </a>
 @endsection
+
+@push('styles')
+<style>
+.perm-summary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 14px 24px;
+    border-bottom: 1px solid #eef0f3;
+}
+.perm-summary-row:last-child { border-bottom: none; }
+.perm-summary-row:hover { background: #fafbfc; }
+
+.perm-summary-label { flex: 0 0 180px; font-weight: 600; font-size: 14px; color: #1f2937; }
+
+.perm-summary-pills {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.perm-pill {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid #dfe3e8;
+    background: #fff;
+    color: #9ca3af;
+    font-size: 13px;
+    font-weight: 600;
+}
+.perm-pill i { font-size: 14px; }
+.perm-pill.is-defined {
+    background: #eafaf1;
+    border-color: #bdf0d3;
+    color: #15803d;
+}
+
+.perm-summary-manage { flex: 0 0 auto; }
+
+@media (max-width: 991.98px) {
+    .perm-summary-pills { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767.98px) {
+    .perm-summary-row { flex-direction: column; align-items: stretch; }
+    .perm-summary-label { flex-basis: auto; }
+    .perm-summary-manage { align-self: flex-end; }
+}
+</style>
+@endpush
 
 @section('content')
 <div class="card">
@@ -34,11 +90,53 @@
                 </select>
             </div>
             <div class="col-auto">
-                <span class="text-muted" style="font-size:13px;">{{ $permissions->total() }} permissions</span>
+                <span class="text-muted" style="font-size:13px;">
+                    @if($mode === 'detail')
+                        {{ $permissions->total() }} permissions in "{{ ucfirst(request('module')) }}"
+                    @else
+                        {{ $summary->count() }} modules
+                    @endif
+                </span>
             </div>
         </form>
     </div>
+
+    @if($mode === 'summary')
     <div class="card-body p-0">
+        @forelse($summary as $row)
+        <div class="perm-summary-row">
+            <div class="perm-summary-label">{{ $row['label'] }}</div>
+            <div class="perm-summary-pills">
+                @foreach(\App\Models\Permission::ACCESS_LEVELS as $level)
+                @php $perm = $row['levelMap']->get($level); @endphp
+                <span class="perm-pill {{ $perm ? 'is-defined' : '' }}"
+                      title="{{ $perm ? $perm->name : 'Not defined' }}">
+                    <i class="bi {{ ['read' => 'bi-eye', 'create' => 'bi-pencil-square', 'full' => 'bi-gear', 'delete' => 'bi-trash'][$level] }}"></i>
+                    {{ ucfirst($level) }}
+                </span>
+                @endforeach
+            </div>
+            <div class="perm-summary-manage">
+                <a href="{{ route('admin.permissions.index', ['module' => $row['module']]) }}"
+                   class="btn btn-sm btn-outline-primary">
+                    Manage <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+        @empty
+        <div class="text-center text-muted py-5">
+            <i class="bi bi-key d-block mb-2" style="font-size:32px;opacity:.3;"></i>
+            No modules found.
+        </div>
+        @endforelse
+    </div>
+    @else
+    <div class="card-body p-0">
+        <div class="px-3 pt-3">
+            <a href="{{ route('admin.permissions.index') }}" class="d-inline-flex align-items-center gap-1 text-decoration-none" style="font-size:13px;">
+                <i class="bi bi-arrow-left"></i> All Modules
+            </a>
+        </div>
         <div class="table-responsive">
             <table class="table table-hover mb-0">
                 <thead>
@@ -52,18 +150,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @php $prevModule = null; @endphp
                     @forelse($permissions as $perm)
-                    @if($perm->module !== $prevModule)
-                    <tr>
-                        <td colspan="6" class="py-1 px-3"
-                            style="background:#f8f9fa;font-size:11px;font-weight:700;
-                                   text-transform:uppercase;letter-spacing:.08em;color:#6c757d;">
-                            {{ $perm->module }}
-                        </td>
-                    </tr>
-                    @php $prevModule = $perm->module; @endphp
-                    @endif
                     <tr>
                         <td class="text-muted ps-3">{{ $perm->id }}</td>
                         <td><span class="badge bg-primary-subtle text-primary">{{ $perm->module }}</span></td>
@@ -101,7 +188,7 @@
                     <tr>
                         <td colspan="6" class="text-center text-muted py-5">
                             <i class="bi bi-key d-block mb-2" style="font-size:32px;opacity:.3;"></i>
-                            No permissions found. <a href="{{ route('admin.permissions.create') }}">Add the first one</a>.
+                            No permissions found for this module. <a href="{{ route('admin.permissions.create') }}">Add one</a>.
                         </td>
                     </tr>
                     @endforelse
@@ -119,6 +206,7 @@
             <div>{{ $permissions->links() }}</div>
         </div>
     </div>
+    @endif
     @endif
 </div>
 @endsection

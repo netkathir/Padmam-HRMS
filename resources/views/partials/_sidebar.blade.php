@@ -358,23 +358,16 @@
     /* ── Permission map — module.read is the sidebar gate ──────────
      *  Hierarchy in Gate: delete > full > create > read
      *  So having 'employees.full' also passes 'employees.read' check.
+     *  Module keys come from config/menu_modules.php (the same registry
+     *  that drives the Permissions and Role Permissions admin pages) so
+     *  this list can never drift out of sync with what's assignable.
+     *  Masters uses a single permission covering all its sub-modules.
      * ─────────────────────────────────────────────────────────── */
-    $can = [
-        // System Admin
-        'users' => $user->can('users.read'),
-        'roles' => $user->can('roles.read'),
-        'permissions' => $user->can('permissions.read'),
-        'role_permissions' => $user->can('role_permissions.read'),
-        'settings' => $user->can('settings.read'),
-        // Masters — single permission covers all sub-modules
-        'masters' => $user->can('masters.read'),
-        // Core modules
-        'employees' => $user->can('employees.read'),
-        'attendance' => $user->can('attendance.read'),
-        'leaves' => $user->can('leaves.read'),
-        'payroll' => $user->can('payroll.read'),
-        'reports' => $user->can('reports.read'),
-    ];
+    $can = collect(config('menu_modules'))
+        ->keys()
+        ->reject(fn ($module) => $module === 'dashboard')
+        ->mapWithKeys(fn ($module) => [$module => $user->can("$module.read")])
+        ->all();
 
     /* ── Section visibility ──────────────────────────────────────── */
     $showSysAdmin =

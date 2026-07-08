@@ -33,21 +33,32 @@ class DashboardController extends Controller
             ->pluck('count', 'status')
             ->toArray();
 
-        // Upcoming birthdays (next 7 days)
-        $birthdays = Employee::active()
-            ->whereRaw("DATE_FORMAT(date_of_birth, '%m-%d') BETWEEN DATE_FORMAT(CURDATE(), '%m-%d') AND DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 7 DAY), '%m-%d')")
-            ->select('id', 'first_name', 'last_name', 'date_of_birth', 'department_id')
+        $startDate = now()->startOfDay();
+        $endDate = now()->copy()->addDays(7)->endOfDay();
+        $upcomingDayCodes = collect(range(0, 7))
+            ->map(fn ($offset) => now()->copy()->addDays($offset)->format('m-d'))
+            ->all();
+
+        $upcomingEmployees = Employee::active()
+            ->select('id', 'first_name', 'last_name', 'date_of_birth', 'date_of_joining', 'department_id')
             ->with('department:id,name')
-            ->limit(5)
             ->get();
 
-        // Work anniversaries (next 7 days)
-        $anniversaries = Employee::active()
-            ->whereRaw("DATE_FORMAT(date_of_joining, '%m-%d') BETWEEN DATE_FORMAT(CURDATE(), '%m-%d') AND DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 7 DAY), '%m-%d')")
-            ->select('id', 'first_name', 'last_name', 'date_of_joining', 'department_id')
-            ->with('department:id,name')
-            ->limit(5)
-            ->get();
+        $birthdays = $upcomingEmployees
+            ->filter(function ($employee) use ($upcomingDayCodes): bool {
+                return $employee->date_of_birth
+                    && in_array($employee->date_of_birth->format('m-d'), $upcomingDayCodes, true);
+            })
+            ->take(5)
+            ->values();
+
+        $anniversaries = $upcomingEmployees
+            ->filter(function ($employee) use ($upcomingDayCodes): bool {
+                return $employee->date_of_joining
+                    && in_array($employee->date_of_joining->format('m-d'), $upcomingDayCodes, true);
+            })
+            ->take(5)
+            ->values();
 
         // Department-wise headcount
         $deptWise = Employee::active()

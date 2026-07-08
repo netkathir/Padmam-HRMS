@@ -11,14 +11,28 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    private function disableForeignKeyChecks(): void
+    {
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        }
+    }
+
+    private function enableForeignKeyChecks(): void
+    {
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        }
+    }
+
     public function up(): void
     {
         // Clear all existing permission data — will be re-seeded with 4-level system
         // Disable FK checks so child table can be cleared before parent
-        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        $this->disableForeignKeyChecks();
         DB::table('role_permissions')->truncate();
         DB::table('permissions')->truncate();
-        DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        $this->enableForeignKeyChecks();
 
         Schema::table('permissions', function (Blueprint $table) {
             $table->dropUnique(['module', 'action']);
@@ -32,10 +46,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        $this->disableForeignKeyChecks();
         DB::table('role_permissions')->truncate();
         DB::table('permissions')->truncate();
-        DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        $this->enableForeignKeyChecks();
 
         Schema::table('permissions', function (Blueprint $table) {
             $table->dropUnique(['module', 'access_level']);

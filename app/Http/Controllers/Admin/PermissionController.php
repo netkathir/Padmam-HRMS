@@ -13,22 +13,63 @@ use Illuminate\Http\Request;
 class PermissionController extends Controller
 {
     /** Valid access levels in the redesigned system */
-    private const LEVELS = ['read', 'create', 'full', 'delete'];
+    private const LEVELS = Permission::ACCESS_LEVELS;
+
+    /**
+     * All known module keys — the sidebar-driven registry plus any custom
+     * module a user has already created via this CRUD, so neither list
+     * shadows the other.
+     */
+    private function allModules()
+    {
+        return collect(array_keys(config('menu_modules')))
+            ->merge(Permission::select('module')->distinct()->pluck('module'))
+            ->unique()
+            ->sort()
+            ->values();
+    }
 
     public function index(Request $request)
     {
-        $query = Permission::query();
+        // Self-heal: guarantee every registered sidebar module has permission
+        // rows before listing, so it appears here without a manual reseed.
+        Permission::syncModules();
+
+        $modules = $this->allModules();
+
+        // A module filter drops into the detailed, editable record list for
+        // just that module. With no filter, show the module-grouped summary.
         if ($request->filled('module')) {
-            $query->where('module', $request->module);
+            $permissions = Permission::where('module', $request->module)
+                ->orderBy('access_level')
+                ->paginate(30)
+                ->withQueryString();
+
+            return view('admin.permissions.index', [
+                'mode'        => 'detail',
+                'permissions' => $permissions,
+                'modules'     => $modules,
+            ]);
         }
-        $permissions = $query->orderBy('module')->orderBy('access_level')->paginate(30)->withQueryString();
-        $modules     = Permission::select('module')->distinct()->orderBy('module')->pluck('module');
-        return view('admin.permissions.index', compact('permissions', 'modules'));
+
+        $byModule = Permission::orderBy('access_level')->get()->groupBy('module');
+
+        $summary = $modules->map(fn ($module) => [
+            'module'   => $module,
+            'label'    => config("menu_modules.$module.label", ucfirst($module)),
+            'levelMap' => ($byModule->get($module) ?? collect())->keyBy('access_level'),
+        ]);
+
+        return view('admin.permissions.index', [
+            'mode'    => 'summary',
+            'summary' => $summary,
+            'modules' => $modules,
+        ]);
     }
 
     public function create()
     {
-        $modules = Permission::select('module')->distinct()->orderBy('module')->pluck('module');
+        $modules = $this->allModules();
         $levels  = self::LEVELS;
         return view('admin.permissions.create', compact('modules', 'levels'));
     }

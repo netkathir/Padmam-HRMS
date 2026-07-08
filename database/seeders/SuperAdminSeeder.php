@@ -6,6 +6,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Permission;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -32,47 +33,10 @@ class SuperAdminSeeder extends Seeder
             $this->command->info("  super_admin role exists (id={$roleId}).");
         }
 
-        // ── 2. Define all permissions (12 modules × 4 access levels = 48) ──
-        //
-        // Access-level hierarchy (highest grants all lower within same module):
-        //   delete(4) > full(3) > create(2) > read(1)
-        //
-        $modules = [
-            'dashboard'        => 'Dashboard',
-            'employees'        => 'Employees',
-            'attendance'       => 'Attendance',
-            'leaves'           => 'Leaves',
-            'payroll'          => 'Payroll',
-            'reports'          => 'Reports',
-            'users'            => 'Users',
-            'roles'            => 'Roles',
-            'permissions'      => 'Permissions',
-            'role_permissions' => 'Role Permissions',
-            'settings'         => 'Settings',
-            'masters'          => 'Masters (all sub-modules)',
-        ];
-
-        $levelDescriptions = [
-            'read'   => 'View and list records',
-            'create' => 'Add new records (implies read)',
-            'full'   => 'Full access incl. edit & approve (implies create)',
-            'delete' => 'Delete records (implies full access)',
-        ];
-
-        $rows = [];
-        foreach ($modules as $module => $label) {
-            foreach ($levelDescriptions as $level => $desc) {
-                $rows[] = [
-                    'module'       => $module,
-                    'access_level' => $level,
-                    'name'         => "$module.$level",
-                    'description'  => "$label — $desc",
-                ];
-            }
-        }
-
-        // Insert all permissions, skip duplicates (idempotent)
-        DB::table('permissions')->insertOrIgnore($rows);
+        // ── 2. Define all permissions (one row per module in config/menu_modules.php
+        //         × access level). Access-level hierarchy (highest grants all lower
+        //         within the same module): delete(4) > full(3) > create(2) > read(1)
+        Permission::syncModules();
 
         $totalPermissions = DB::table('permissions')->count();
         $this->command->info("  Permissions in table: {$totalPermissions}");

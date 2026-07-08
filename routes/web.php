@@ -160,6 +160,10 @@ Route::middleware('auth')->group(function () {
 
         // Permissions
         Route::resource('admin/permissions', PermissionController::class, ['as' => 'admin'])->except('show');
+        Route::get('admin/permissions/module/{module}/edit', [PermissionController::class, 'editModule'])
+            ->name('admin.permissions.module.edit');
+        Route::put('admin/permissions/module/{module}', [PermissionController::class, 'updateModule'])
+            ->name('admin.permissions.module.update');
 
         // Role Permissions
         Route::get('/admin/role-permissions',                    [RolePermissionController::class, 'index'])->name('admin.role-permissions.index');

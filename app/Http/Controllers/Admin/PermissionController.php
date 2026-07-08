@@ -35,36 +35,63 @@ class PermissionController extends Controller
         // rows before listing, so it appears here without a manual reseed.
         Permission::syncModules();
 
-        $modules = $this->allModules();
-
-        // A module filter drops into the detailed, editable record list for
-        // just that module. With no filter, show the module-grouped summary.
-        if ($request->filled('module')) {
-            $permissions = Permission::where('module', $request->module)
-                ->orderBy('access_level')
-                ->paginate(30)
-                ->withQueryString();
-
-            return view('admin.permissions.index', [
-                'mode'        => 'detail',
-                'permissions' => $permissions,
-                'modules'     => $modules,
-            ]);
-        }
-
+        $modules  = $this->allModules();
         $byModule = Permission::orderBy('access_level')->get()->groupBy('module');
 
         $summary = $modules->map(fn ($module) => [
             'module'   => $module,
-            'label'    => config("menu_modules.$module.label", ucfirst($module)),
+            'label'    => config("menu_modules.$module.label", ucfirst(str_replace('_', ' ', $module))),
             'levelMap' => ($byModule->get($module) ?? collect())->keyBy('access_level'),
         ]);
 
-        return view('admin.permissions.index', [
-            'mode'    => 'summary',
-            'summary' => $summary,
-            'modules' => $modules,
+        return view('admin.permissions.index', compact('summary', 'modules'));
+    }
+
+    /**
+     * Single consolidated screen for managing every access-level description
+     * of one module at once (Read / Create / Full / Delete), replacing the
+     * old per-record list. Module and access-level identity are fixed here —
+     * only descriptions are editable — since they're derived from
+     * config/menu_modules.php and kept in sync by Permission::syncModules().
+     */
+    public function editModule(string $module)
+    {
+        $permissionsByLevel = Permission::where('module', $module)->get()->keyBy('access_level');
+
+        abort_if($permissionsByLevel->isEmpty(), 404);
+
+        $label = config("menu_modules.$module.label", ucfirst(str_replace('_', ' ', $module)));
+
+        return view('admin.permissions.edit-module', [
+            'module' => $module,
+            'label' => $label,
+            'levels' => self::LEVELS,
+            'permissionsByLevel' => $permissionsByLevel,
         ]);
+    }
+
+    public function updateModule(Request $request, string $module)
+    {
+        $permissionsByLevel = Permission::where('module', $module)->get()->keyBy('access_level');
+
+        abort_if($permissionsByLevel->isEmpty(), 404);
+
+        $data = $request->validate([
+            'descriptions' => ['array'],
+            'descriptions.*' => ['nullable', 'string', 'max:255'],
+        ]);
+        $descriptions = $data['descriptions'] ?? [];
+
+        foreach (self::LEVELS as $level) {
+            if (isset($permissionsByLevel[$level]) && array_key_exists($level, $descriptions)) {
+                $permissionsByLevel[$level]->update(['description' => $descriptions[$level]]);
+            }
+        }
+
+        $label = config("menu_modules.$module.label", ucfirst(str_replace('_', ' ', $module)));
+
+        return redirect()->route('admin.permissions.index')
+            ->with('success', "Permissions updated for \"{$label}\".");
     }
 
     public function create()

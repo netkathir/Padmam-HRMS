@@ -38,9 +38,73 @@ return [
         'icon' => 'bi-sliders',
         'section' => 'System Admin',
     ],
-    'masters' => [
-        'label' => 'Masters',
-        'icon' => 'bi-collection',
+    // Masters has no permission of its own — each sub-module underneath it
+    // (mirroring resources/views/partials/_sidebar.blade.php) is a distinct,
+    // independently assignable module so access can be granted per sub-screen
+    // instead of via one all-or-nothing "masters" switch.
+    'masters_branches' => [
+        'label' => 'Branches',
+        'icon' => 'bi-building',
+        'section' => 'Masters',
+    ],
+    'masters_departments' => [
+        'label' => 'Departments',
+        'icon' => 'bi-diagram-3',
+        'section' => 'Masters',
+    ],
+    'masters_designations' => [
+        'label' => 'Designations',
+        'icon' => 'bi-person-badge',
+        'section' => 'Masters',
+    ],
+    'masters_employee_types' => [
+        'label' => 'Employee Types',
+        'icon' => 'bi-person-gear',
+        'section' => 'Masters',
+    ],
+    'masters_shifts' => [
+        'label' => 'Shifts',
+        'icon' => 'bi-clock',
+        'section' => 'Masters',
+    ],
+    'masters_holidays' => [
+        'label' => 'Holidays',
+        'icon' => 'bi-calendar-heart',
+        'section' => 'Masters',
+    ],
+    'masters_leave_types' => [
+        'label' => 'Leave Types',
+        'icon' => 'bi-calendar-minus',
+        'section' => 'Masters',
+    ],
+    'masters_salary_slabs' => [
+        'label' => 'Salary Slabs',
+        'icon' => 'bi-layers',
+        'section' => 'Masters',
+    ],
+    'masters_earnings' => [
+        'label' => 'Earnings',
+        'icon' => 'bi-graph-up-arrow',
+        'section' => 'Masters',
+    ],
+    'masters_deductions' => [
+        'label' => 'Deductions',
+        'icon' => 'bi-graph-down-arrow',
+        'section' => 'Masters',
+    ],
+    'masters_ot_rates' => [
+        'label' => 'OT Rates',
+        'icon' => 'bi-hourglass-split',
+        'section' => 'Masters',
+    ],
+    'masters_pf_esi' => [
+        'label' => 'PF & ESI',
+        'icon' => 'bi-shield-plus',
+        'section' => 'Masters',
+    ],
+    'masters_contractors' => [
+        'label' => 'Contractors',
+        'icon' => 'bi-person-workspace',
         'section' => 'Masters',
     ],
     'employees' => [

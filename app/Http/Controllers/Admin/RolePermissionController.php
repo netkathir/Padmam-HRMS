@@ -36,14 +36,14 @@ class RolePermissionController extends Controller
         $grouped = $permissions->groupBy('module');
         $grouped = collect($menuModules)
             ->keys()
-            ->filter(fn ($module) => $grouped->has($module))
-            ->mapWithKeys(fn ($module) => [$module => $grouped[$module]]);
+            ->filter(fn($module) => $grouped->has($module))
+            ->mapWithKeys(fn($module) => [$module => $grouped[$module]]);
 
         $assigned = $role->permissions
             ->groupBy('module')
             ->map(function ($permissions) {
                 $hierarchy = ['delete' => 4, 'full' => 3, 'create' => 2, 'read' => 1];
-                return $permissions->sortByDesc(fn ($permission) => $hierarchy[$permission->access_level] ?? 0)
+                return $permissions->sortByDesc(fn($permission) => $hierarchy[$permission->access_level] ?? 0)
                     ->first()
                     ->id;
             })
@@ -58,7 +58,7 @@ class RolePermissionController extends Controller
 
         $permissionIds = collect($permissionSelections)
             ->filter()
-            ->map(fn ($value) => is_numeric($value) ? (int) $value : null)
+            ->map(fn($value) => is_numeric($value) ? (int) $value : null)
             ->filter()
             ->values()
             ->all();

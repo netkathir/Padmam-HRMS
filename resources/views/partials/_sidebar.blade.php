@@ -361,7 +361,8 @@
      *  Module keys come from config/menu_modules.php (the same registry
      *  that drives the Permissions and Role Permissions admin pages) so
      *  this list can never drift out of sync with what's assignable.
-     *  Masters uses a single permission covering all its sub-modules.
+     *  Each Masters sub-screen (masters_branches, masters_departments, ...)
+     *  is its own module, so access can be granted per sub-screen.
      * ─────────────────────────────────────────────────────────── */
     $can = collect(config('menu_modules'))
         ->keys()
@@ -369,15 +370,20 @@
         ->mapWithKeys(fn ($module) => [$module => $user->can("$module.read")])
         ->all();
 
+    $mastersModuleKeys = collect(config('menu_modules'))
+        ->keys()
+        ->filter(fn ($module) => str_starts_with($module, 'masters_'))
+        ->all();
+
     /* ── Section visibility ──────────────────────────────────────── */
     $showSysAdmin =
         $can['users'] || $can['roles'] || $can['permissions'] || $can['role_permissions'] || $can['settings'];
-    $showMasters = $can['masters'];
+    $showMasters = collect($mastersModuleKeys)->contains(fn ($module) => $can[$module]);
     $showPeople = $can['employees'];
     $showTimeLeave = $can['attendance'] || $can['leaves'];
     $showPayroll = $can['payroll'];
     $showInsights         = $can['reports'];
-    $showContractMgmt     = $can['attendance'] || $can['payroll'] || $can['masters'];
+    $showContractMgmt     = $can['attendance'] || $can['payroll'] || ($can['masters_contractors'] ?? false);
 
     /* ── Collapse state ──────────────────────────────────────────── */
     $sysAdminOpen = $showSysAdmin && ($isUsers || $isRoles || $isPerms || $isRolePerms || $isSettings);
@@ -486,68 +492,100 @@
                 <div class="collapse {{ $mastersOpen ? 'show' : '' }}" id="mastersMenu">
                     <div class="sb-sub-nav">
                         {{-- Organisation --}}
+                        @if ($can['masters_branches'] || $can['masters_departments'] || $can['masters_designations'] || $can['masters_employee_types'])
                         <div class="sb-sub-group-label">Organisation</div>
+                        @endif
+                        @if ($can['masters_branches'])
                         <a href="{{ route('masters.branches.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.branches.*') ? 'active' : '' }}">
                             <i class="bi bi-building"></i><span>Branches</span>
                         </a>
+                        @endif
+                        @if ($can['masters_departments'])
                         <a href="{{ route('masters.departments.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.departments.*') ? 'active' : '' }}">
                             <i class="bi bi-diagram-3"></i><span>Departments</span>
                         </a>
+                        @endif
+                        @if ($can['masters_designations'])
                         <a href="{{ route('masters.designations.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.designations.*') ? 'active' : '' }}">
                             <i class="bi bi-person-badge"></i><span>Designations</span>
                         </a>
+                        @endif
+                        @if ($can['masters_employee_types'])
                         <a href="{{ route('masters.employee-types.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.employee-types.*') ? 'active' : '' }}">
                             <i class="bi bi-person-gear"></i><span>Employee Types</span>
                         </a>
+                        @endif
 
                         {{-- HR Policy --}}
+                        @if ($can['masters_shifts'] || $can['masters_holidays'] || $can['masters_leave_types'])
                         <div class="sb-sub-group-label">HR Policy</div>
+                        @endif
+                        @if ($can['masters_shifts'])
                         <a href="{{ route('masters.shifts.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.shifts.*') ? 'active' : '' }}">
                             <i class="bi bi-clock"></i><span>Shifts</span>
                         </a>
+                        @endif
+                        @if ($can['masters_holidays'])
                         <a href="{{ route('masters.holidays.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.holidays.*') ? 'active' : '' }}">
                             <i class="bi bi-calendar-heart"></i><span>Holidays</span>
                         </a>
+                        @endif
+                        @if ($can['masters_leave_types'])
                         <a href="{{ route('masters.leave-types.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.leave-types.*') ? 'active' : '' }}">
                             <i class="bi bi-calendar-minus"></i><span>Leave Types</span>
                         </a>
+                        @endif
 
                         {{-- Payroll --}}
+                        @if ($can['masters_salary_slabs'] || $can['masters_earnings'] || $can['masters_deductions'] || $can['masters_ot_rates'] || $can['masters_pf_esi'])
                         <div class="sb-sub-group-label">Payroll</div>
+                        @endif
+                        @if ($can['masters_salary_slabs'])
                         <a href="{{ route('masters.salary-slabs.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.salary-slabs.*') ? 'active' : '' }}">
                             <i class="bi bi-layers"></i><span>Salary Slabs</span>
                         </a>
+                        @endif
+                        @if ($can['masters_earnings'])
                         <a href="{{ route('masters.earnings.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.earnings.*') ? 'active' : '' }}">
                             <i class="bi bi-graph-up-arrow"></i><span>Earnings</span>
                         </a>
+                        @endif
+                        @if ($can['masters_deductions'])
                         <a href="{{ route('masters.deductions.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.deductions.*') ? 'active' : '' }}">
                             <i class="bi bi-graph-down-arrow"></i><span>Deductions</span>
                         </a>
+                        @endif
+                        @if ($can['masters_ot_rates'])
                         <a href="{{ route('masters.ot-rates.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.ot-rates.*') ? 'active' : '' }}">
                             <i class="bi bi-hourglass-split"></i><span>OT Rates</span>
                         </a>
+                        @endif
+                        @if ($can['masters_pf_esi'])
                         <a href="{{ route('masters.pf-esi.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.pf-esi.*') ? 'active' : '' }}">
                             <i class="bi bi-shield-plus"></i><span>PF & ESI</span>
                         </a>
+                        @endif
 
                         {{-- Operations --}}
+                        @if ($can['masters_contractors'])
                         <div class="sb-sub-group-label">Operations</div>
                         <a href="{{ route('masters.contractors.index') }}"
                             class="sb-link sb-sub-link {{ request()->routeIs('masters.contractors.*') ? 'active' : '' }}">
                             <i class="bi bi-person-workspace"></i><span>Contractors</span>
                         </a>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -582,7 +620,7 @@
         {{-- ── Contract Mgmt ───────────────────────────────────── --}}
         @if ($showContractMgmt)
             <div class="sb-section-label"><i class="bi bi-person-workspace"></i> Contract Mgmt</div>
-            @if ($can['masters'])
+            @if ($can['masters_contractors'])
                 <a href="{{ route('contract-labour.index') }}"
                    class="sb-link {{ $isContractLabour ? 'active' : '' }}">
                     <i class="bi bi-person-check"></i>

@@ -1,7 +1,8 @@
 {{--
     File: resources/views/admin/permissions/index.blade.php
-    Purpose: Permissions listing — module-grouped summary, with a per-module
-             detail drill-down for the underlying editable records
+    Purpose: Permissions listing — one row per module, showing which access
+             levels are defined; "Manage" opens the consolidated edit screen
+             for that module (all levels edited together, no per-record list)
     Author: System
     Date: 2026-07-08
 --}}
@@ -75,33 +76,21 @@
 
 @section('content')
 <div class="card">
-    <div class="card-header py-3">
-        <form class="row g-2 align-items-end">
-            <div class="col-auto">
-                <label class="form-label mb-1" style="font-size:12px;font-weight:600;">Filter by Module</label>
-                <select name="module" class="form-select form-select-sm" onchange="this.form.submit()"
-                        style="min-width:160px;">
-                    <option value="">All Modules</option>
-                    @foreach($modules as $mod)
-                    <option value="{{ $mod }}" {{ request('module') === $mod ? 'selected' : '' }}>
-                        {{ ucfirst($mod) }}
-                    </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-auto">
-                <span class="text-muted" style="font-size:13px;">
-                    @if($mode === 'detail')
-                        {{ $permissions->total() }} permissions in "{{ ucfirst(request('module')) }}"
-                    @else
-                        {{ $summary->count() }} modules
-                    @endif
-                </span>
-            </div>
-        </form>
+    <div class="card-header py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <label class="form-label mb-0" style="font-size:12px;font-weight:600;">Jump to module:</label>
+            <select id="jumpToModule" class="form-select form-select-sm" style="min-width:180px;">
+                <option value="">Select a module…</option>
+                @foreach($modules as $mod)
+                <option value="{{ route('admin.permissions.module.edit', $mod) }}">
+                    {{ config("menu_modules.$mod.label", ucfirst(str_replace('_', ' ', $mod))) }}
+                </option>
+                @endforeach
+            </select>
+        </div>
+        <span class="text-muted" style="font-size:13px;">{{ $summary->count() }} modules</span>
     </div>
 
-    @if($mode === 'summary')
     <div class="card-body p-0">
         @forelse($summary as $row)
         <div class="perm-summary-row">
@@ -117,7 +106,7 @@
                 @endforeach
             </div>
             <div class="perm-summary-manage">
-                <a href="{{ route('admin.permissions.index', ['module' => $row['module']]) }}"
+                <a href="{{ route('admin.permissions.module.edit', $row['module']) }}"
                    class="btn btn-sm btn-outline-primary">
                     Manage <i class="bi bi-arrow-right"></i>
                 </a>
@@ -130,83 +119,15 @@
         </div>
         @endforelse
     </div>
-    @else
-    <div class="card-body p-0">
-        <div class="px-3 pt-3">
-            <a href="{{ route('admin.permissions.index') }}" class="d-inline-flex align-items-center gap-1 text-decoration-none" style="font-size:13px;">
-                <i class="bi bi-arrow-left"></i> All Modules
-            </a>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Module</th>
-                        <th>Access Level</th>
-                        <th>Name</th>
-                        <th>Description</th>
-                        <th class="text-end pe-3">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($permissions as $perm)
-                    <tr>
-                        <td class="text-muted ps-3">{{ $perm->id }}</td>
-                        <td><span class="badge bg-primary-subtle text-primary">{{ $perm->module }}</span></td>
-                        <td>
-                            @php
-                                $lvlColors = ['read'=>'#1d4ed8','create'=>'#065f46','full'=>'#6d28d9','delete'=>'#991b1b'];
-                                $lvlBgs    = ['read'=>'#dbeafe','create'=>'#d1fae5','full'=>'#ede9fe','delete'=>'#fee2e2'];
-                                $lv = $perm->access_level;
-                            @endphp
-                            <span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;
-                                         font-weight:700;background:{{ $lvlBgs[$lv] ?? '#f3f4f6' }};
-                                         color:{{ $lvlColors[$lv] ?? '#374151' }};">
-                                {{ strtoupper($lv) }}
-                            </span>
-                        </td>
-                        <td class="fw-medium">{{ $perm->name }}</td>
-                        <td class="text-muted"><small>{{ $perm->description ?? '—' }}</small></td>
-                        <td class="text-end pe-3">
-                            <div class="d-flex gap-1 justify-content-end">
-                                <a href="{{ route('admin.permissions.edit', $perm) }}"
-                                   class="btn btn-sm btn-warning" title="Edit">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                                <form action="{{ route('admin.permissions.destroy', $perm) }}" method="POST"
-                                      onsubmit="return confirm('Delete permission \'{{ $perm->name }}\'?')">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-danger" title="Delete">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    @empty
-                    <tr>
-                        <td colspan="6" class="text-center text-muted py-5">
-                            <i class="bi bi-key d-block mb-2" style="font-size:32px;opacity:.3;"></i>
-                            No permissions found for this module. <a href="{{ route('admin.permissions.create') }}">Add one</a>.
-                        </td>
-                    </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-    @if($permissions->total() > 0)
-    <div class="card-footer bg-white border-top px-3 py-2">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <p class="mb-0 text-muted" style="font-size:13px;">
-                Showing <strong>{{ $permissions->firstItem() }}</strong>–<strong>{{ $permissions->lastItem() }}</strong>
-                of <strong>{{ $permissions->total() }}</strong> permissions
-            </p>
-            <div>{{ $permissions->links() }}</div>
-        </div>
-    </div>
-    @endif
-    @endif
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.getElementById('jumpToModule').addEventListener('change', function () {
+    if (this.value) {
+        window.location.href = this.value;
+    }
+});
+</script>
+@endpush

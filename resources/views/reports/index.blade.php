@@ -65,6 +65,26 @@
             animation-delay: .26s;
         }
 
+        .report-card:nth-child(5) {
+            animation-delay: .33s;
+        }
+
+        .report-card:nth-child(6) {
+            animation-delay: .40s;
+        }
+
+        .report-card:nth-child(7) {
+            animation-delay: .47s;
+        }
+
+        .report-card:nth-child(8) {
+            animation-delay: .54s;
+        }
+
+        .report-card:nth-child(9) {
+            animation-delay: .61s;
+        }
+
         /* Glassmorphism inner shine */
         .report-card::before {
             content: '';
@@ -142,6 +162,42 @@
             box-shadow: 0 16px 40px rgba(13, 148, 136, .5);
         }
 
+        .report-indigo {
+            background: linear-gradient(135deg, #312e81 0%, #4f46e5 45%, #818cf8 100%);
+            box-shadow: 0 8px 28px rgba(79, 70, 229, .35);
+        }
+
+        .report-indigo:hover {
+            box-shadow: 0 16px 40px rgba(79, 70, 229, .5);
+        }
+
+        .report-red {
+            background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 45%, #f87171 100%);
+            box-shadow: 0 8px 28px rgba(220, 38, 38, .35);
+        }
+
+        .report-red:hover {
+            box-shadow: 0 16px 40px rgba(220, 38, 38, .5);
+        }
+
+        .report-cyan {
+            background: linear-gradient(135deg, #164e63 0%, #0891b2 45%, #22d3ee 100%);
+            box-shadow: 0 8px 28px rgba(8, 145, 178, .35);
+        }
+
+        .report-cyan:hover {
+            box-shadow: 0 16px 40px rgba(8, 145, 178, .5);
+        }
+
+        .report-slate {
+            background: linear-gradient(135deg, #1e293b 0%, #475569 45%, #94a3b8 100%);
+            box-shadow: 0 8px 28px rgba(71, 85, 105, .35);
+        }
+
+        .report-slate:hover {
+            box-shadow: 0 16px 40px rgba(71, 85, 105, .5);
+        }
+
         /* Icon */
         .report-icon {
             width: 56px;
@@ -168,6 +224,26 @@
 
         .report-card:nth-child(4) .report-icon {
             animation-delay: -2.4s;
+        }
+
+        .report-card:nth-child(5) .report-icon {
+            animation-delay: -3.2s;
+        }
+
+        .report-card:nth-child(6) .report-icon {
+            animation-delay: -.4s;
+        }
+
+        .report-card:nth-child(7) .report-icon {
+            animation-delay: -1.2s;
+        }
+
+        .report-card:nth-child(8) .report-icon {
+            animation-delay: -2s;
+        }
+
+        .report-card:nth-child(9) .report-icon {
+            animation-delay: -2.8s;
         }
 
         @keyframes iconFloat {
@@ -266,6 +342,38 @@
             <div class="report-icon"><i class="bi bi-person-workspace"></i></div>
             <div class="report-title">Contractor Report</div>
             <p class="report-desc">Contract worker payment summary</p>
+        </a>
+
+        {{-- Contract Labour Report — Indigo --}}
+        <a href="{{ route('reports.contract-labour') }}" class="report-card report-indigo">
+            <i class="bi bi-arrow-up-right report-arrow"></i>
+            <div class="report-icon"><i class="bi bi-person-check"></i></div>
+            <div class="report-title">Contract Labour Report</div>
+            <p class="report-desc">Summary of contract labour details, attendance, wages, and payments</p>
+        </a>
+
+        {{-- PF / ESI Report — Red --}}
+        <a href="{{ route('reports.pf-esi') }}" class="report-card report-red">
+            <i class="bi bi-arrow-up-right report-arrow"></i>
+            <div class="report-icon"><i class="bi bi-shield-plus"></i></div>
+            <div class="report-title">PF / ESI Report</div>
+            <p class="report-desc">PF &amp; ESI contribution details, deductions, and employer contributions</p>
+        </a>
+
+        {{-- OT Report — Cyan --}}
+        <a href="{{ route('reports.overtime') }}" class="report-card report-cyan">
+            <i class="bi bi-arrow-up-right report-arrow"></i>
+            <div class="report-icon"><i class="bi bi-hourglass-split"></i></div>
+            <div class="report-title">OT Report</div>
+            <p class="report-desc">Employee overtime summary with OT hours, OT wages, and date-wise details</p>
+        </a>
+
+        {{-- LOP Report — Slate --}}
+        <a href="{{ route('reports.lop') }}" class="report-card report-slate">
+            <i class="bi bi-arrow-up-right report-arrow"></i>
+            <div class="report-icon"><i class="bi bi-graph-down-arrow"></i></div>
+            <div class="report-title">LOP Report</div>
+            <p class="report-desc">Loss of Pay report showing LOP days, deduction amount, and employee-wise summary</p>
         </a>
     </div>
 @endsection

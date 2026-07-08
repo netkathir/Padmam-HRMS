@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\ContractWorkerPayroll;
 use App\Models\Contractor;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
@@ -184,6 +185,137 @@ class ReportController extends Controller
         return view('reports.contractor', compact('contractors', 'payrollSummary', 'month', 'year'));
     }
 
+    public function contractLabour(Request $request)
+    {
+        $month = (int) $request->input('month', now()->month);
+        $year  = (int) $request->input('year', now()->year);
+
+        $query = ContractWorkerPayroll::with(['worker', 'contractor'])
+            ->where('month', $month)->where('year', $year)
+            ->when($request->filled('contractor_id'), fn($q) => $q->where('contractor_id', $request->contractor_id))
+            ->when($request->filled('payment_status'), fn($q) => $q->where('payment_status', $request->payment_status))
+            ->orderBy('contractor_id');
+
+        if ($request->filled('export')) {
+            return $this->exportCsv($query->get(), 'contract-labour');
+        }
+
+        $records = $query->paginate(30)->withQueryString();
+
+        $summaryQuery = ContractWorkerPayroll::where('month', $month)->where('year', $year)
+            ->when($request->filled('contractor_id'), fn($q) => $q->where('contractor_id', $request->contractor_id))
+            ->when($request->filled('payment_status'), fn($q) => $q->where('payment_status', $request->payment_status));
+
+        $totals = $summaryQuery
+            ->selectRaw('COUNT(DISTINCT contract_worker_id) as worker_count, SUM(total_wages) as total_wages, SUM(ot_amount) as total_ot, SUM(net_wages) as total_net')
+            ->first();
+
+        $paidCount = (clone $summaryQuery)->where('payment_status', 'paid')->count();
+
+        $contractors = Contractor::orderBy('name')->get();
+
+        return view('reports.contract-labour', compact('records', 'totals', 'paidCount', 'contractors', 'month', 'year'));
+    }
+
+    public function pfEsi(Request $request)
+    {
+        $month = (int) $request->input('month', now()->month);
+        $year  = (int) $request->input('year', now()->year);
+
+        $query = PayrollRecord::with(['employee.department'])
+            ->where('month', $month)->where('year', $year)
+            ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
+            ->orderBy('employee_id');
+
+        if ($request->filled('export')) {
+            return $this->exportCsv($query->get(), 'pf-esi');
+        }
+
+        $records = $query->paginate(30)->withQueryString();
+
+        $summaryQuery = PayrollRecord::where('month', $month)->where('year', $year)
+            ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)));
+
+        $totals = $summaryQuery
+            ->selectRaw('COUNT(*) as count, SUM(pf_employee) as pf_employee, SUM(pf_employer) as pf_employer, SUM(esi_employee) as esi_employee, SUM(esi_employer) as esi_employer')
+            ->first();
+
+        $departments = Department::orderBy('name')->get();
+
+        return view('reports.pf-esi', compact('records', 'totals', 'departments', 'month', 'year'));
+    }
+
+    public function overtime(Request $request)
+    {
+        $month = (int) $request->input('month', now()->month);
+        $year  = (int) $request->input('year', now()->year);
+
+        $periodStart = \Carbon\Carbon::create($year, $month, 1)->startOfMonth();
+        $periodEnd   = \Carbon\Carbon::create($year, $month, 1)->endOfMonth();
+
+        // Employee-wise OT summary for the month — hours/wages as actually paid on record.
+        $summaryQuery = PayrollRecord::with(['employee.department'])
+            ->where('month', $month)->where('year', $year)
+            ->where('ot_hours', '>', 0)
+            ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
+            ->orderByDesc('ot_hours');
+
+        if ($request->filled('export')) {
+            return $this->exportCsv($summaryQuery->get(), 'overtime');
+        }
+
+        $summary = $summaryQuery->paginate(15, ['*'], 'summary_page')->withQueryString();
+
+        $totalsQuery = PayrollRecord::where('month', $month)->where('year', $year)->where('ot_hours', '>', 0)
+            ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)));
+
+        $totals = $totalsQuery
+            ->selectRaw('COUNT(*) as employee_count, SUM(ot_hours) as total_hours, SUM(ot_amount) as total_amount')
+            ->first();
+
+        // Date-wise OT punches for the same month, from daily attendance records.
+        $dailyOt = Attendance::with(['employee.department'])
+            ->whereBetween('date', [$periodStart, $periodEnd])
+            ->where('ot_minutes', '>', 0)
+            ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
+            ->orderBy('date')
+            ->paginate(15, ['*'], 'daily_page')
+            ->withQueryString();
+
+        $departments = Department::orderBy('name')->get();
+
+        return view('reports.overtime', compact('summary', 'totals', 'dailyOt', 'departments', 'month', 'year'));
+    }
+
+    public function lop(Request $request)
+    {
+        $month = (int) $request->input('month', now()->month);
+        $year  = (int) $request->input('year', now()->year);
+
+        $query = PayrollRecord::with(['employee.department'])
+            ->where('month', $month)->where('year', $year)
+            ->where('lop_days', '>', 0)
+            ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
+            ->orderByDesc('lop_days');
+
+        if ($request->filled('export')) {
+            return $this->exportCsv($query->get(), 'lop');
+        }
+
+        $records = $query->paginate(30)->withQueryString();
+
+        $summaryQuery = PayrollRecord::where('month', $month)->where('year', $year)->where('lop_days', '>', 0)
+            ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)));
+
+        $totals = $summaryQuery
+            ->selectRaw('COUNT(*) as employee_count, SUM(lop_days) as total_days, SUM(lop_deduction) as total_deduction')
+            ->first();
+
+        $departments = Department::orderBy('name')->get();
+
+        return view('reports.lop', compact('records', 'totals', 'departments', 'month', 'year'));
+    }
+
     private function exportCsv($records, string $type): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         $filename = $type . '-report-' . now()->format('Y-m-d') . '.csv';
@@ -203,11 +335,15 @@ class ReportController extends Controller
     private function getCsvHeaders(string $type): array
     {
         return match ($type) {
-            'attendance' => ['Date', 'Employee', 'Department', 'First In', 'Last Out', 'Work Hours', 'Status'],
-            'employees'  => ['Code', 'Name', 'Department', 'Designation', 'Branch', 'Type', 'Joining Date', 'Status'],
-            'leave'      => ['Employee', 'Department', 'Leave Type', 'From', 'To', 'Days', 'Status'],
-            'payroll'    => ['Employee', 'Department', 'Basic', 'Gross', 'Deductions', 'Net Salary', 'Status'],
-            default      => [],
+            'attendance'      => ['Date', 'Employee', 'Department', 'First In', 'Last Out', 'Work Hours', 'Status'],
+            'employees'       => ['Code', 'Name', 'Department', 'Designation', 'Branch', 'Type', 'Joining Date', 'Status'],
+            'leave'           => ['Employee', 'Department', 'Leave Type', 'From', 'To', 'Days', 'Status'],
+            'payroll'         => ['Employee', 'Department', 'Basic', 'Gross', 'Deductions', 'Net Salary', 'Status'],
+            'contract-labour' => ['Worker', 'Contractor', 'Present Days', 'Absent Days', 'OT Hours', 'Gross Wages', 'Deductions', 'Net Wages', 'Payment Status'],
+            'pf-esi'          => ['Employee', 'Department', 'PF Employee', 'PF Employer', 'ESI Employee', 'ESI Employer'],
+            'overtime'        => ['Employee', 'Department', 'OT Hours', 'OT Wages', 'Month', 'Year'],
+            'lop'             => ['Employee', 'Department', 'LOP Days', 'LOP Deduction', 'Net Salary'],
+            default           => [],
         };
     }
 
@@ -250,6 +386,40 @@ class ReportController extends Controller
                 $record->total_deductions,
                 $record->net_salary,
                 $record->status,
+            ],
+            'contract-labour' => [
+                optional($record->worker)->name,
+                optional($record->contractor)->name,
+                $record->present_days,
+                $record->absent_days,
+                $record->ot_hours,
+                $record->gross_wages,
+                $record->deductions,
+                $record->net_wages,
+                $record->payment_status,
+            ],
+            'pf-esi' => [
+                optional($record->employee)->full_name,
+                optional(optional($record->employee)->department)->name,
+                $record->pf_employee,
+                $record->pf_employer,
+                $record->esi_employee,
+                $record->esi_employer,
+            ],
+            'overtime' => [
+                optional($record->employee)->full_name,
+                optional(optional($record->employee)->department)->name,
+                $record->ot_hours,
+                $record->ot_amount,
+                $record->month,
+                $record->year,
+            ],
+            'lop' => [
+                optional($record->employee)->full_name,
+                optional(optional($record->employee)->department)->name,
+                $record->lop_days,
+                $record->lop_deduction,
+                $record->net_salary,
             ],
             default      => [],
         };

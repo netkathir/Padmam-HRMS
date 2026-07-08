@@ -132,6 +132,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports/leave',                 [ReportController::class, 'leave'])->name('reports.leave');
         Route::get('/reports/payroll',               [ReportController::class, 'payroll'])->name('reports.payroll');
         Route::get('/reports/contractor',            [ReportController::class, 'contractor'])->name('reports.contractor');
+        Route::get('/reports/contract-labour',       [ReportController::class, 'contractLabour'])->name('reports.contract-labour');
+        Route::get('/reports/pf-esi',                [ReportController::class, 'pfEsi'])->name('reports.pf-esi');
+        Route::get('/reports/overtime',              [ReportController::class, 'overtime'])->name('reports.overtime');
+        Route::get('/reports/lop',                   [ReportController::class, 'lop'])->name('reports.lop');
     });
 
     // Masters — hub page is reachable if any sub-module is readable; each

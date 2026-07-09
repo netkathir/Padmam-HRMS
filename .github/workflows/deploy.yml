@@ -40,7 +40,7 @@ jobs:
           # Function to create remote directories if they don't exist
           def create_directory_if_not_exists(remote_path):
               dirs = remote_path.strip('/').split('/')
-              path = '/padhmam_hrms'  # Start from the base remote directory
+              path = '/'  # Start from the base remote directory
               for dir in dirs:
                   path = os.path.join(path, dir)
                   try:

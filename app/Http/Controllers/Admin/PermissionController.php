@@ -49,7 +49,7 @@ class PermissionController extends Controller
 
     /**
      * Single consolidated screen for managing every access-level description
-     * of one module at once (Read / Create / Full / Delete), replacing the
+     * of one module at once (Read / Create / Full), replacing the
      * old per-record list. Module and access-level identity are fixed here —
      * only descriptions are editable — since they're derived from
      * config/menu_modules.php and kept in sync by Permission::syncModules().
@@ -105,7 +105,7 @@ class PermissionController extends Controller
     {
         $data = $request->validate([
             'module'       => ['required', 'string', 'max:50', 'regex:/^[a-z][a-z_]*$/'],
-            'access_level' => ['required', 'string', 'in:read,create,full,delete'],
+            'access_level' => ['required', 'string', 'in:' . implode(',', Permission::ACCESS_LEVELS)],
             'description'  => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -130,7 +130,7 @@ class PermissionController extends Controller
     {
         $data = $request->validate([
             'module'       => ['required', 'string', 'max:50', 'regex:/^[a-z][a-z_]*$/'],
-            'access_level' => ['required', 'string', 'in:read,create,full,delete'],
+            'access_level' => ['required', 'string', 'in:' . implode(',', Permission::ACCESS_LEVELS)],
             'description'  => ['nullable', 'string', 'max:255'],
         ]);
 

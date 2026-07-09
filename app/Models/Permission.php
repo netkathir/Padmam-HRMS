@@ -16,13 +16,12 @@ class Permission extends Model
     protected $fillable = ['module', 'access_level', 'name', 'description'];
 
     /** Access-level hierarchy, lowest to highest. Kept here as the single source of truth. */
-    public const ACCESS_LEVELS = ['read', 'create', 'full', 'delete'];
+    public const ACCESS_LEVELS = ['read', 'create', 'full'];
 
     public const LEVEL_DESCRIPTIONS = [
         'read' => 'View and list records',
         'create' => 'Add new records (implies read)',
-        'full' => 'Full access incl. edit & approve (implies create)',
-        'delete' => 'Delete records (implies full access)',
+        'full' => 'Full access incl. edit, approve & delete (implies create)',
     ];
 
     public function roles()

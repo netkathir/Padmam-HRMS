@@ -1,7 +1,7 @@
 {{--
     File: resources/views/admin/role-permissions/assign.blade.php
     Purpose: Assign per-module access levels to a role — flat permission matrix
-             (No Access / Read Only / Create / Delete / Full Access per module, radio behaviour)
+             (No Access / Read Only / Create / Full Access per module, radio behaviour)
     Author: System
     Date: 2026-07-08
 --}}
@@ -40,7 +40,7 @@
 .perm-options {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 10px;
 }
 
@@ -95,7 +95,7 @@
 }
 
 @media (max-width: 991.98px) {
-    .perm-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .perm-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 767.98px) {
@@ -107,13 +107,12 @@
 @endpush
 
 @php
-    // Column order requested for the matrix: No Access, Read Only, Create, Delete,
+    // Column order requested for the matrix: No Access, Read Only, Create,
     // Full Access. Note this is a display-order choice only — the actual access
-    // hierarchy enforced by the Gate (read < create < full < delete) is unchanged.
+    // hierarchy enforced by the Gate (read < create < full) is unchanged.
     $visibleLevels = [
         'read'   => ['label' => 'Read Only',   'icon' => 'bi-eye'],
         'create' => ['label' => 'Create',      'icon' => 'bi-pencil-square'],
-        'delete' => ['label' => 'Delete',      'icon' => 'bi-trash'],
         'full'   => ['label' => 'Full Access', 'icon' => 'bi-gear'],
     ];
 
@@ -145,7 +144,7 @@
             </span>
         </div>
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectLevelForAll('delete')">
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectLevelForAll('full')">
                 <i class="bi bi-check-all"></i> Grant All
             </button>
             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectLevelForAll('')">
@@ -208,7 +207,7 @@
         <p class="mb-0 text-muted" style="font-size:12.5px;">
             <i class="bi bi-info-circle me-1 text-primary"></i>
             Higher levels include all lower ones:
-            <strong>Delete</strong> &rsaquo; Full Access &rsaquo; Create &rsaquo; <strong>Read Only</strong>
+            <strong>Full Access</strong> &rsaquo; Create &rsaquo; <strong>Read Only</strong>
         </p>
         <div class="d-flex gap-2">
             <a href="{{ route('admin.role-permissions.index') }}" class="btn btn-light btn-sm">Cancel</a>

@@ -1,7 +1,7 @@
 {{--
     File: resources/views/admin/permissions/edit-module.blade.php
     Purpose: Single Edit Permission screen for one module — an Access Level
-             dropdown (No Access / Read Only / Create / Delete / Full Access)
+             dropdown (No Access / Read Only / Create / Full Access)
              switches which level's description is shown; Update saves all of
              them in one request. No separate per-level records/pages.
     Author: System
@@ -40,7 +40,6 @@
                                 <option value="" disabled>No Access</option>
                                 <option value="read">Read Only</option>
                                 <option value="create">Create</option>
-                                <option value="delete">Delete</option>
                                 <option value="full">Full Access</option>
                             </select>
                         </div>

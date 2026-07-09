@@ -23,7 +23,7 @@ class AppServiceProvider extends ServiceProvider
         // Permission gate — runs before any @can / ->can() / ->authorize() check.
         //
         // Access-level hierarchy (highest to lowest):
-        //   delete(4) > full(3) > create(2) > read(1)
+        //   full(3) > create(2) > read(1)
         //
         // Having a higher level automatically grants all lower-level checks
         // within the same module. E.g. a role with 'attendance.full' passes
@@ -49,8 +49,8 @@ class AppServiceProvider extends ServiceProvider
                 return null;
             }
 
-            // Hierarchy: delete grants all, full grants read+create, create grants read
-            $hierarchy = ['read' => 1, 'create' => 2, 'full' => 3, 'delete' => 4];
+            // Hierarchy: full grants read+create, create grants read
+            $hierarchy = ['read' => 1, 'create' => 2, 'full' => 3];
             $required  = $hierarchy[$level] ?? 0;
 
             foreach ($hierarchy as $permLevel => $permValue) {

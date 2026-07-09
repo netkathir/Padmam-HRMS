@@ -42,7 +42,7 @@ class RolePermissionController extends Controller
         $assigned = $role->permissions
             ->groupBy('module')
             ->map(function ($permissions) {
-                $hierarchy = ['delete' => 4, 'full' => 3, 'create' => 2, 'read' => 1];
+                $hierarchy = ['full' => 3, 'create' => 2, 'read' => 1];
                 return $permissions->sortByDesc(fn($permission) => $hierarchy[$permission->access_level] ?? 0)
                     ->first()
                     ->id;

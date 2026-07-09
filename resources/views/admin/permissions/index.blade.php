@@ -37,7 +37,7 @@
 .perm-summary-pills {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
 }
 
@@ -100,7 +100,7 @@
                 @php $perm = $row['levelMap']->get($level); @endphp
                 <span class="perm-pill {{ $perm ? 'is-defined' : '' }}"
                       title="{{ $perm ? $perm->name : 'Not defined' }}">
-                    <i class="bi {{ ['read' => 'bi-eye', 'create' => 'bi-pencil-square', 'full' => 'bi-gear', 'delete' => 'bi-trash'][$level] }}"></i>
+                    <i class="bi {{ ['read' => 'bi-eye', 'create' => 'bi-pencil-square', 'full' => 'bi-gear'][$level] }}"></i>
                     {{ ucfirst($level) }}
                 </span>
                 @endforeach

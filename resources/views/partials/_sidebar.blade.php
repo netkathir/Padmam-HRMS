@@ -30,7 +30,9 @@
     #sidebar {
         width: var(--sb-width);
         min-width: var(--sb-width);
-        min-height: 100vh;
+        height: 100vh;
+        position: sticky;
+        top: 0;
         background: linear-gradient(180deg, var(--sb-bg-start) 0%, var(--sb-bg-end) 100%);
         display: flex;
         flex-direction: column;
@@ -413,7 +415,7 @@
     <div class="sb-divider"></div>
 
     {{-- ── Navigation ──────────────────────────────────────────── --}}
-    <div class="sb-nav">
+    <div class="sb-nav" id="sbNav">
 
         {{-- Dashboard — always visible ────────────────────────────── --}}
         <a href="{{ route('dashboard') }}" class="sb-link {{ $isDashboard ? 'active' : '' }}">
@@ -684,3 +686,16 @@
     </div>
 
 </nav>
+
+@push('scripts')
+<script>
+// Accordion behaviour: opening one collapsible sidebar section closes any other open one.
+document.querySelectorAll('#sbNav .collapse').forEach(el => {
+    el.addEventListener('show.bs.collapse', () => {
+        document.querySelectorAll('#sbNav .collapse.show').forEach(other => {
+            if (other !== el) bootstrap.Collapse.getOrCreateInstance(other).hide();
+        });
+    });
+});
+</script>
+@endpush

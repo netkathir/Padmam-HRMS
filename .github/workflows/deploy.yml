@@ -34,7 +34,7 @@ jobs:
           ftp.login(ftp_user, ftp_passwd)
 
           # Local and remote directories
-          local_dir = '/'  # Path to your code (use `./` for the whole repo)
+          local_dir = './'  # Path to your code (use `./` for the whole repo)
           remote_dir = '/padhmam_hrms/'  # Direct remote directory path (existing)
 
           # Function to create remote directories if they don't exist

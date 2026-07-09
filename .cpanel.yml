@@ -1,0 +1,6 @@
+---
+deployment:
+  tasks:
+     - export DEPLOYPATH=/home2/whyceffy/public_html/padmam-hrms/
+    - /bin/cp -R * $DEPLOYPATH
+    - cd $DEPLOYPATH && /usr/local/bin/php artisan optimize:clear

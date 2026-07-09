@@ -1,0 +1,85 @@
+name: Deploy to Web Server
+
+on:
+  push:
+    branches:
+      - main # Trigger deployment on pushes to the `main` branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Upload files to FTP server
+        run: |
+          python - <<EOF
+          import os
+          from ftplib import FTP, error_perm
+
+          # FTP details (use secrets)
+          ftp_host = "${{ secrets.FTP_SERVER }}"
+          ftp_user = "${{ secrets.FTP_USERNAME }}"
+          ftp_passwd = "${{ secrets.FTP_PASSWORD }}"
+
+          # Connect to FTP server
+          ftp = FTP(ftp_host)
+          ftp.login(ftp_user, ftp_passwd)
+
+          # Local and remote directories
+          local_dir = './'  # Path to your code (use `./` for the whole repo)
+          remote_dir = '/padhmam_hrms/'  # Direct remote directory path (existing)
+
+          # Function to create remote directories if they don't exist
+          def create_directory_if_not_exists(remote_path):
+              dirs = remote_path.strip('/').split('/')
+              path = '/'
+              for dir in dirs:
+                  path = os.path.join(path, dir)
+                  try:
+                      # Try changing to the directory
+                      ftp.cwd(path)
+                  except error_perm as e:
+                      # If directory does not exist, create it
+                      if '550' in str(e):
+                          print(f"Directory {path} does not exist. Creating it.")
+                          ftp.mkd(path)
+                          ftp.cwd(path)
+                      else:
+                          raise
+
+          # Function to upload files, preserving folder structure
+          def upload_file(local_file, remote_file):
+              # Create the necessary directories on the remote server if they don't exist
+              remote_folder = os.path.dirname(remote_file)
+              create_directory_if_not_exists(remote_folder)
+
+              # Upload the file to the FTP server
+              with open(local_file, 'rb') as f:
+                  ftp.storbinary('STOR ' + remote_file, f)
+
+          # Walk through the local directory and upload files
+          for root, dirs, files in os.walk(local_dir):
+              for file in files:
+                  local_file = os.path.join(root, file)
+
+                  # Get the relative path of the file to create the same structure on the server
+                  relative_path = os.path.relpath(local_file, local_dir)
+
+                  # Construct the remote file path (directly inside /padhmam_hrms/)
+                  remote_file = os.path.join(remote_dir, relative_path)
+
+                  # Upload the file
+                  print(f"Uploading {local_file} to {remote_file}")
+                  upload_file(local_file, remote_file)
+
+          # Close the FTP connection
+          ftp.quit()
+          EOF

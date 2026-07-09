@@ -25,9 +25,9 @@ jobs:
           from ftplib import FTP, error_perm
 
           # FTP details (use secrets)
-          ftp_host = "${{ secrets.FTP_SERVER }}"
-          ftp_user = "${{ secrets.FTP_USERNAME }}"
-          ftp_passwd = "${{ secrets.FTP_PASSWORD }}"
+          ftp_host = "${{ secrets.CPANEL_FTP_SERVER }}"
+          ftp_user = "${{ secrets.CPANEL_FTP_USERNAME }}"
+          ftp_passwd = "${{ secrets.CPANEL_FTP_PASSWORD }}"
 
           # Connect to FTP server
           ftp = FTP(ftp_host)

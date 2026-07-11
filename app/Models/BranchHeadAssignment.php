@@ -65,12 +65,50 @@ class BranchHeadAssignment extends Model
                 'updated_by' => $assignedById,
             ]);
 
+            static::ensureOperationalRole($attributes['user_id'], $assignedById);
+
             foreach ($displacedUserIds as $displacedUserId) {
                 static::releaseUserIfNoActiveAssignment($displacedUserId, $assignedById);
             }
 
             return $assignment;
         });
+    }
+
+    /**
+     * Guarantees a newly-made Branch Head sees the required operational
+     * sidebar without any manual Role/Permission configuration. Whoever
+     * created or edited the user picks a role_id from a general-purpose
+     * dropdown that isn't restricted to "branch-head-capable" roles — if
+     * that role doesn't already grant real module access (e.g. the default
+     * "employee" self-service role, or a role nobody has configured yet),
+     * silently promote them to the dedicated "branch_head" role, which is
+     * seeded with full access to every branch-scoped operational module.
+     *
+     * Never overrides a role that already grants real access — an admin who
+     * deliberately assigned a richer, properly-configured role to a Branch
+     * Head is left alone.
+     */
+    public static function ensureOperationalRole(int $userId, ?int $actorId): void
+    {
+        $user = User::with('role.permissions')->find($userId);
+        if (! $user) {
+            return;
+        }
+
+        $hasOperationalAccess = $user->role
+            && $user->role->permissions->contains(fn ($permission) => $permission->module === 'employees');
+
+        if ($hasOperationalAccess) {
+            return;
+        }
+
+        $branchHeadRoleId = Role::where('name', 'branch_head')->value('id');
+        if (! $branchHeadRoleId || $user->role_id === $branchHeadRoleId) {
+            return;
+        }
+
+        User::whereKey($userId)->update(['role_id' => $branchHeadRoleId, 'updated_by' => $actorId]);
     }
 
     /**

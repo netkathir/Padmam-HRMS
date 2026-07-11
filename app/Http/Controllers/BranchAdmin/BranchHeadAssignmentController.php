@@ -111,6 +111,7 @@ class BranchHeadAssignmentController extends Controller
                 'branch_id' => $headAssignment->branch_id,
                 'updated_by' => auth()->id(),
             ]);
+            BranchHeadAssignment::ensureOperationalRole($headAssignment->user_id, auth()->id());
         } else {
             $headAssignment->update($data);
 

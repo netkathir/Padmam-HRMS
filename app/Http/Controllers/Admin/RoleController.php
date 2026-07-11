@@ -14,7 +14,7 @@ class RoleController extends Controller
 {
     public function index()
     {
-        $roles = Role::withCount('users')->orderBy('id')->paginate(20);
+        $roles = Role::withCount('users')->with('createdBy')->orderBy('id')->paginate(20);
         return view('admin.roles.index', compact('roles'));
     }
 
@@ -25,12 +25,9 @@ class RoleController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'name'         => ['required', 'string', 'max:50', 'unique:roles,name', 'regex:/^[a-z][a-z_]*$/'],
-            'display_name' => ['required', 'string', 'max:100'],
-            'description'  => ['nullable', 'string', 'max:500'],
-        ]);
+        $data = $this->validateRole($request);
         $data['is_active'] = $request->boolean('is_active', true);
+        $data['created_by'] = auth()->id();
         Role::create($data);
         return redirect()->route('admin.roles.index')
             ->with('success', 'Role "' . $data['display_name'] . '" created successfully.');
@@ -43,11 +40,7 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role)
     {
-        $data = $request->validate([
-            'name'         => ['required', 'string', 'max:50', 'unique:roles,name,' . $role->id, 'regex:/^[a-z][a-z_]*$/'],
-            'display_name' => ['required', 'string', 'max:100'],
-            'description'  => ['nullable', 'string', 'max:500'],
-        ]);
+        $data = $this->validateRole($request, $role->id);
         $data['is_active'] = $request->boolean('is_active', true);
         $role->update($data);
         return redirect()->route('admin.roles.index')->with('success', 'Role updated successfully.');
@@ -62,5 +55,17 @@ class RoleController extends Controller
         $role->permissions()->detach();
         $role->delete();
         return back()->with('success', 'Role deleted.');
+    }
+
+    private function validateRole(Request $request, ?int $ignoreId = null): array
+    {
+        return $request->validate([
+            'name'                    => ['required', 'string', 'max:50', 'unique:roles,name' . ($ignoreId ? ",$ignoreId" : ''), 'regex:/^[a-z][a-z_]*$/'],
+            'display_name'            => ['required', 'string', 'max:100', 'unique:roles,display_name' . ($ignoreId ? ",$ignoreId" : '')],
+            'role_code'               => ['nullable', 'string', 'max:30', 'unique:roles,role_code' . ($ignoreId ? ",$ignoreId" : '')],
+            'description'             => ['nullable', 'string', 'max:500'],
+            'applicable_user_types'   => ['nullable', 'array'],
+            'applicable_user_types.*' => ['in:branch_head,branch_user'],
+        ]);
     }
 }

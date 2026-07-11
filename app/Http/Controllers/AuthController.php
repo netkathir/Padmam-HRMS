@@ -49,6 +49,16 @@ class AuthController extends Controller
                 ->withErrors(['login' => 'Your account has been deactivated. Contact administrator.']);
         }
 
+        // Branch Administration — locked/expired accounts (fields introduced by
+        // that module) may not log in. No-op for every account where both are
+        // unset, i.e. every account that predates this module.
+        if ($user->is_locked || ($user->account_expiry_date && $user->account_expiry_date->isPast())) {
+            Auth::logout();
+            return back()
+                ->withInput($request->only('login'))
+                ->withErrors(['login' => 'Your account is locked or has expired. Contact administrator.']);
+        }
+
         $request->session()->regenerate();
 
         $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);

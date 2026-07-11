@@ -40,13 +40,38 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-medium">Display Name <span class="text-danger">*</span></label>
+                        <label class="form-label fw-medium">Role Name <span class="text-danger">*</span></label>
                         <input type="text" name="display_name" value="{{ old('display_name') }}"
                                class="form-control @error('display_name') is-invalid @enderror"
                                placeholder="e.g. HR Manager">
                         @error('display_name')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Role Code</label>
+                        <input type="text" name="role_code" value="{{ old('role_code') }}"
+                               class="form-control @error('role_code') is-invalid @enderror"
+                               placeholder="e.g. HR_MGR">
+                        @error('role_code')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Applicable User Type</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="applicable_user_types[]" value="branch_head"
+                                id="rtype_branch_head" {{ in_array('branch_head', old('applicable_user_types', [])) ? 'checked' : '' }}>
+                            <label class="form-check-label" for="rtype_branch_head">Branch Head</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="applicable_user_types[]" value="branch_user"
+                                id="rtype_branch_user" {{ in_array('branch_user', old('applicable_user_types', [])) ? 'checked' : '' }}>
+                            <label class="form-check-label" for="rtype_branch_user">Branch User</label>
+                        </div>
+                        <div class="form-text">Optional — relevant only for branch-scoped roles.</div>
                     </div>
 
                     <div class="mb-3">

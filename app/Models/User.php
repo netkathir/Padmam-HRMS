@@ -14,6 +14,10 @@ class User extends Authenticatable
     protected $fillable = [
         'name', 'email', 'username', 'password',
         'role_id', 'employee_id', 'avatar', 'is_active', 'last_login_at', 'last_login_ip',
+        // Branch Administration module — additive fields, unused by the existing
+        // System Admin > Users screen.
+        'user_type', 'branch_id', 'mobile', 'force_password_change', 'account_expiry_date',
+        'is_locked', 'created_by', 'updated_by', 'remarks',
     ];
 
     protected $hidden = ['password'];
@@ -21,9 +25,12 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'password'      => 'hashed',
-            'is_active'     => 'boolean',
-            'last_login_at' => 'datetime',
+            'password'               => 'hashed',
+            'is_active'               => 'boolean',
+            'last_login_at'           => 'datetime',
+            'force_password_change'   => 'boolean',
+            'is_locked'                => 'boolean',
+            'account_expiry_date'      => 'date',
         ];
     }
 
@@ -36,6 +43,31 @@ class User extends Authenticatable
     public function employee()
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    // ── Branch Administration relations/helpers — additive fields on this
+    //    same users table, powering both this screen and the branch-scoped
+    //    workflows (Branch Head Assignment, Branch Switcher, BranchScope). ──
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function updatedBy()
+    {
+        return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function isBranchScoped(): bool
+    {
+        return ! $this->isSuperAdmin()
+            && in_array($this->user_type, ['branch_head', 'branch_user'], true)
+            && $this->branch_id !== null;
     }
 
     // ── Helpers ────────────────────────────────────────────────────

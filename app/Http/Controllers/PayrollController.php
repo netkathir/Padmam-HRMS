@@ -8,6 +8,7 @@ use App\Models\PayrollPayment;
 use App\Models\EmployeeSalaryStructure;
 use App\Models\Attendance;
 use App\Models\PfEsiConfig;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -18,13 +19,18 @@ class PayrollController extends Controller
         $month = $request->input('month', now()->month);
         $year  = $request->input('year', now()->year);
 
-        $records = PayrollRecord::with(['employee.department'])
-            ->where('month', $month)->where('year', $year)
+        $records = BranchScope::scopeQueryVia(
+            PayrollRecord::with(['employee.department'])
+                ->where('month', $month)->where('year', $year),
+            'employee'
+        )
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
             ->orderBy('created_at', 'desc')
             ->paginate(25)->withQueryString();
 
-        $summary = PayrollRecord::where('month', $month)->where('year', $year)
+        $summary = BranchScope::scopeQueryVia(
+            PayrollRecord::where('month', $month)->where('year', $year), 'employee'
+        )
             ->selectRaw('COUNT(*) as count, SUM(gross_earnings) as gross, SUM(net_salary) as net, SUM(total_deductions) as deductions')
             ->first();
 
@@ -52,6 +58,10 @@ class PayrollController extends Controller
 
     public function generate(Request $request)
     {
+        if (BranchScope::isBranchScopedUser() && ! \App\Support\BranchAdminPermissions::can(auth()->user(), 'payroll', 'process')) {
+            abort(403, 'You do not have the "Process" permission for Payroll in Branch Administration.');
+        }
+
         $request->validate([
             'month'       => ['required', 'integer', 'between:1,12'],
             'year'        => ['required', 'integer', 'min:2020'],
@@ -61,7 +71,7 @@ class PayrollController extends Controller
         $month = (int)$request->month;
         $year  = (int)$request->year;
 
-        $query = Employee::active()->with(['currentSalary']);
+        $query = BranchScope::scopeQuery(Employee::active()->with(['currentSalary', 'branch']));
         if ($request->filled('employee_id')) $query->where('id', $request->employee_id);
         if ($request->filled('department_id')) $query->where('department_id', $request->department_id);
 
@@ -72,6 +82,8 @@ class PayrollController extends Controller
         $generated = $skipped = $errors = 0;
 
         foreach ($employees as $employee) {
+            if ($employee->branch && ! $employee->branch->is_active) { $skipped++; continue; }
+
             $salary = $employee->currentSalary;
             if (! $salary) { $errors++; continue; }
 
@@ -150,18 +162,21 @@ class PayrollController extends Controller
 
     public function payslip(PayrollRecord $payroll)
     {
+        BranchScope::assertBranchAccess($payroll->employee?->branch_id);
         $payroll->load(['employee.branch', 'employee.department', 'employee.designation', 'allowances', 'deductions', 'payments']);
         return view('payroll.payslip', compact('payroll'));
     }
 
     public function paymentForm(PayrollRecord $payroll)
     {
+        BranchScope::assertBranchAccess($payroll->employee?->branch_id);
         $payroll->load('employee', 'payments');
         return view('payroll.payment', compact('payroll'));
     }
 
     public function storePayment(Request $request, PayrollRecord $payroll)
     {
+        BranchScope::assertBranchAccess($payroll->employee?->branch_id);
         $data = $request->validate([
             'payment_date'     => ['required', 'date'],
             'payment_mode'     => ['required', 'in:bank_transfer,cash,cheque,upi'],

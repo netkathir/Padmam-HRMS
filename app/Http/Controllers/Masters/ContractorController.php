@@ -13,6 +13,7 @@ use App\Models\Contractor;
 use App\Models\Employee;
 use App\Models\Attendance;
 use App\Models\PayrollRecord;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 
 class ContractorController extends Controller
@@ -112,16 +113,17 @@ class ContractorController extends Controller
         if ($request->filled('contractor_id')) {
             $contractor = Contractor::findOrFail($request->contractor_id);
 
-            $employees = $contractor->employees()
+            $employees = BranchScope::scopeQuery($contractor->employees())
                 ->with(['department', 'designation'])
                 ->orderBy('first_name')
                 ->paginate(20)
                 ->withQueryString();
 
-            $unassignedEmployees = Employee::active()
-                ->whereNull('contractor_id')
+            $unassignedEmployees = BranchScope::scopeQuery(
+                Employee::active()->whereNull('contractor_id')
+            )
                 ->orderBy('first_name')
-                ->get(['id', 'first_name', 'last_name', 'employee_code']);
+                ->get(['id', 'first_name', 'last_name', 'employee_code', 'branch_id']);
         }
 
         return view('contract-labour.index', compact('contractors', 'contractor', 'employees', 'unassignedEmployees'));
@@ -134,15 +136,16 @@ class ContractorController extends Controller
      */
     public function labour(Contractor $contractor)
     {
-        $employees = $contractor->employees()
+        $employees = BranchScope::scopeQuery($contractor->employees())
             ->with(['department', 'designation', 'shift'])
             ->orderBy('first_name')
             ->paginate(20);
 
-        $unassignedEmployees = Employee::active()
-            ->whereNull('contractor_id')
+        $unassignedEmployees = BranchScope::scopeQuery(
+            Employee::active()->whereNull('contractor_id')
+        )
             ->orderBy('first_name')
-            ->get(['id', 'first_name', 'last_name', 'employee_code']);
+            ->get(['id', 'first_name', 'last_name', 'employee_code', 'branch_id']);
 
         return view('masters.contractors.labour.index', compact('contractor', 'employees', 'unassignedEmployees'));
     }
@@ -157,6 +160,7 @@ class ContractorController extends Controller
         ]);
 
         $employee = Employee::findOrFail($request->employee_id);
+        BranchScope::assertBranchAccess($employee->branch_id);
 
         if ($employee->contractor_id) {
             return back()->with('error', 'Employee is already assigned to a contractor.');
@@ -172,6 +176,8 @@ class ContractorController extends Controller
      */
     public function removeLabour(Contractor $contractor, Employee $employee)
     {
+        BranchScope::assertBranchAccess($employee->branch_id);
+
         if ($employee->contractor_id !== $contractor->id) {
             return back()->with('error', 'Employee is not assigned to this contractor.');
         }
@@ -190,7 +196,7 @@ class ContractorController extends Controller
     {
         $date = $request->input('date', now()->toDateString());
 
-        $employeeIds = $contractor->employees()->pluck('id');
+        $employeeIds = BranchScope::scopeQuery($contractor->employees())->pluck('id');
 
         $query = Attendance::with(['employee.department'])
             ->whereIn('employee_id', $employeeIds)
@@ -219,7 +225,7 @@ class ContractorController extends Controller
         $month = $request->input('month', now()->month);
         $year  = $request->input('year', now()->year);
 
-        $employeeIds = $contractor->employees()->pluck('id');
+        $employeeIds = BranchScope::scopeQuery($contractor->employees())->pluck('id');
 
         $records = PayrollRecord::with(['employee.department'])
             ->whereIn('employee_id', $employeeIds)

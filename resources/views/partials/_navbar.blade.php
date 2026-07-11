@@ -27,6 +27,27 @@
             <i class="bi bi-calendar3 me-1"></i>{{ now()->format('D, d M Y') }}
         </span>
 
+        {{-- Branch Switcher — Super Admin only. Renders nothing for anyone
+             else, so it has zero visual/behavioral effect on other accounts. --}}
+        @if (auth()->user()->isSuperAdmin())
+            @php
+                $navbarBranches = \App\Models\Branch::active()->orderBy('name')->get();
+                $navbarCurrentBranchId = session('current_branch_id');
+            @endphp
+            <form action="{{ route('branch-admin.branch-switcher.switch') }}" method="POST" class="d-none d-md-flex align-items-center gap-1">
+                @csrf
+                <i class="bi bi-arrow-left-right text-muted" style="font-size:13px;"></i>
+                <select name="branch_id" class="form-select form-select-sm" style="width:auto;font-size:12.5px;" onchange="this.form.submit()">
+                    <option value="">All Branches</option>
+                    @foreach ($navbarBranches as $navbarBranch)
+                        <option value="{{ $navbarBranch->id }}" {{ (string) $navbarCurrentBranchId === (string) $navbarBranch->id ? 'selected' : '' }}>
+                            {{ $navbarBranch->name }} ({{ $navbarBranch->code }})
+                        </option>
+                    @endforeach
+                </select>
+            </form>
+        @endif
+
         {{-- User dropdown --}}
         <div class="dropdown">
             <button class="btn btn-link p-0 d-flex align-items-center text-decoration-none" data-bs-toggle="dropdown" aria-expanded="false">

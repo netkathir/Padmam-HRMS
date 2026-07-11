@@ -144,6 +144,16 @@
                     <option value="0" {{ request('is_active') === '0' ? 'selected' : '' }}>Inactive</option>
                 </select>
             </div>
+            @if ($branches->isNotEmpty())
+                <div class="col-md-2 col-sm-6">
+                    <select name="branch_id" class="form-select form-select-sm">
+                        <option value="">All Branches</option>
+                        @foreach ($branches as $branch)
+                            <option value="{{ $branch->id }}" {{ (string) request('branch_id') === (string) $branch->id ? 'selected' : '' }}>{{ $branch->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
             <div class="col-auto d-flex gap-2">
                 <button type="submit"
                         class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1">
@@ -168,9 +178,10 @@
                         <th style="min-width:195px;">Email</th>
                         <th style="min-width:120px;">Role</th>
                         <th style="min-width:150px;">Employee</th>
+                        <th style="min-width:120px;">Branch</th>
                         <th style="min-width:120px;">Last Login</th>
                         <th class="text-center" style="min-width:95px;">Status</th>
-                        <th class="text-end pe-3" style="min-width:115px;">Actions</th>
+                        <th class="text-end pe-3" style="min-width:160px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -221,6 +232,11 @@
                             {{ $user->employee?->full_name ?? '—' }}
                         </td>
 
+                        {{-- Branch --}}
+                        <td class="text-muted" style="font-size:12.5px;">
+                            {{ $user->branch->name ?? '—' }}
+                        </td>
+
                         {{-- Last Login --}}
                         <td class="text-muted" style="font-size:12px;">
                             @if($user->last_login_at)
@@ -234,11 +250,17 @@
 
                         {{-- Status --}}
                         <td class="text-center">
-                            <span class="um-badge {{ $user->is_active ? 'status-active' : 'status-inactive' }}">
-                                <i class="bi bi-{{ $user->is_active ? 'check-circle-fill' : 'x-circle-fill' }}"
-                                   style="font-size:10px; margin-right:3px;"></i>
-                                {{ $user->is_active ? 'Active' : 'Inactive' }}
-                            </span>
+                            @if ($user->is_locked)
+                                <span class="um-badge status-inactive">
+                                    <i class="bi bi-lock-fill" style="font-size:10px; margin-right:3px;"></i> Locked
+                                </span>
+                            @else
+                                <span class="um-badge {{ $user->is_active ? 'status-active' : 'status-inactive' }}">
+                                    <i class="bi bi-{{ $user->is_active ? 'check-circle-fill' : 'x-circle-fill' }}"
+                                       style="font-size:10px; margin-right:3px;"></i>
+                                    {{ $user->is_active ? 'Active' : 'Inactive' }}
+                                </span>
+                            @endif
                         </td>
 
                         {{-- Actions --}}
@@ -252,6 +274,30 @@
                                    class="um-btn um-btn-perms" title="Permissions">
                                     <i class="bi bi-shield-check"></i>
                                 </a>
+                                @if($user->id !== auth()->id())
+                                    @if ($user->is_locked)
+                                        <form action="{{ route('users.unlock', $user) }}" method="POST" class="m-0 p-0">
+                                            @csrf
+                                            <button type="submit" class="um-btn um-btn-edit" title="Unlock"><i class="bi bi-unlock"></i></button>
+                                        </form>
+                                    @else
+                                        <form action="{{ route('users.lock', $user) }}" method="POST" class="m-0 p-0">
+                                            @csrf
+                                            <button type="submit" class="um-btn um-btn-edit" title="Lock"><i class="bi bi-lock"></i></button>
+                                        </form>
+                                    @endif
+                                    @if ($user->is_active)
+                                        <form action="{{ route('users.deactivate', $user) }}" method="POST" class="m-0 p-0" onsubmit="return confirm('Deactivate this user?')">
+                                            @csrf
+                                            <button type="submit" class="um-btn um-btn-edit" title="Deactivate"><i class="bi bi-slash-circle"></i></button>
+                                        </form>
+                                    @else
+                                        <form action="{{ route('users.activate', $user) }}" method="POST" class="m-0 p-0">
+                                            @csrf
+                                            <button type="submit" class="um-btn um-btn-edit" title="Activate"><i class="bi bi-check-circle"></i></button>
+                                        </form>
+                                    @endif
+                                @endif
                                 @if($user->id !== auth()->id())
                                 <form action="{{ route('users.destroy', $user) }}" method="POST"
                                       onsubmit="return confirm('Delete user \'{{ addslashes($user->name) }}\'?')"
@@ -267,7 +313,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-5">
+                        <td colspan="10" class="text-center text-muted py-5">
                             <i class="bi bi-people d-block mb-2" style="font-size:32px;opacity:.3;"></i>
                             No users found.
                             @if(request()->hasAny(['search','role_id','is_active']))

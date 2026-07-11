@@ -11,6 +11,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Attendance;
 use App\Models\Contractor;
+use App\Models\Employee;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -27,7 +29,7 @@ class ContractAttendanceController extends Controller
 
         if ($request->filled('contractor_id')) {
             $contractor  = Contractor::findOrFail($request->contractor_id);
-            $employeeIds = $contractor->employees()->pluck('id');
+            $employeeIds = BranchScope::scopeQuery($contractor->employees())->pluck('id');
 
             $query = Attendance::with(['employee.department', 'employee.designation'])
                 ->whereIn('employee_id', $employeeIds)
@@ -62,7 +64,7 @@ class ContractAttendanceController extends Controller
         if ($request->filled('contractor_id')) {
             $contractor = Contractor::findOrFail($request->contractor_id);
 
-            $workers = $contractor->employees()
+            $workers = BranchScope::scopeQuery($contractor->employees())
                 ->where('status', 'active')
                 ->with(['department', 'designation'])
                 ->orderBy('first_name')
@@ -94,8 +96,15 @@ class ContractAttendanceController extends Controller
         $contractorId = $request->contractor_id;
         $date         = $request->date;
 
-        DB::transaction(function () use ($request, $date) {
+        $scopedBranchId = BranchScope::currentBranchId();
+
+        DB::transaction(function () use ($request, $date, $scopedBranchId) {
             foreach ($request->attendance as $employeeId => $data) {
+                if ($scopedBranchId !== null) {
+                    $employee = Employee::find($employeeId);
+                    if (! $employee || $employee->branch_id !== $scopedBranchId) continue;
+                }
+
                 $inTime  = !empty($data['in_time'])
                     ? ($date . ' ' . $data['in_time'] . ':00')
                     : null;
@@ -136,8 +145,8 @@ class ContractAttendanceController extends Controller
 
         if ($request->filled('contractor_id')) {
             $contractor  = Contractor::findOrFail($request->contractor_id);
-            $employeeIds = $contractor->employees()->pluck('id');
-            $workers     = $contractor->employees()
+            $employeeIds = BranchScope::scopeQuery($contractor->employees())->pluck('id');
+            $workers     = BranchScope::scopeQuery($contractor->employees())
                 ->with(['department', 'designation'])
                 ->orderBy('first_name')
                 ->get()

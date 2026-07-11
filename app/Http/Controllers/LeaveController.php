@@ -7,6 +7,7 @@ use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PermissionRequest;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -22,6 +23,7 @@ class LeaveController extends Controller
         if (! $user->isAdmin()) {
             $query->where('employee_id', optional($user->employee)->id);
         }
+        $query = BranchScope::scopeQueryVia($query, 'employee');
 
         if ($request->filled('status'))        $query->where('status', $request->status);
         if ($request->filled('leave_type_id')) $query->where('leave_type_id', $request->leave_type_id);
@@ -29,7 +31,7 @@ class LeaveController extends Controller
 
         $leaves     = $query->paginate(20)->withQueryString();
         $leaveTypes = LeaveType::where('is_active', true)->get();
-        $employees  = auth()->user()->isAdmin() ? Employee::active()->orderBy('first_name')->get() : collect();
+        $employees  = auth()->user()->isAdmin() ? BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get() : collect();
 
         return view('leaves.index', compact('leaves', 'leaveTypes', 'employees'));
     }
@@ -41,7 +43,7 @@ class LeaveController extends Controller
         $balances   = $employee ? LeaveBalance::where('employee_id', $employee->id)
             ->where('year', now()->year)->with('leaveType')->get() : collect();
         $employees  = auth()->user()->isAdmin()
-            ? Employee::active()->orderBy('first_name')->get()
+            ? BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get()
             : collect();
 
         return view('leaves.create', compact('leaveTypes', 'employee', 'balances', 'employees'));
@@ -60,6 +62,7 @@ class LeaveController extends Controller
         if (! $employee) {
             return back()->with('error', 'No employee profile linked to your account.');
         }
+        BranchScope::assertBranchIsActive($employee->branch_id);
 
         $totalDays = $this->countLeaveDays($data['start_date'], $data['end_date']);
 
@@ -102,12 +105,22 @@ class LeaveController extends Controller
 
     public function show(LeaveRequest $leave)
     {
+        BranchScope::assertBranchAccess($leave->employee?->branch_id);
         $leave->load(['employee.department', 'leaveType', 'approver']);
         return view('leaves.show', compact('leave'));
     }
 
     public function approve(Request $request, LeaveRequest $leave)
     {
+        BranchScope::assertBranchAccess($leave->employee?->branch_id);
+
+        // Fine-grained Branch Administration gate — additive, only ever
+        // consulted for branch-scoped accounts; legacy/Super Admin approvals
+        // via the existing role system are completely unaffected.
+        if (BranchScope::isBranchScopedUser() && ! \App\Support\BranchAdminPermissions::can(auth()->user(), 'leave', 'approve')) {
+            abort(403, 'You do not have the "Approve" permission for Leave in Branch Administration.');
+        }
+
         $request->validate([
             'action'           => ['required', 'in:approve,reject'],
             'rejection_reason' => ['required_if:action,reject', 'nullable', 'string'],
@@ -151,6 +164,7 @@ class LeaveController extends Controller
 
     public function cancel(LeaveRequest $leave)
     {
+        BranchScope::assertBranchAccess($leave->employee?->branch_id);
         if (! in_array($leave->status, ['pending', 'approved'])) {
             return back()->with('error', 'Cannot cancel this leave request.');
         }
@@ -191,6 +205,7 @@ class LeaveController extends Controller
         if (! $user->isAdmin()) {
             $query->where('employee_id', optional($user->employee)->id);
         }
+        $query = BranchScope::scopeQueryVia($query, 'employee');
 
         $permissions = $query->paginate(20);
         return view('leaves.permissions', compact('permissions'));

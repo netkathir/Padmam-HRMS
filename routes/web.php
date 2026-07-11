@@ -30,6 +30,9 @@ use App\Http\Controllers\Masters\PfEsiConfigController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\RolePermissionController;
+use App\Http\Controllers\BranchAdmin\BranchHeadAssignmentController;
+use App\Http\Controllers\BranchAdmin\BranchSwitcherController;
+use App\Http\Controllers\BranchAdmin\AuditLogController as BranchAdminAuditLogController;
 use Illuminate\Support\Facades\Route;
 
 // ── Redirect root to dashboard or login ──────────────────────────────────
@@ -152,6 +155,8 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('permission:masters_branches.read')->group(function () {
         Route::resource('masters/branches', BranchController::class, ['as' => 'masters'])->except('show');
+        Route::post('masters/branches/{branch}/activate',   [BranchController::class, 'activate'])->name('masters.branches.activate');
+        Route::post('masters/branches/{branch}/deactivate', [BranchController::class, 'deactivate'])->name('masters.branches.deactivate');
     });
     Route::middleware('permission:masters_departments.read')->group(function () {
         Route::resource('masters/departments', DepartmentController::class, ['as' => 'masters'])->except('show');
@@ -209,6 +214,10 @@ Route::middleware('auth')->group(function () {
         Route::resource('users', UserController::class)->except('show');
         Route::get('/users/{user}/permissions',       [UserController::class, 'permissions'])->name('users.permissions');
         Route::put('/users/{user}/permissions',       [UserController::class, 'updatePermissions'])->name('users.permissions.update');
+        Route::post('/users/{user}/activate',          [UserController::class, 'activate'])->name('users.activate');
+        Route::post('/users/{user}/deactivate',        [UserController::class, 'deactivate'])->name('users.deactivate');
+        Route::post('/users/{user}/lock',              [UserController::class, 'lock'])->name('users.lock');
+        Route::post('/users/{user}/unlock',            [UserController::class, 'unlock'])->name('users.unlock');
     });
 
     // Roles
@@ -239,5 +248,27 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/company',         [SettingsController::class, 'updateCompany'])->name('settings.company.update');
         Route::get('/settings/general',          [SettingsController::class, 'general'])->name('settings.general');
         Route::post('/settings/general',         [SettingsController::class, 'updateGeneral'])->name('settings.general.update');
+    });
+
+    // ── Branch Administration ───────────────────────────────────────────
+    // Only genuinely new features live here — Branches/Users/Roles/Permissions
+    // are managed entirely via the existing Masters > Branches, System Admin >
+    // Users/Roles/Role Permissions screens above (single source of truth).
+    Route::middleware('permission:branch_admin_head_assignments.read')->group(function () {
+        Route::resource('branch-admin/head-assignments', BranchHeadAssignmentController::class, [
+            'as' => 'branch-admin',
+            'parameters' => ['head-assignments' => 'headAssignment'],
+        ])->except('show');
+        Route::post('branch-admin/head-assignments/{headAssignment}/deactivate', [BranchHeadAssignmentController::class, 'deactivate'])->name('branch-admin.head-assignments.deactivate');
+    });
+
+    Route::middleware('permission:branch_admin_switcher.read')->group(function () {
+        Route::get('branch-admin/branch-switcher',        [BranchSwitcherController::class, 'index'])->name('branch-admin.branch-switcher.index');
+        Route::post('branch-admin/branch-switcher/switch', [BranchSwitcherController::class, 'switch'])->name('branch-admin.branch-switcher.switch');
+        Route::post('branch-admin/branch-switcher/clear',  [BranchSwitcherController::class, 'clear'])->name('branch-admin.branch-switcher.clear');
+    });
+
+    Route::middleware('permission:branch_admin_audit_log.read')->group(function () {
+        Route::get('branch-admin/audit-log', [BranchAdminAuditLogController::class, 'index'])->name('branch-admin.audit-log.index');
     });
 });

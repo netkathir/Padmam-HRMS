@@ -10,6 +10,7 @@ use App\Models\EmployeeType;
 use App\Models\Contractor;
 use App\Models\Shift;
 use App\Models\User;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -21,6 +22,8 @@ class EmployeeController extends Controller
     {
         $query = Employee::with(['branch', 'department', 'designation', 'employeeType'])
             ->orderBy('first_name');
+
+        $query = BranchScope::scopeQuery($query);
 
         if ($request->filled('search')) {
             $s = '%' . $request->search . '%';
@@ -50,6 +53,8 @@ class EmployeeController extends Controller
     {
         $data = $request->validate($this->rules());
         $data['created_by'] = auth()->id();
+        $data = BranchScope::stampBranchId($data);
+        BranchScope::assertBranchIsActive($data['branch_id']);
 
         $employee = DB::transaction(function () use ($data, $request) {
             $emp = Employee::create($data);
@@ -75,6 +80,7 @@ class EmployeeController extends Controller
 
     public function show(Employee $employee)
     {
+        BranchScope::assertBranchAccess($employee->branch_id);
         $employee->load(['branch', 'department', 'designation', 'employeeType', 'contractor',
             'shift', 'reportingTo', 'user', 'bankDetails', 'currentSalary', 'exitRecord']);
         return view('employees.show', compact('employee'));
@@ -82,11 +88,13 @@ class EmployeeController extends Controller
 
     public function edit(Employee $employee)
     {
+        BranchScope::assertBranchAccess($employee->branch_id);
         return view('employees.edit', array_merge(compact('employee'), $this->formData()));
     }
 
     public function update(Request $request, Employee $employee)
     {
+        BranchScope::assertBranchAccess($employee->branch_id);
         $data = $request->validate($this->rules($employee->id));
         $employee->update($data);
         return redirect()->route('employees.show', $employee)->with('success', 'Employee updated.');
@@ -94,6 +102,7 @@ class EmployeeController extends Controller
 
     public function destroy(Employee $employee)
     {
+        BranchScope::assertBranchAccess($employee->branch_id);
         $employee->update(['status' => 'terminated']);
         $employee->delete();
         return redirect()->route('employees.index')->with('success', 'Employee removed.');
@@ -101,12 +110,14 @@ class EmployeeController extends Controller
 
     public function documents(Employee $employee)
     {
+        BranchScope::assertBranchAccess($employee->branch_id);
         $documents = $employee->documents()->latest()->get();
         return view('employees.documents', compact('employee', 'documents'));
     }
 
     public function uploadDocument(Request $request, Employee $employee)
     {
+        BranchScope::assertBranchAccess($employee->branch_id);
         $request->validate([
             'document_type'   => ['required', 'string'],
             'document_number' => ['nullable', 'string'],
@@ -125,6 +136,12 @@ class EmployeeController extends Controller
 
     public function salary(Employee $employee)
     {
+        BranchScope::assertBranchAccess($employee->branch_id);
+
+        if (BranchScope::isBranchScopedUser() && ! \App\Support\BranchAdminPermissions::can(auth()->user(), 'employees', 'view_sensitive')) {
+            abort(403, 'You do not have the "View Sensitive Data" permission for Employees in Branch Administration.');
+        }
+
         $salary  = $employee->currentSalary;
         $history = $employee->salaryHistory()->with('slab')->get();
         $slabs   = \App\Models\SalarySlab::where('is_active', true)->get();
@@ -133,6 +150,12 @@ class EmployeeController extends Controller
 
     public function storeSalary(Request $request, Employee $employee)
     {
+        BranchScope::assertBranchAccess($employee->branch_id);
+
+        if (BranchScope::isBranchScopedUser() && ! \App\Support\BranchAdminPermissions::can(auth()->user(), 'employees', 'view_sensitive')) {
+            abort(403, 'You do not have the "View Sensitive Data" permission for Employees in Branch Administration.');
+        }
+
         $data = $request->validate([
             'slab_id'          => ['required', 'exists:salary_slabs,id'],
             'ctc'              => ['required', 'numeric', 'min:0'],
@@ -154,11 +177,13 @@ class EmployeeController extends Controller
 
     public function exit(Employee $employee)
     {
+        BranchScope::assertBranchAccess($employee->branch_id);
         return view('employees.exit', compact('employee'));
     }
 
     public function processExit(Request $request, Employee $employee)
     {
+        BranchScope::assertBranchAccess($employee->branch_id);
         $data = $request->validate([
             'exit_type'         => ['required', 'in:resignation,termination,retirement,absconding'],
             'resignation_date'  => ['required', 'date'],

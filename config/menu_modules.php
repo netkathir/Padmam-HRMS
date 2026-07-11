@@ -132,4 +132,23 @@ return [
         'icon' => 'bi-bar-chart-line',
         'section' => 'Insights',
     ],
+    // Branch Administration — only genuinely new features get a module here.
+    // Branches/Users/Roles/Permissions are governed by the existing
+    // masters_branches/users/roles/permissions/role_permissions modules
+    // above; there is no separate Branch Administration copy of any of them.
+    'branch_admin_head_assignments' => [
+        'label' => 'Branch Head Assignment',
+        'icon' => 'bi-person-badge',
+        'section' => 'Branch Administration',
+    ],
+    'branch_admin_switcher' => [
+        'label' => 'Branch Switcher',
+        'icon' => 'bi-arrow-left-right',
+        'section' => 'Branch Administration',
+    ],
+    'branch_admin_audit_log' => [
+        'label' => 'Audit Log',
+        'icon' => 'bi-journal-text',
+        'section' => 'Branch Administration',
+    ],
 ];

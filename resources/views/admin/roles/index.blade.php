@@ -32,10 +32,12 @@
                     <tr>
                         <th>#</th>
                         <th>System Name</th>
-                        <th>Display Name</th>
+                        <th>Role Name</th>
+                        <th>Role Code</th>
                         <th>Description</th>
                         <th class="text-center">Users</th>
                         <th class="text-center">Status</th>
+                        <th>Created By</th>
                         <th class="text-end pe-3">Actions</th>
                     </tr>
                 </thead>
@@ -45,6 +47,7 @@
                         <td class="text-muted ps-3">{{ $role->id }}</td>
                         <td><code class="text-primary fw-medium">{{ $role->name }}</code></td>
                         <td class="fw-medium">{{ $role->display_name }}</td>
+                        <td>{{ $role->role_code ?? '—' }}</td>
                         <td class="text-muted"><small>{{ $role->description ?? '—' }}</small></td>
                         <td class="text-center">
                             <span class="badge bg-info-subtle text-info">{{ $role->users_count }}</span>
@@ -55,6 +58,10 @@
                             @else
                                 <span class="badge bg-danger-subtle text-danger">Inactive</span>
                             @endif
+                        </td>
+                        <td class="text-muted small">
+                            {{ $role->createdBy->name ?? '—' }}
+                            <div>{{ $role->created_at?->format('d M Y, h:i A') }}</div>
                         </td>
                         <td class="text-end pe-3">
                             <div class="d-flex gap-1 justify-content-end">
@@ -74,7 +81,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-5">
+                        <td colspan="9" class="text-center text-muted py-5">
                             <i class="bi bi-shield-x d-block mb-2" style="font-size:32px;opacity:.3;"></i>
                             No roles found. <a href="{{ route('admin.roles.create') }}">Create the first role</a>.
                         </td>

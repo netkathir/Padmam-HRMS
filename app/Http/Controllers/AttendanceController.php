@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\Holiday;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -17,6 +18,8 @@ class AttendanceController extends Controller
         $query = Attendance::with(['employee.department', 'employee.branch'])
             ->where('date', $date)
             ->orderBy('in_time');
+
+        $query = BranchScope::scopeQueryVia($query, 'employee');
 
         if ($request->filled('department_id')) {
             $query->whereHas('employee', fn($q) => $q->where('department_id', $request->department_id));
@@ -35,7 +38,7 @@ class AttendanceController extends Controller
 
     public function markForm()
     {
-        $employees   = Employee::active()->orderBy('first_name')->with('department')->get();
+        $employees   = BranchScope::scopeQuery(Employee::active()->orderBy('first_name')->with('department'))->get();
         $departments = \App\Models\Department::orderBy('name')->get();
         return view('attendance.mark', compact('employees', 'departments'));
     }
@@ -55,9 +58,13 @@ class AttendanceController extends Controller
         $date = $request->date;
         $saved = 0;
 
+        $scopedBranchId = BranchScope::currentBranchId();
+
         foreach ($request->attendance as $entry) {
             $employee = Employee::find($entry['employee_id']);
             if (! $employee) continue;
+            if ($scopedBranchId !== null && $employee->branch_id !== $scopedBranchId) continue;
+            if ($employee->branch && ! $employee->branch->is_active) continue;
 
             $data = [
                 'employee_id' => $entry['employee_id'],
@@ -87,9 +94,10 @@ class AttendanceController extends Controller
 
     public function manualForm()
     {
-        $employees = Employee::active()->orderBy('first_name')->with('department')->get();
-        $recentEntries = Attendance::where('is_manual', true)
-            ->with(['employee', 'markedBy'])
+        $employees = BranchScope::scopeQuery(Employee::active()->orderBy('first_name')->with('department'))->get();
+        $recentEntries = BranchScope::scopeQueryVia(
+            Attendance::where('is_manual', true), 'employee'
+        )->with(['employee', 'markedBy'])
             ->orderByDesc('created_at')
             ->limit(10)
             ->get();
@@ -106,6 +114,10 @@ class AttendanceController extends Controller
             'status'        => ['required', 'in:present,half_day,absent,on_leave,holiday,week_off'],
             'manual_reason' => ['required', 'string', 'max:255'],
         ]);
+
+        $manualEmployee = Employee::find($data['employee_id']);
+        BranchScope::assertBranchAccess($manualEmployee?->branch_id);
+        BranchScope::assertBranchIsActive($manualEmployee?->branch_id);
 
         $data['is_manual'] = true;
         $data['in_time']   = $data['date'] . ' ' . $data['in_time'] . ':00';
@@ -126,9 +138,9 @@ class AttendanceController extends Controller
 
     public function pending()
     {
-        $pending = Attendance::where('is_manual', true)
-            ->whereNull('approved_by')
-            ->with(['employee.department'])
+        $pending = BranchScope::scopeQueryVia(
+            Attendance::where('is_manual', true)->whereNull('approved_by'), 'employee'
+        )->with(['employee.department'])
             ->orderByDesc('date')
             ->paginate(20);
 
@@ -137,6 +149,7 @@ class AttendanceController extends Controller
 
     public function approve(Request $request, Attendance $attendance)
     {
+        BranchScope::assertBranchAccess($attendance->employee?->branch_id);
         $request->validate(['action' => ['required', 'in:approve,reject']]);
 
         if ($request->action === 'approve') {
@@ -153,15 +166,18 @@ class AttendanceController extends Controller
         $month = $request->input('month', now()->month);
         $year  = $request->input('year', now()->year);
 
-        $records = Attendance::with(['employee.department'])
-            ->whereMonth('date', $month)
-            ->whereYear('date', $year)
+        $records = BranchScope::scopeQueryVia(
+            Attendance::with(['employee.department'])
+                ->whereMonth('date', $month)
+                ->whereYear('date', $year),
+            'employee'
+        )
             ->when($request->filled('employee_id'), fn($q) => $q->where('employee_id', $request->employee_id))
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
             ->orderBy('date')
             ->paginate(30)->withQueryString();
 
-        $employees   = Employee::active()->orderBy('first_name')->get();
+        $employees   = BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get();
         $departments = \App\Models\Department::orderBy('name')->get();
 
         return view('attendance.report', compact('records', 'employees', 'departments', 'month', 'year'));

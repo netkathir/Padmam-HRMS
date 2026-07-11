@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\PayrollRecord;
 use App\Models\Department;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 
 class ReportController extends Controller
@@ -23,8 +24,11 @@ class ReportController extends Controller
         $fromDate = $request->input('from_date', now()->startOfMonth()->toDateString());
         $toDate   = $request->input('to_date', now()->toDateString());
 
-        $query = Attendance::with(['employee.department', 'employee.branch'])
-            ->whereBetween('date', [$fromDate, $toDate])
+        $query = BranchScope::scopeQueryVia(
+            Attendance::with(['employee.department', 'employee.branch'])
+                ->whereBetween('date', [$fromDate, $toDate]),
+            'employee'
+        )
             ->when($request->filled('employee_id'), fn($q) => $q->where('employee_id', $request->employee_id))
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
             ->when($request->filled('contractor_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('contractor_id', $request->contractor_id)))
@@ -38,7 +42,9 @@ class ReportController extends Controller
         $records    = $query->paginate(30)->withQueryString();
 
         // Summary — use the same filtered query (without pagination)
-        $summaryQuery = Attendance::whereBetween('date', [$fromDate, $toDate])
+        $summaryQuery = BranchScope::scopeQueryVia(
+            Attendance::whereBetween('date', [$fromDate, $toDate]), 'employee'
+        )
             ->when($request->filled('employee_id'), fn($q) => $q->where('employee_id', $request->employee_id))
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
             ->when($request->filled('contractor_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('contractor_id', $request->contractor_id)))
@@ -50,7 +56,7 @@ class ReportController extends Controller
             ->pluck('cnt', 'status')
             ->toArray();
 
-        $employees   = Employee::active()->orderBy('first_name')->get();
+        $employees   = BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get();
         $departments = Department::orderBy('name')->get();
 
         return view('reports.attendance', compact('records', 'summary', 'employees', 'departments', 'fromDate', 'toDate'));
@@ -58,7 +64,9 @@ class ReportController extends Controller
 
     public function employees(Request $request)
     {
-        $query = Employee::with(['branch', 'department', 'designation', 'employeeType', 'currentSalary'])
+        $query = BranchScope::scopeQuery(
+            Employee::with(['branch', 'department', 'designation', 'employeeType', 'currentSalary'])
+        )
             ->when($request->filled('department_id'), fn($q) => $q->where('department_id', $request->department_id))
             ->when($request->filled('designation_id'), fn($q) => $q->where('designation_id', $request->designation_id))
             ->when($request->filled('employee_type_id'), fn($q) => $q->where('employee_type_id', $request->employee_type_id))
@@ -73,7 +81,7 @@ class ReportController extends Controller
 
         // Stats — respect the same filters as the table
         $stats = [];
-        $baseQuery = Employee::query()
+        $baseQuery = BranchScope::scopeQuery(Employee::query())
             ->when($request->filled('department_id'), fn($q) => $q->where('department_id', $request->department_id))
             ->when($request->filled('designation_id'), fn($q) => $q->where('designation_id', $request->designation_id))
             ->when($request->filled('employee_type_id'), fn($q) => $q->where('employee_type_id', $request->employee_type_id))
@@ -81,7 +89,9 @@ class ReportController extends Controller
 
         $stats['total']         = (clone $baseQuery)->count();
         $stats['active']        = (clone $baseQuery)->where('status', 'active')->count();
-        $stats['on_leave']      = Attendance::where('date', now()->toDateString())->where('status', 'on_leave')
+        $stats['on_leave']      = BranchScope::scopeQueryVia(
+            Attendance::where('date', now()->toDateString())->where('status', 'on_leave'), 'employee'
+        )
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
             ->when($request->filled('designation_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('designation_id', $request->designation_id)))
             ->when($request->filled('employee_type_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('employee_type_id', $request->employee_type_id)))
@@ -102,8 +112,11 @@ class ReportController extends Controller
     public function leave(Request $request)
     {
         $year = $request->input('year', now()->year);
-        $query = LeaveRequest::with(['employee.department', 'leaveType'])
-            ->whereYear('start_date', $year)
+        $query = BranchScope::scopeQueryVia(
+            LeaveRequest::with(['employee.department', 'leaveType'])
+                ->whereYear('start_date', $year),
+            'employee'
+        )
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
             ->when($request->filled('leave_type_id'), fn($q) => $q->where('leave_type_id', $request->leave_type_id))
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
@@ -125,8 +138,11 @@ class ReportController extends Controller
         $month = $request->input('month', now()->month);
         $year  = $request->input('year', now()->year);
 
-        $query = PayrollRecord::with(['employee.department'])
-            ->where('month', $month)->where('year', $year)
+        $query = BranchScope::scopeQueryVia(
+            PayrollRecord::with(['employee.department'])
+                ->where('month', $month)->where('year', $year),
+            'employee'
+        )
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
             ->when($request->filled('contractor_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('contractor_id', $request->contractor_id)))
@@ -139,7 +155,9 @@ class ReportController extends Controller
         $payrollRecords = $query->paginate(30)->withQueryString();
 
         // Summary — same filters as records query
-        $summaryQuery = PayrollRecord::where('month', $month)->where('year', $year)
+        $summaryQuery = BranchScope::scopeQueryVia(
+            PayrollRecord::where('month', $month)->where('year', $year), 'employee'
+        )
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
             ->when($request->filled('contractor_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('contractor_id', $request->contractor_id)));
@@ -161,14 +179,17 @@ class ReportController extends Controller
         $periodStart = \Carbon\Carbon::create($year, $month, 1)->startOfMonth();
         $periodEnd   = \Carbon\Carbon::create($year, $month, 1)->endOfMonth();
 
+        $scopedBranchId = BranchScope::currentBranchId();
+
         // Only count workers who were actually assigned to the contractor during the
         // selected month — joined on/before the period end and not exited before it started.
-        $contractors = Contractor::withCount(['employees' => function ($q) use ($periodStart, $periodEnd) {
+        $contractors = Contractor::withCount(['employees' => function ($q) use ($periodStart, $periodEnd, $scopedBranchId) {
             $q->where('date_of_joining', '<=', $periodEnd)
                 ->where(function ($q2) use ($periodStart) {
                     $q2->whereDoesntHave('exitRecord')
                         ->orWhereHas('exitRecord', fn($e) => $e->where('exit_date', '>=', $periodStart));
-                });
+                })
+                ->when($scopedBranchId !== null, fn($q3) => $q3->where('branch_id', $scopedBranchId));
         }])->orderBy('name')->get();
 
         $payrollSummary = PayrollRecord::query()
@@ -176,6 +197,7 @@ class ReportController extends Controller
             ->whereNotNull('employees.contractor_id')
             ->where('payroll_records.month', $month)
             ->where('payroll_records.year', $year)
+            ->when($scopedBranchId !== null, fn($q) => $q->where('employees.branch_id', $scopedBranchId))
             ->selectRaw('employees.contractor_id as contractor_id, COUNT(*) as worker_count, SUM(payroll_records.gross_earnings) as total_gross, SUM(payroll_records.net_salary) as total_net')
             ->selectRaw("SUM(CASE WHEN payroll_records.status = 'paid' THEN 1 ELSE 0 END) as paid_count")
             ->groupBy('employees.contractor_id')
@@ -222,8 +244,11 @@ class ReportController extends Controller
         $month = (int) $request->input('month', now()->month);
         $year  = (int) $request->input('year', now()->year);
 
-        $query = PayrollRecord::with(['employee.department'])
-            ->where('month', $month)->where('year', $year)
+        $query = BranchScope::scopeQueryVia(
+            PayrollRecord::with(['employee.department'])
+                ->where('month', $month)->where('year', $year),
+            'employee'
+        )
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
             ->orderBy('employee_id');
 
@@ -233,7 +258,9 @@ class ReportController extends Controller
 
         $records = $query->paginate(30)->withQueryString();
 
-        $summaryQuery = PayrollRecord::where('month', $month)->where('year', $year)
+        $summaryQuery = BranchScope::scopeQueryVia(
+            PayrollRecord::where('month', $month)->where('year', $year), 'employee'
+        )
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)));
 
         $totals = $summaryQuery
@@ -254,9 +281,12 @@ class ReportController extends Controller
         $periodEnd   = \Carbon\Carbon::create($year, $month, 1)->endOfMonth();
 
         // Employee-wise OT summary for the month — hours/wages as actually paid on record.
-        $summaryQuery = PayrollRecord::with(['employee.department'])
-            ->where('month', $month)->where('year', $year)
-            ->where('ot_hours', '>', 0)
+        $summaryQuery = BranchScope::scopeQueryVia(
+            PayrollRecord::with(['employee.department'])
+                ->where('month', $month)->where('year', $year)
+                ->where('ot_hours', '>', 0),
+            'employee'
+        )
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
             ->orderByDesc('ot_hours');
 
@@ -266,7 +296,9 @@ class ReportController extends Controller
 
         $summary = $summaryQuery->paginate(15, ['*'], 'summary_page')->withQueryString();
 
-        $totalsQuery = PayrollRecord::where('month', $month)->where('year', $year)->where('ot_hours', '>', 0)
+        $totalsQuery = BranchScope::scopeQueryVia(
+            PayrollRecord::where('month', $month)->where('year', $year)->where('ot_hours', '>', 0), 'employee'
+        )
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)));
 
         $totals = $totalsQuery
@@ -274,9 +306,12 @@ class ReportController extends Controller
             ->first();
 
         // Date-wise OT punches for the same month, from daily attendance records.
-        $dailyOt = Attendance::with(['employee.department'])
-            ->whereBetween('date', [$periodStart, $periodEnd])
-            ->where('ot_minutes', '>', 0)
+        $dailyOt = BranchScope::scopeQueryVia(
+            Attendance::with(['employee.department'])
+                ->whereBetween('date', [$periodStart, $periodEnd])
+                ->where('ot_minutes', '>', 0),
+            'employee'
+        )
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
             ->orderBy('date')
             ->paginate(15, ['*'], 'daily_page')
@@ -292,9 +327,12 @@ class ReportController extends Controller
         $month = (int) $request->input('month', now()->month);
         $year  = (int) $request->input('year', now()->year);
 
-        $query = PayrollRecord::with(['employee.department'])
-            ->where('month', $month)->where('year', $year)
-            ->where('lop_days', '>', 0)
+        $query = BranchScope::scopeQueryVia(
+            PayrollRecord::with(['employee.department'])
+                ->where('month', $month)->where('year', $year)
+                ->where('lop_days', '>', 0),
+            'employee'
+        )
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)))
             ->orderByDesc('lop_days');
 
@@ -304,7 +342,9 @@ class ReportController extends Controller
 
         $records = $query->paginate(30)->withQueryString();
 
-        $summaryQuery = PayrollRecord::where('month', $month)->where('year', $year)->where('lop_days', '>', 0)
+        $summaryQuery = BranchScope::scopeQueryVia(
+            PayrollRecord::where('month', $month)->where('year', $year)->where('lop_days', '>', 0), 'employee'
+        )
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)));
 
         $totals = $summaryQuery
@@ -318,6 +358,24 @@ class ReportController extends Controller
 
     private function exportCsv($records, string $type): \Symfony\Component\HttpFoundation\StreamedResponse
     {
+        // Fine-grained Branch Administration gate — CSV is the only export
+        // format this app currently produces, so it's treated as the "Export
+        // Excel" action. Additive: no-op for legacy/Super Admin accounts.
+        if (BranchScope::isBranchScopedUser()) {
+            $moduleKey = match ($type) {
+                'attendance' => 'attendance',
+                'employees' => 'employees',
+                'leave' => 'leave',
+                'payroll', 'pf-esi', 'overtime', 'lop' => 'payroll',
+                'contract-labour' => 'contractors',
+                default => 'reports',
+            };
+
+            if (! \App\Support\BranchAdminPermissions::can(auth()->user(), $moduleKey, 'export_excel')) {
+                abort(403, 'You do not have the "Export Excel" permission for this report in Branch Administration.');
+            }
+        }
+
         $filename = $type . '-report-' . now()->format('Y-m-d') . '.csv';
 
         return response()->streamDownload(function () use ($records, $type) {

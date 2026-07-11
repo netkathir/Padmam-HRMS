@@ -2,6 +2,10 @@
 /**
  * File: app/Http/Controllers/Masters/ContractorController.php
  * Purpose: CRUD and management for Contractors — labour assignment, contractor-wise attendance and payroll views.
+ *          Branch-wise scoped throughout: a Contractor belongs to a branch
+ *          (branch_id, additive column — see 2026_07_12_000001 migration), and
+ *          the labour/attendance/payroll sub-views were already scoped via the
+ *          linked Employee's branch_id.
  * Author: System
  * Date: 2026-07-01
  */
@@ -12,6 +16,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Contractor;
 use App\Models\Employee;
 use App\Models\Attendance;
+use App\Models\Branch;
 use App\Models\PayrollRecord;
 use App\Support\BranchScope;
 use Illuminate\Http\Request;
@@ -20,7 +25,7 @@ class ContractorController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Contractor::orderBy('name');
+        $query = BranchScope::scopeQuery(Contractor::query())->orderBy('name');
 
         if ($request->filled('search')) {
             $s = '%' . $request->search . '%';
@@ -35,7 +40,8 @@ class ContractorController extends Controller
 
     public function create()
     {
-        return view('masters.contractors.create');
+        $branches = auth()->user()->isSuperAdmin() ? Branch::active()->orderBy('name')->get() : collect();
+        return view('masters.contractors.create', compact('branches'));
     }
 
     public function store(Request $request)
@@ -51,8 +57,12 @@ class ContractorController extends Controller
             'license_number' => ['nullable', 'string', 'max:100'],
             'gst_number'     => ['nullable', 'string', 'max:20'],
             'license_expiry' => ['nullable', 'date'],
+            'branch_id'      => ['nullable', 'exists:branches,id'],
             'is_active'      => ['boolean'],
         ]);
+
+        $data = BranchScope::stampBranchId($data);
+        BranchScope::assertBranchIsActive($data['branch_id'] ?? null);
 
         Contractor::create($data);
 
@@ -62,11 +72,15 @@ class ContractorController extends Controller
 
     public function edit(Contractor $contractor)
     {
-        return view('masters.contractors.edit', compact('contractor'));
+        BranchScope::assertBranchAccess($contractor->branch_id);
+        $branches = auth()->user()->isSuperAdmin() ? Branch::active()->orderBy('name')->get() : collect();
+        return view('masters.contractors.edit', compact('contractor', 'branches'));
     }
 
     public function update(Request $request, Contractor $contractor)
     {
+        BranchScope::assertBranchAccess($contractor->branch_id);
+
         $data = $request->validate([
             'name'           => ['required', 'string', 'max:100'],
             'company_name'   => ['nullable', 'string', 'max:150'],
@@ -78,8 +92,11 @@ class ContractorController extends Controller
             'license_number' => ['nullable', 'string', 'max:100'],
             'gst_number'     => ['nullable', 'string', 'max:20'],
             'license_expiry' => ['nullable', 'date'],
+            'branch_id'      => ['nullable', 'exists:branches,id'],
             'is_active'      => ['boolean'],
         ]);
+
+        $data = BranchScope::stampBranchId($data);
 
         $contractor->update($data);
 
@@ -89,6 +106,8 @@ class ContractorController extends Controller
 
     public function destroy(Contractor $contractor)
     {
+        BranchScope::assertBranchAccess($contractor->branch_id);
+
         if ($contractor->employees()->exists()) {
             return back()->with('error', 'Cannot delete contractor with associated employees.');
         }
@@ -104,7 +123,7 @@ class ContractorController extends Controller
      */
     public function contractLabourIndex(Request $request)
     {
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(['id', 'name', 'code']);
 
         $contractor          = null;
         $employees           = collect();
@@ -112,6 +131,7 @@ class ContractorController extends Controller
 
         if ($request->filled('contractor_id')) {
             $contractor = Contractor::findOrFail($request->contractor_id);
+            BranchScope::assertBranchAccess($contractor->branch_id);
 
             $employees = BranchScope::scopeQuery($contractor->employees())
                 ->with(['department', 'designation'])
@@ -136,6 +156,8 @@ class ContractorController extends Controller
      */
     public function labour(Contractor $contractor)
     {
+        BranchScope::assertBranchAccess($contractor->branch_id);
+
         $employees = BranchScope::scopeQuery($contractor->employees())
             ->with(['department', 'designation', 'shift'])
             ->orderBy('first_name')
@@ -155,6 +177,8 @@ class ContractorController extends Controller
      */
     public function assignLabour(Request $request, Contractor $contractor)
     {
+        BranchScope::assertBranchAccess($contractor->branch_id);
+
         $request->validate([
             'employee_id' => ['required', 'exists:employees,id'],
         ]);
@@ -176,6 +200,7 @@ class ContractorController extends Controller
      */
     public function removeLabour(Contractor $contractor, Employee $employee)
     {
+        BranchScope::assertBranchAccess($contractor->branch_id);
         BranchScope::assertBranchAccess($employee->branch_id);
 
         if ($employee->contractor_id !== $contractor->id) {
@@ -194,6 +219,8 @@ class ContractorController extends Controller
      */
     public function attendance(Request $request, Contractor $contractor)
     {
+        BranchScope::assertBranchAccess($contractor->branch_id);
+
         $date = $request->input('date', now()->toDateString());
 
         $employeeIds = BranchScope::scopeQuery($contractor->employees())->pluck('id');
@@ -222,6 +249,8 @@ class ContractorController extends Controller
      */
     public function payroll(Request $request, Contractor $contractor)
     {
+        BranchScope::assertBranchAccess($contractor->branch_id);
+
         $month = $request->input('month', now()->month);
         $year  = $request->input('year', now()->year);
 

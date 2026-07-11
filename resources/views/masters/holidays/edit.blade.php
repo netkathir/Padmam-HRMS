@@ -28,13 +28,17 @@
                     @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Branch (leave blank for all)</label>
-                    <select name="branch_id" class="form-select">
+                    <label class="form-label">Branch {{ $lockedBranchId ? '' : '(leave blank for all)' }}</label>
+                    <select name="branch_id" class="form-select" {{ $lockedBranchId ? 'disabled' : '' }}>
                         <option value="">All Branches</option>
                         @foreach($branches as $b)
-                            <option value="{{ $b->id }}" {{ old('branch_id', $holiday->branch_id) == $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
+                            <option value="{{ $b->id }}" {{ (string) old('branch_id', $lockedBranchId ?? $holiday->branch_id) === (string) $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
                         @endforeach
                     </select>
+                    @if ($lockedBranchId)
+                        <input type="hidden" name="branch_id" value="{{ $lockedBranchId }}">
+                        <div class="form-text">Locked to your assigned branch.</div>
+                    @endif
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
                     <div class="form-check">

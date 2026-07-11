@@ -5,13 +5,14 @@ namespace App\Http\Controllers\Masters;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\Branch;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 
 class DepartmentController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Department::with('branch')->orderBy('name');
+        $query = BranchScope::scopeQuery(Department::with('branch'))->orderBy('name');
 
         if ($request->filled('search')) {
             $s = '%' . $request->search . '%';
@@ -22,14 +23,16 @@ class DepartmentController extends Controller
         }
 
         $departments = $query->paginate(20)->withQueryString();
-        $branches    = Branch::orderBy('name')->get();
+        $branches    = auth()->user()->isSuperAdmin() ? Branch::orderBy('name')->get() : collect();
         return view('masters.departments.index', compact('departments', 'branches'));
     }
 
     public function create()
     {
-        $branches = Branch::active()->orderBy('name')->get();
-        return view('masters.departments.create', compact('branches'));
+        $isSuperAdmin = auth()->user()->isSuperAdmin();
+        $branches = $isSuperAdmin ? Branch::active()->orderBy('name')->get() : Branch::where('id', BranchScope::currentBranchId())->get();
+        $lockedBranchId = $isSuperAdmin ? null : BranchScope::currentBranchId();
+        return view('masters.departments.create', compact('branches', 'lockedBranchId'));
     }
 
     public function store(Request $request)
@@ -41,6 +44,10 @@ class DepartmentController extends Controller
             'is_active' => ['boolean'],
         ]);
 
+        $data = BranchScope::stampBranchId($data);
+        BranchScope::assertBranchAccess($data['branch_id']);
+        BranchScope::assertBranchIsActive($data['branch_id']);
+
         Department::create($data);
 
         return redirect()->route('masters.departments.index')
@@ -49,18 +56,26 @@ class DepartmentController extends Controller
 
     public function edit(Department $department)
     {
-        $branches = Branch::active()->orderBy('name')->get();
-        return view('masters.departments.edit', compact('department', 'branches'));
+        BranchScope::assertBranchAccess($department->branch_id);
+        $isSuperAdmin = auth()->user()->isSuperAdmin();
+        $branches = $isSuperAdmin ? Branch::active()->orderBy('name')->get() : Branch::where('id', $department->branch_id)->get();
+        $lockedBranchId = $isSuperAdmin ? null : $department->branch_id;
+        return view('masters.departments.edit', compact('department', 'branches', 'lockedBranchId'));
     }
 
     public function update(Request $request, Department $department)
     {
+        BranchScope::assertBranchAccess($department->branch_id);
+
         $data = $request->validate([
             'branch_id' => ['required', 'exists:branches,id'],
             'name'      => ['required', 'string', 'max:100'],
             'code'      => ['nullable', 'string', 'max:20'],
             'is_active' => ['boolean'],
         ]);
+
+        $data = BranchScope::stampBranchId($data);
+        BranchScope::assertBranchAccess($data['branch_id']);
 
         $department->update($data);
 
@@ -70,6 +85,8 @@ class DepartmentController extends Controller
 
     public function destroy(Department $department)
     {
+        BranchScope::assertBranchAccess($department->branch_id);
+
         if ($department->designations()->exists()) {
             return back()->with('error', 'Cannot delete department with associated designations.');
         }

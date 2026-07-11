@@ -268,7 +268,7 @@ class UserController extends Controller
             ->orderBy('display_name')
             ->get();
 
-        $employees = Employee::orderBy('first_name')->get(['id', 'employee_code', 'first_name', 'last_name', 'branch_id']);
+        $employees = BranchScope::scopeQuery(Employee::orderBy('first_name'))->get(['id', 'employee_code', 'first_name', 'last_name', 'branch_id']);
 
         return [
             'isSuperAdmin' => $isSuperAdmin,

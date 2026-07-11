@@ -183,14 +183,14 @@ class ReportController extends Controller
 
         // Only count workers who were actually assigned to the contractor during the
         // selected month — joined on/before the period end and not exited before it started.
-        $contractors = Contractor::withCount(['employees' => function ($q) use ($periodStart, $periodEnd, $scopedBranchId) {
+        $contractors = BranchScope::scopeQuery(Contractor::withCount(['employees' => function ($q) use ($periodStart, $periodEnd, $scopedBranchId) {
             $q->where('date_of_joining', '<=', $periodEnd)
                 ->where(function ($q2) use ($periodStart) {
                     $q2->whereDoesntHave('exitRecord')
                         ->orWhereHas('exitRecord', fn($e) => $e->where('exit_date', '>=', $periodStart));
                 })
                 ->when($scopedBranchId !== null, fn($q3) => $q3->where('branch_id', $scopedBranchId));
-        }])->orderBy('name')->get();
+        }]))->orderBy('name')->get();
 
         $payrollSummary = PayrollRecord::query()
             ->join('employees', 'payroll_records.employee_id', '=', 'employees.id')
@@ -212,8 +212,11 @@ class ReportController extends Controller
         $month = (int) $request->input('month', now()->month);
         $year  = (int) $request->input('year', now()->year);
 
-        $query = ContractWorkerPayroll::with(['worker', 'contractor'])
-            ->where('month', $month)->where('year', $year)
+        $query = BranchScope::scopeQueryVia(
+            ContractWorkerPayroll::with(['worker', 'contractor'])
+                ->where('month', $month)->where('year', $year),
+            'contractor'
+        )
             ->when($request->filled('contractor_id'), fn($q) => $q->where('contractor_id', $request->contractor_id))
             ->when($request->filled('payment_status'), fn($q) => $q->where('payment_status', $request->payment_status))
             ->orderBy('contractor_id');
@@ -224,7 +227,9 @@ class ReportController extends Controller
 
         $records = $query->paginate(30)->withQueryString();
 
-        $summaryQuery = ContractWorkerPayroll::where('month', $month)->where('year', $year)
+        $summaryQuery = BranchScope::scopeQueryVia(
+            ContractWorkerPayroll::where('month', $month)->where('year', $year), 'contractor'
+        )
             ->when($request->filled('contractor_id'), fn($q) => $q->where('contractor_id', $request->contractor_id))
             ->when($request->filled('payment_status'), fn($q) => $q->where('payment_status', $request->payment_status));
 
@@ -234,7 +239,7 @@ class ReportController extends Controller
 
         $paidCount = (clone $summaryQuery)->where('payment_status', 'paid')->count();
 
-        $contractors = Contractor::orderBy('name')->get();
+        $contractors = BranchScope::scopeQuery(Contractor::query())->orderBy('name')->get();
 
         return view('reports.contract-labour', compact('records', 'totals', 'paidCount', 'contractors', 'month', 'year'));
     }

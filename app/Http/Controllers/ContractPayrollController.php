@@ -11,6 +11,7 @@ namespace App\Http\Controllers;
 use App\Models\Contractor;
 use App\Models\ContractWorkerAttendance;
 use App\Models\ContractWorkerPayroll;
+use App\Support\BranchScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,12 +20,14 @@ class ContractPayrollController extends Controller
 {
     public function index(Request $request)
     {
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(['id', 'name', 'code']);
 
         $month = (int) $request->input('month', now()->month);
         $year  = (int) $request->input('year', now()->year);
 
-        $query = ContractWorkerPayroll::with(['worker', 'contractor'])
+        $query = BranchScope::scopeQueryVia(
+            ContractWorkerPayroll::with(['worker', 'contractor']), 'contractor'
+        )
             ->when($request->filled('contractor_id'), fn($q) => $q->where('contractor_id', $request->contractor_id))
             ->where('month', $month)->where('year', $year)
             ->when($request->filled('status'), fn($q) => $q->where('payment_status', $request->status))
@@ -32,7 +35,9 @@ class ContractPayrollController extends Controller
 
         $records = $query->paginate(25)->withQueryString();
 
-        $summary = ContractWorkerPayroll::where('month', $month)->where('year', $year)
+        $summary = BranchScope::scopeQueryVia(
+            ContractWorkerPayroll::where('month', $month)->where('year', $year), 'contractor'
+        )
             ->when($request->filled('contractor_id'), fn($q) => $q->where('contractor_id', $request->contractor_id))
             ->selectRaw('COUNT(*) as count, SUM(gross_wages) as gross, SUM(net_wages) as net')
             ->first();
@@ -42,7 +47,7 @@ class ContractPayrollController extends Controller
 
     public function calculateForm()
     {
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(['id', 'name', 'code']);
         return view('contract-payroll.calculate', compact('contractors'));
     }
 
@@ -55,6 +60,8 @@ class ContractPayrollController extends Controller
         ]);
 
         $contractor = Contractor::findOrFail($request->contractor_id);
+        BranchScope::assertBranchAccess($contractor->branch_id);
+
         $month      = (int) $request->month;
         $year       = (int) $request->year;
 
@@ -125,12 +132,14 @@ class ContractPayrollController extends Controller
     public function show(int $id)
     {
         $record = ContractWorkerPayroll::with(['worker', 'contractor', 'generator'])->findOrFail($id);
+        BranchScope::assertBranchAccess($record->contractor?->branch_id);
         return view('contract-payroll.show', compact('record'));
     }
 
     public function markPaid(Request $request, int $id)
     {
-        $record = ContractWorkerPayroll::findOrFail($id);
+        $record = ContractWorkerPayroll::with('contractor')->findOrFail($id);
+        BranchScope::assertBranchAccess($record->contractor?->branch_id);
 
         $request->validate([
             'payment_date'    => ['required', 'date'],

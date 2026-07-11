@@ -81,6 +81,21 @@ class BranchScope
     }
 
     /**
+     * Like scopeQuery(), but for models where a NULL branch_id deliberately
+     * means "applies to every branch" (e.g. a national Holiday), not "not yet
+     * assigned" — includes rows with a NULL column value alongside the exact
+     * match, instead of excluding them.
+     */
+    public static function scopeQueryIncludingGlobal($query, string $column = 'branch_id')
+    {
+        $branchId = self::currentBranchId();
+
+        return $branchId
+            ? $query->where(fn($q) => $q->whereNull($column)->orWhere($column, $branchId))
+            : $query;
+    }
+
+    /**
      * Abort 403 (and audit-log the attempt) if the current effective branch
      * doesn't match the record being accessed. No-op when no branch is in
      * effect (null currentBranchId — e.g. legacy accounts, unscoped Super Admin).

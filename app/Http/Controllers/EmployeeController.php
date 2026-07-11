@@ -55,6 +55,7 @@ class EmployeeController extends Controller
         $data['created_by'] = auth()->id();
         $data = BranchScope::stampBranchId($data);
         BranchScope::assertBranchIsActive($data['branch_id']);
+        $this->assertDepartmentBelongsToBranch($data['department_id'], $data['branch_id']);
 
         $employee = DB::transaction(function () use ($data, $request) {
             $emp = Employee::create($data);
@@ -96,6 +97,12 @@ class EmployeeController extends Controller
     {
         BranchScope::assertBranchAccess($employee->branch_id);
         $data = $request->validate($this->rules($employee->id));
+        // A branch-scoped actor can never move an employee to another branch,
+        // even via a crafted request — branch_id is always re-forced here,
+        // exactly as on create.
+        $data = BranchScope::stampBranchId($data);
+        BranchScope::assertBranchAccess($data['branch_id']);
+        $this->assertDepartmentBelongsToBranch($data['department_id'], $data['branch_id']);
         $employee->update($data);
         return redirect()->route('employees.show', $employee)->with('success', 'Employee updated.');
     }
@@ -199,16 +206,36 @@ class EmployeeController extends Controller
         return redirect()->route('employees.index')->with('success', 'Employee exit processed.');
     }
 
+    /**
+     * A department belongs to a branch (departments.branch_id) — an employee
+     * can never be filed under another branch's department, whether the
+     * mismatch comes from a branch-scoped actor or a tampered request.
+     */
+    private function assertDepartmentBelongsToBranch(?int $departmentId, ?int $branchId): void
+    {
+        if ($departmentId === null || $branchId === null) {
+            return;
+        }
+
+        $department = Department::find($departmentId);
+
+        if ($department && (int) $department->branch_id !== (int) $branchId) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'department_id' => 'The selected department does not belong to the selected branch.',
+            ]);
+        }
+    }
+
     private function formData(): array
     {
         return [
             'branches'      => Branch::active()->orderBy('name')->get(),
-            'departments'   => Department::orderBy('name')->get(),
+            'departments'   => BranchScope::scopeQuery(Department::query())->orderBy('name')->get(),
             'designations'  => Designation::orderBy('name')->get(),
             'employeeTypes' => EmployeeType::where('is_active', true)->get(),
-            'contractors'   => Contractor::where('is_active', true)->orderBy('name')->get(),
+            'contractors'   => BranchScope::scopeQueryIncludingGlobal(Contractor::where('is_active', true))->orderBy('name')->get(),
             'shifts'        => Shift::where('is_active', true)->get(),
-            'managers'      => Employee::active()->orderBy('first_name')->get(),
+            'managers'      => BranchScope::scopeQuery(Employee::active())->orderBy('first_name')->get(),
             'roles'         => \App\Models\Role::orderBy('name')->get(),
         ];
     }

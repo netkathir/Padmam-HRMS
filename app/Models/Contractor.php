@@ -18,6 +18,9 @@ class Contractor extends Model
     protected $fillable = [
         'name', 'company_name', 'code', 'contact_person', 'phone', 'email',
         'address', 'license_number', 'gst_number', 'license_expiry', 'is_active',
+        // Branch-wise data scoping — additive; nullable so contractors predating
+        // this column stay invisible to branch-scoped users until assigned.
+        'branch_id',
     ];
 
     protected function casts(): array
@@ -25,6 +28,7 @@ class Contractor extends Model
         return ['license_expiry' => 'date', 'is_active' => 'boolean'];
     }
 
+    public function branch()         { return $this->belongsTo(Branch::class); }
     public function employees()      { return $this->hasMany(Employee::class); }
     public function contractWorkers(){ return $this->hasMany(ContractWorker::class); }
 }

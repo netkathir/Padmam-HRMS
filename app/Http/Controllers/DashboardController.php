@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Attendance;
 use App\Models\LeaveRequest;
 use App\Models\PayrollRecord;
+use App\Support\BranchScope;
 
 class DashboardController extends Controller
 {
@@ -15,19 +16,24 @@ class DashboardController extends Controller
         $month = now()->month;
         $year  = now()->year;
 
-        // Core stats
-        $totalEmployees   = Employee::active()->count();
-        $presentToday     = Attendance::where('date', $today)->whereIn('status', ['present', 'half_day'])->count();
-        $pendingLeaves    = LeaveRequest::where('status', 'pending')->count();
+        // Core stats — every query below is branch-scoped: a no-op for
+        // unscoped Super Admin / legacy accounts, and restricted to the
+        // effective branch for a branch-scoped user or a Super Admin who
+        // has switched via the Branch Switcher.
+        $totalEmployees   = BranchScope::scopeQuery(Employee::active())->count();
+        $presentToday     = BranchScope::scopeQueryVia(Attendance::where('date', $today)->whereIn('status', ['present', 'half_day']), 'employee')->count();
+        $pendingLeaves    = BranchScope::scopeQueryVia(LeaveRequest::where('status', 'pending'), 'employee')->count();
         $absentToday      = $totalEmployees - $presentToday;
 
         // Monthly payroll summary
-        $payrollMonth = PayrollRecord::where('month', $month)->where('year', $year)
+        $payrollMonth = BranchScope::scopeQueryVia(
+            PayrollRecord::where('month', $month)->where('year', $year), 'employee'
+        )
             ->selectRaw('COUNT(*) as count, SUM(net_salary) as total, SUM(gross_earnings) as gross')
             ->first();
 
         // Today's attendance breakdown
-        $attendanceBreakdown = Attendance::where('date', $today)
+        $attendanceBreakdown = BranchScope::scopeQueryVia(Attendance::where('date', $today), 'employee')
             ->selectRaw('status, COUNT(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status')
@@ -39,7 +45,7 @@ class DashboardController extends Controller
             ->map(fn ($offset) => now()->copy()->addDays($offset)->format('m-d'))
             ->all();
 
-        $upcomingEmployees = Employee::active()
+        $upcomingEmployees = BranchScope::scopeQuery(Employee::active())
             ->select('id', 'first_name', 'last_name', 'date_of_birth', 'date_of_joining', 'department_id')
             ->with('department:id,name')
             ->get();
@@ -61,7 +67,7 @@ class DashboardController extends Controller
             ->values();
 
         // Department-wise headcount
-        $deptWise = Employee::active()
+        $deptWise = BranchScope::scopeQuery(Employee::active(), 'employees.branch_id')
             ->join('departments', 'employees.department_id', '=', 'departments.id')
             ->selectRaw('departments.name as dept, COUNT(*) as cnt')
             ->groupBy('departments.name')
@@ -70,7 +76,8 @@ class DashboardController extends Controller
             ->get();
 
         // Recent leave requests
-        $recentLeaves = LeaveRequest::with(['employee:id,first_name,last_name', 'leaveType:id,name'])
+        $recentLeaves = BranchScope::scopeQueryVia(LeaveRequest::query(), 'employee')
+            ->with(['employee:id,first_name,last_name', 'leaveType:id,name'])
             ->orderByDesc('created_at')
             ->limit(5)
             ->get();

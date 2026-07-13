@@ -20,7 +20,7 @@ class User extends Authenticatable
         'is_locked', 'created_by', 'updated_by', 'remarks',
     ];
 
-    protected $hidden = ['password'];
+    protected $hidden = ['password', 'remember_token'];
 
     protected function casts(): array
     {

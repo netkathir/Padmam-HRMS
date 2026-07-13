@@ -96,8 +96,8 @@ class AttendanceController extends Controller
     {
         $employees = BranchScope::scopeQuery(Employee::active()->orderBy('first_name')->with('department'))->get();
         $recentEntries = BranchScope::scopeQueryVia(
-            Attendance::where('is_manual', true), 'employee'
-        )->with(['employee', 'markedBy'])
+            Attendance::where('is_manual_entry', true), 'employee'
+        )->with('employee')
             ->orderByDesc('created_at')
             ->limit(10)
             ->get();
@@ -119,7 +119,15 @@ class AttendanceController extends Controller
         BranchScope::assertBranchAccess($manualEmployee?->branch_id);
         BranchScope::assertBranchIsActive($manualEmployee?->branch_id);
 
-        $data['is_manual'] = true;
+        // There is no dedicated `manual_reason` column — it's recorded in
+        // the general-purpose `remarks` field that already exists on this
+        // table.
+        $data['remarks'] = $data['manual_reason'];
+        unset($data['manual_reason']);
+
+        $data['is_manual_entry'] = true;
+        $data['approval_status'] = 'pending';
+        $data['source']    = 'manual';
         $data['in_time']   = $data['date'] . ' ' . $data['in_time'] . ':00';
         $data['out_time']  = ! empty($data['out_time']) ? $data['date'] . ' ' . $data['out_time'] . ':00' : null;
 
@@ -138,13 +146,13 @@ class AttendanceController extends Controller
 
     public function pending()
     {
-        $pending = BranchScope::scopeQueryVia(
-            Attendance::where('is_manual', true)->whereNull('approved_by'), 'employee'
+        $pendingRequests = BranchScope::scopeQueryVia(
+            Attendance::where('is_manual_entry', true)->where('approval_status', 'pending'), 'employee'
         )->with(['employee.department'])
             ->orderByDesc('date')
             ->paginate(20);
 
-        return view('attendance.pending', compact('pending'));
+        return view('attendance.pending', compact('pendingRequests'));
     }
 
     public function approve(Request $request, Attendance $attendance)
@@ -153,9 +161,9 @@ class AttendanceController extends Controller
         $request->validate(['action' => ['required', 'in:approve,reject']]);
 
         if ($request->action === 'approve') {
-            $attendance->update(['approved_by' => auth()->id()]);
+            $attendance->update(['approved_by' => auth()->id(), 'approved_at' => now(), 'approval_status' => 'approved']);
         } else {
-            $attendance->update(['is_manual' => false, 'approved_by' => null]);
+            $attendance->update(['is_manual_entry' => false, 'approved_by' => null, 'approval_status' => 'rejected']);
         }
 
         return back()->with('success', 'Attendance ' . $request->action . 'd.');

@@ -176,7 +176,7 @@ class LeaveController extends Controller
                 ->where('year', now()->year)
                 ->decrement($col, $leave->total_days);
 
-            $leave->update(['status' => 'cancelled']);
+            $leave->update(['status' => 'cancelled', 'cancelled_by' => auth()->id(), 'cancelled_at' => now()]);
         });
 
         return back()->with('success', 'Leave request cancelled.');

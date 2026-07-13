@@ -22,14 +22,14 @@ class PfEsiConfigController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'effective_from'      => ['required', 'date'],
-            'pf_employee_percent' => ['required', 'numeric', 'min:0', 'max:100'],
-            'pf_employer_percent' => ['required', 'numeric', 'min:0', 'max:100'],
-            'pf_ceiling'          => ['required', 'numeric', 'min:0'],
-            'esi_employee_percent'=> ['required', 'numeric', 'min:0', 'max:100'],
-            'esi_employer_percent'=> ['required', 'numeric', 'min:0', 'max:100'],
-            'esi_ceiling'         => ['required', 'numeric', 'min:0'],
-            'is_active'           => ['boolean'],
+            'effective_from'    => ['required', 'date'],
+            'pf_employee_pct'   => ['required', 'numeric', 'min:0', 'max:100'],
+            'pf_employer_pct'   => ['required', 'numeric', 'min:0', 'max:100'],
+            'pf_wage_ceiling'   => ['required', 'numeric', 'min:0'],
+            'esi_employee_pct'  => ['required', 'numeric', 'min:0', 'max:100'],
+            'esi_employer_pct'  => ['required', 'numeric', 'min:0', 'max:100'],
+            'esi_wage_ceiling'  => ['required', 'numeric', 'min:0'],
+            'is_active'         => ['boolean'],
         ]);
 
         PfEsiConfig::create($data);
@@ -46,14 +46,14 @@ class PfEsiConfigController extends Controller
     public function update(Request $request, PfEsiConfig $pfEsiConfig)
     {
         $data = $request->validate([
-            'effective_from'      => ['required', 'date'],
-            'pf_employee_percent' => ['required', 'numeric', 'min:0', 'max:100'],
-            'pf_employer_percent' => ['required', 'numeric', 'min:0', 'max:100'],
-            'pf_ceiling'          => ['required', 'numeric', 'min:0'],
-            'esi_employee_percent'=> ['required', 'numeric', 'min:0', 'max:100'],
-            'esi_employer_percent'=> ['required', 'numeric', 'min:0', 'max:100'],
-            'esi_ceiling'         => ['required', 'numeric', 'min:0'],
-            'is_active'           => ['boolean'],
+            'effective_from'    => ['required', 'date'],
+            'pf_employee_pct'   => ['required', 'numeric', 'min:0', 'max:100'],
+            'pf_employer_pct'   => ['required', 'numeric', 'min:0', 'max:100'],
+            'pf_wage_ceiling'   => ['required', 'numeric', 'min:0'],
+            'esi_employee_pct'  => ['required', 'numeric', 'min:0', 'max:100'],
+            'esi_employer_pct'  => ['required', 'numeric', 'min:0', 'max:100'],
+            'esi_wage_ceiling'  => ['required', 'numeric', 'min:0'],
+            'is_active'         => ['boolean'],
         ]);
 
         $pfEsiConfig->update($data);

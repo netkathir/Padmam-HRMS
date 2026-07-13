@@ -12,7 +12,7 @@ class SalarySlabController extends Controller
 {
     public function index(Request $request)
     {
-        $query = SalarySlab::orderBy('min_ctc');
+        $query = SalarySlab::query()->orderBy('min_ctc');
 
         if ($request->filled('search')) {
             $s = '%' . $request->search . '%';
@@ -33,9 +33,9 @@ class SalarySlabController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'       => ['required', 'string', 'max:100'],
-            'min_salary' => ['required', 'numeric', 'min:0'],
-            'max_salary' => ['required', 'numeric', 'min:0', 'gt:min_salary'],
+            'name'     => ['required', 'string', 'max:100'],
+            'min_ctc'  => ['required', 'numeric', 'min:0'],
+            'max_ctc'  => ['required', 'numeric', 'min:0', 'gt:min_ctc'],
             'components' => ['nullable', 'array'],
             'components.*.component_type' => ['required', 'in:earning,deduction'],
             'components.*.component_id'   => ['required', 'integer'],
@@ -44,9 +44,9 @@ class SalarySlabController extends Controller
         ]);
 
         $slab = SalarySlab::create([
-            'name'       => $data['name'],
-            'min_salary' => $data['min_salary'],
-            'max_salary' => $data['max_salary'],
+            'name'    => $data['name'],
+            'min_ctc' => $data['min_ctc'],
+            'max_ctc' => $data['max_ctc'],
         ]);
 
         if ($request->filled('components')) {
@@ -70,9 +70,9 @@ class SalarySlabController extends Controller
     public function update(Request $request, SalarySlab $salarySlab)
     {
         $data = $request->validate([
-            'name'       => ['required', 'string', 'max:100'],
-            'min_salary' => ['required', 'numeric', 'min:0'],
-            'max_salary' => ['required', 'numeric', 'min:0', 'gt:min_salary'],
+            'name'     => ['required', 'string', 'max:100'],
+            'min_ctc'  => ['required', 'numeric', 'min:0'],
+            'max_ctc'  => ['required', 'numeric', 'min:0', 'gt:min_ctc'],
             'components' => ['nullable', 'array'],
             'components.*.component_type' => ['required', 'in:earning,deduction'],
             'components.*.component_id'   => ['required', 'integer'],
@@ -81,9 +81,9 @@ class SalarySlabController extends Controller
         ]);
 
         $salarySlab->update([
-            'name'       => $data['name'],
-            'min_salary' => $data['min_salary'],
-            'max_salary' => $data['max_salary'],
+            'name'    => $data['name'],
+            'min_ctc' => $data['min_ctc'],
+            'max_ctc' => $data['max_ctc'],
         ]);
 
         $salarySlab->components()->delete();

@@ -14,14 +14,14 @@
                     @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Min Salary (₹) <span class="text-danger">*</span></label>
-                    <input type="number" name="min_salary" class="form-control @error('min_salary') is-invalid @enderror" value="{{ old('min_salary') }}" min="0" step="1000" required>
-                    @error('min_salary')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <label class="form-label">Min CTC (₹) <span class="text-danger">*</span></label>
+                    <input type="number" name="min_ctc" class="form-control @error('min_ctc') is-invalid @enderror" value="{{ old('min_ctc') }}" min="0" step="1000" required>
+                    @error('min_ctc')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Max Salary (₹) <span class="text-danger">*</span></label>
-                    <input type="number" name="max_salary" class="form-control @error('max_salary') is-invalid @enderror" value="{{ old('max_salary') }}" min="0" step="1000" required>
-                    @error('max_salary')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <label class="form-label">Max CTC (₹) <span class="text-danger">*</span></label>
+                    <input type="number" name="max_ctc" class="form-control @error('max_ctc') is-invalid @enderror" value="{{ old('max_ctc') }}" min="0" step="1000" required>
+                    @error('max_ctc')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
                     <div class="form-check">

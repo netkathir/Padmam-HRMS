@@ -40,6 +40,9 @@ class UserController extends Controller
         if ($request->filled('role_id')) {
             $query->where('role_id', $request->role_id);
         }
+        if ($request->filled('is_active')) {
+            $query->where('is_active', $request->is_active === '1');
+        }
 
         $users = $query->paginate(20)->withQueryString();
         $roles = Role::orderBy('name')->get();

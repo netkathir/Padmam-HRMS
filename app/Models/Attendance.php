@@ -14,19 +14,28 @@ class Attendance extends Model
         'shift_id',
         'in_time',
         'out_time',
-        'status',
         'work_minutes',
-        'late_minutes',
-        'early_exit_minutes',
         'ot_minutes',
-        'is_manual',
-        'manual_reason',
+        'status',
+        'is_late',
+        'late_minutes',
+        'is_early_exit',
+        'early_exit_minutes',
+        'source',
+        'is_manual_entry',
+        'approval_status',
         'approved_by',
-        'remarks'
+        'approved_at',
+        'remarks',
     ];
-    protected function casts(): array
-    {
-        return ['date' => 'date', 'is_manual' => 'boolean'];
+    protected function casts(): array {
+        return [
+            'date' => 'date',
+            'approved_at' => 'datetime',
+            'is_late' => 'boolean',
+            'is_early_exit' => 'boolean',
+            'is_manual_entry' => 'boolean',
+        ];
     }
 
     public function employee()

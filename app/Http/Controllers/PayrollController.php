@@ -77,7 +77,11 @@ class PayrollController extends Controller
         if ($request->filled('department_id')) $query->where('department_id', $request->department_id);
 
         $employees  = $query->get();
-        $pfEsi      = PfEsiConfig::where('is_active', true)->latest()->first();
+        // The config actually effective for this payroll period (by
+        // effective_from), not simply the most-recently-created row — a
+        // retroactive/back-dated run must apply the rates that were in
+        // force at the time, not whatever was configured most recently.
+        $pfEsi      = PfEsiConfig::effectiveOn(\Carbon\Carbon::create($year, $month, 1)->toDateString());
         $workingDays = $this->getWorkingDays($month, $year);
 
         $generated = $skipped = $errors = 0;
@@ -108,12 +112,12 @@ class PayrollController extends Controller
             // PF / ESI
             $pfEmp = $pfEmpEr = $esiEmp = $esiEmpEr = 0;
             if ($pfEsi && $employee->is_pf_applicable) {
-                $pfEmp  = min($salary->basic, $pfEsi->pf_ceiling ?? $salary->basic) * ($pfEsi->pf_employee_percent / 100);
-                $pfEmpEr = min($salary->basic, $pfEsi->pf_ceiling ?? $salary->basic) * ($pfEsi->pf_employer_percent / 100);
+                $pfEmp   = min($salary->basic_salary, $pfEsi->pf_wage_ceiling ?? $salary->basic_salary) * ($pfEsi->pf_employee_pct / 100);
+                $pfEmpEr = min($salary->basic_salary, $pfEsi->pf_wage_ceiling ?? $salary->basic_salary) * ($pfEsi->pf_employer_pct / 100);
             }
-            if ($pfEsi && $employee->is_esi_applicable && $gross <= ($pfEsi->esi_ceiling ?? 21000)) {
-                $esiEmp   = $gross * ($pfEsi->esi_employee_percent / 100);
-                $esiEmpEr = $gross * ($pfEsi->esi_employer_percent / 100);
+            if ($pfEsi && $employee->is_esi_applicable && $gross <= ($pfEsi->esi_wage_ceiling ?? 21000)) {
+                $esiEmp   = $gross * ($pfEsi->esi_employee_pct / 100);
+                $esiEmpEr = $gross * ($pfEsi->esi_employer_pct / 100);
             }
 
             $totalDeductions = $pfEmp + $esiEmp;

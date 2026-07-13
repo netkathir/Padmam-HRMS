@@ -1,7 +1,7 @@
 @extends('layouts.app')
-@section('title','Company Settings')
-@section('page-title','Company Settings')
-@section('page-subtitle','Organisation profile and statutory details')
+@section('title','Organization Profile')
+@section('page-title','Organization Profile')
+@section('page-subtitle','Organization identity and statutory details — used on reports, payslips, and statutory documents')
 @section('page-actions')
     <a href="{{ route('settings.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Settings</a>
 @endsection
@@ -15,75 +15,136 @@
             @csrf
             <div class="row g-3">
                 <div class="col-12"><h6 class="text-primary border-bottom pb-1">Basic Information</h6></div>
-                <div class="col-md-6">
-                    <label class="form-label">Company Name <span class="text-danger">*</span></label>
-                    <input type="text" name="company_name" class="form-control @error('company_name') is-invalid @enderror" value="{{ old('company_name', $settings['company_name'] ?? '') }}" required>
-                    @error('company_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                <div class="col-md-5">
+                    <label class="form-label">Organization Name <span class="text-danger">*</span></label>
+                    <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $company->name) }}" required>
+                    @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Short Name</label>
-                    <input type="text" name="company_short_name" class="form-control" value="{{ old('company_short_name', $settings['company_short_name'] ?? '') }}">
+                    <label class="form-label">Organization Code <span class="text-danger">*</span></label>
+                    <input type="text" name="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code', $company->code) }}" required>
+                    @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
+                <div class="col-md-2">
+                    <label class="form-label">Short Name</label>
+                    <input type="text" name="short_name" class="form-control" value="{{ old('short_name', $company->short_name) }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Status <span class="text-danger">*</span></label>
+                    <select name="is_active" class="form-select">
+                        <option value="1" {{ old('is_active', $company->is_active ?? true) == 1 ? 'selected' : '' }}>Active</option>
+                        <option value="0" {{ old('is_active', $company->is_active ?? true) == 0 ? 'selected' : '' }}>Inactive</option>
+                    </select>
+                </div>
+
                 <div class="col-md-3">
                     <label class="form-label">Logo</label>
-                    @if(!empty($settings['company_logo']))
-                    <div class="mb-1"><img src="{{ Storage::url($settings['company_logo']) }}" height="40" alt="Logo"></div>
+                    @if($company->logo_path)
+                        <div class="mb-1"><img src="{{ Storage::url($company->logo_path) }}" height="40" alt="Logo"></div>
                     @endif
-                    <input type="file" name="company_logo" class="form-control" accept="image/*">
+                    <input type="file" name="logo" class="form-control @error('logo') is-invalid @enderror" accept="image/*">
+                    @error('logo')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="col-md-12">
+                    <label class="form-label">Registered Address <span class="text-danger">*</span></label>
+                    <textarea id="registeredAddress" name="address" class="form-control @error('address') is-invalid @enderror" rows="2" required>{{ old('address', $company->address) }}</textarea>
+                    @error('address')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-12">
-                    <label class="form-label">Address</label>
-                    <textarea name="company_address" class="form-control" rows="2">{{ old('company_address', $settings['company_address'] ?? '') }}</textarea>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <label class="form-label mb-0">Communication Address</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="sameAsRegistered">
+                            <label class="form-check-label small" for="sameAsRegistered">Same as Registered Address</label>
+                        </div>
+                    </div>
+                    <textarea id="communicationAddress" name="communication_address" class="form-control" rows="2">{{ old('communication_address', $company->communication_address) }}</textarea>
                 </div>
-                <div class="col-md-4">
+
+                <div class="col-md-3">
+                    <label class="form-label">State <span class="text-danger">*</span></label>
+                    <select name="state" class="form-select @error('state') is-invalid @enderror" required>
+                        <option value="">Select State</option>
+                        @foreach ($states as $state)
+                            <option value="{{ $state }}" {{ old('state', $company->state) === $state ? 'selected' : '' }}>{{ $state }}</option>
+                        @endforeach
+                    </select>
+                    @error('state')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">District <span class="text-danger">*</span></label>
+                    <input type="text" name="district" class="form-control @error('district') is-invalid @enderror" value="{{ old('district', $company->district) }}" required>
+                    @error('district')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-3">
                     <label class="form-label">City</label>
-                    <input type="text" name="company_city" class="form-control" value="{{ old('company_city', $settings['company_city'] ?? '') }}">
+                    <input type="text" name="city" class="form-control" value="{{ old('city', $company->city) }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">PIN Code <span class="text-danger">*</span></label>
+                    <input type="text" name="pincode" inputmode="numeric" maxlength="6" class="form-control @error('pincode') is-invalid @enderror" value="{{ old('pincode', $company->pincode) }}" required>
+                    @error('pincode')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Phone Number</label>
+                    <input type="text" name="phone" class="form-control @error('phone') is-invalid @enderror" value="{{ old('phone', $company->phone) }}">
+                    @error('phone')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">State</label>
-                    <input type="text" name="company_state" class="form-control" value="{{ old('company_state', $settings['company_state'] ?? '') }}">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Pincode</label>
-                    <input type="text" name="company_pincode" class="form-control" value="{{ old('company_pincode', $settings['company_pincode'] ?? '') }}">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Phone</label>
-                    <input type="text" name="company_phone" class="form-control" value="{{ old('company_phone', $settings['company_phone'] ?? '') }}">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Email</label>
-                    <input type="email" name="company_email" class="form-control" value="{{ old('company_email', $settings['company_email'] ?? '') }}">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email', $company->email) }}">
+                    @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Website</label>
-                    <input type="url" name="company_website" class="form-control" value="{{ old('company_website', $settings['company_website'] ?? '') }}">
+                    <input type="url" name="website" class="form-control" value="{{ old('website', $company->website) }}">
                 </div>
 
                 <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">Statutory Information</h6></div>
                 <div class="col-md-4">
                     <label class="form-label">PAN Number</label>
-                    <input type="text" name="company_pan" class="form-control" value="{{ old('company_pan', $settings['company_pan'] ?? '') }}" maxlength="10">
+                    <input type="text" name="pan" class="form-control @error('pan') is-invalid @enderror" value="{{ old('pan', $company->pan) }}" maxlength="10" style="text-transform:uppercase;">
+                    @error('pan')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">TAN Number</label>
-                    <input type="text" name="company_tan" class="form-control" value="{{ old('company_tan', $settings['company_tan'] ?? '') }}">
+                    <input type="text" name="tan" class="form-control @error('tan') is-invalid @enderror" value="{{ old('tan', $company->tan) }}" maxlength="10" style="text-transform:uppercase;">
+                    @error('tan')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">GSTIN</label>
-                    <input type="text" name="company_gstin" class="form-control" value="{{ old('company_gstin', $settings['company_gstin'] ?? '') }}" maxlength="15">
+                    <input type="text" name="gstin" class="form-control @error('gstin') is-invalid @enderror" value="{{ old('gstin', $company->gstin) }}" maxlength="15" style="text-transform:uppercase;">
+                    @error('gstin')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">PF Registration No.</label>
-                    <input type="text" name="pf_registration_no" class="form-control" value="{{ old('pf_registration_no', $settings['pf_registration_no'] ?? '') }}">
+                    <label class="form-label">CIN</label>
+                    <input type="text" name="cin" class="form-control" value="{{ old('cin', $company->cin) }}">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">ESI Registration No.</label>
-                    <input type="text" name="esi_registration_no" class="form-control" value="{{ old('esi_registration_no', $settings['esi_registration_no'] ?? '') }}">
+                    <label class="form-label">PF Establishment Number</label>
+                    <input type="text" name="pf_registration" class="form-control" value="{{ old('pf_registration', $company->pf_registration) }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">ESI Employer Code</label>
+                    <input type="text" name="esi_registration" class="form-control" value="{{ old('esi_registration', $company->esi_registration) }}">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">PT Registration No.</label>
-                    <input type="text" name="pt_registration_no" class="form-control" value="{{ old('pt_registration_no', $settings['pt_registration_no'] ?? '') }}">
+                    <input type="text" name="pt_registration" class="form-control" value="{{ old('pt_registration', $company->pt_registration) }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Industry Type</label>
+                    <input type="text" name="industry_type" class="form-control" value="{{ old('industry_type', $company->industry_type) }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Financial Year Start Month</label>
+                    <select name="financial_year_start" class="form-select">
+                        @foreach (['1'=>'January','2'=>'February','3'=>'March','4'=>'April','5'=>'May','6'=>'June','7'=>'July','8'=>'August','9'=>'September','10'=>'October','11'=>'November','12'=>'December'] as $val => $label)
+                            <option value="{{ $val }}" {{ (string) old('financial_year_start', $company->financial_year_start ?? 4) === $val ? 'selected' : '' }}>{{ $label }}</option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
             <div class="mt-4 d-flex gap-2">
@@ -94,3 +155,26 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    var checkbox = document.getElementById('sameAsRegistered');
+    var registered = document.getElementById('registeredAddress');
+    var communication = document.getElementById('communicationAddress');
+    if (!checkbox || !registered || !communication) return;
+
+    function syncAddress() {
+        if (checkbox.checked) {
+            communication.value = registered.value;
+            communication.readOnly = true;
+        } else {
+            communication.readOnly = false;
+        }
+    }
+
+    checkbox.addEventListener('change', syncAddress);
+    registered.addEventListener('input', function () { if (checkbox.checked) communication.value = registered.value; });
+})();
+</script>
+@endpush

@@ -10,16 +10,10 @@ use Illuminate\Http\Request;
 
 class BranchController extends Controller
 {
-    public const STATES = [
-        'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa',
-        'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala',
-        'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland',
-        'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
-        'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-        'Andaman and Nicobar Islands', 'Chandigarh',
-        'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir',
-        'Ladakh', 'Lakshadweep', 'Puducherry',
-    ];
+    /** Unit Type suggestions — a datalist, not a closed enum, so admins can type a custom value too (FSD: "... or configurable value"). */
+    public const UNIT_TYPES = ['Branch', 'Factory', 'Office', 'Unit'];
+
+    public const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
     /**
      * Branch Management (spec) is Super-Admin-only. Defense in depth on top
@@ -59,10 +53,12 @@ class BranchController extends Controller
     {
         $this->ensureSuperAdmin();
 
-        $states = self::STATES;
+        $states = config('states');
+        $unitTypes = self::UNIT_TYPES;
+        $weekdays = self::WEEKDAYS;
         $branchHeads = User::where('is_active', true)->orderBy('name')->get();
 
-        return view('masters.branches.create', compact('states', 'branchHeads'));
+        return view('masters.branches.create', compact('states', 'unitTypes', 'weekdays', 'branchHeads'));
     }
 
     public function store(Request $request)
@@ -84,10 +80,12 @@ class BranchController extends Controller
     {
         $this->ensureSuperAdmin();
 
-        $states = self::STATES;
+        $states = config('states');
+        $unitTypes = self::UNIT_TYPES;
+        $weekdays = self::WEEKDAYS;
         $branchHeads = User::where('is_active', true)->orderBy('name')->get();
 
-        return view('masters.branches.edit', compact('branch', 'states', 'branchHeads'));
+        return view('masters.branches.edit', compact('branch', 'states', 'unitTypes', 'weekdays', 'branchHeads'));
     }
 
     public function update(Request $request, Branch $branch)
@@ -144,20 +142,32 @@ class BranchController extends Controller
 
     private function validateBranch(Request $request, ?int $ignoreId = null): array
     {
-        return $request->validate([
-            'name'                => ['required', 'string', 'max:100', 'unique:branches,name' . ($ignoreId ? ",$ignoreId" : '')],
-            'code'                => ['required', 'string', 'max:20', 'unique:branches,code' . ($ignoreId ? ",$ignoreId" : '')],
-            'address'             => ['required', 'string'],
-            'state'               => ['required', 'string', 'max:100', 'in:' . implode(',', self::STATES)],
-            'district'            => ['required', 'string', 'max:100'],
-            'city'                => ['required', 'string', 'max:100'],
-            'pincode'             => ['required', 'digits:6'],
-            'contact_person'      => ['nullable', 'string', 'max:150'],
-            'phone'               => ['nullable', 'string', 'max:20'],
-            'email'               => ['nullable', 'email', 'max:150'],
-            'branch_head_user_id' => ['nullable', 'exists:users,id'],
-            'start_date'          => ['required', 'date'],
-            'is_active'           => ['required', 'boolean'],
+        $data = $request->validate([
+            'name'                     => ['required', 'string', 'max:100', 'unique:branches,name' . ($ignoreId ? ",$ignoreId" : '')],
+            'code'                     => ['required', 'string', 'max:20', 'unique:branches,code' . ($ignoreId ? ",$ignoreId" : '')],
+            'unit_type'                => ['nullable', 'string', 'max:50'],
+            'address'                  => ['required', 'string'],
+            'state'                    => ['required', 'string', 'max:100', 'in:' . implode(',', config('states'))],
+            'district'                 => ['required', 'string', 'max:100'],
+            'city'                     => ['required', 'string', 'max:100'],
+            'pincode'                  => ['required', 'digits:6'],
+            'contact_person'           => ['nullable', 'string', 'max:150'],
+            'phone'                    => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'email'                    => ['nullable', 'email', 'max:150'],
+            'branch_head_user_id'      => ['nullable', 'exists:users,id'],
+            'start_date'               => ['nullable', 'date'],
+            'closure_date'             => ['nullable', 'date', 'after_or_equal:start_date'],
+            'pf_establishment_number'  => ['nullable', 'string', 'max:50'],
+            'esi_employer_code'        => ['nullable', 'string', 'max:50'],
+            'weekly_off_days'          => ['nullable', 'array'],
+            'weekly_off_days.*'        => ['in:' . implode(',', self::WEEKDAYS)],
+            'is_active'                => ['required', 'boolean'],
+        ], [
+            'closure_date.after_or_equal' => 'The closure date cannot be before the branch start date.',
         ]);
+
+        $data['weekly_off_days'] = $data['weekly_off_days'] ?? null;
+
+        return $data;
     }
 }

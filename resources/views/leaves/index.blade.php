@@ -59,8 +59,8 @@
                                 <td>{{ $leaves->firstItem() + $loop->index }}</td>
                                 <td>{{ $leave->employee->full_name ?? '—' }}</td>
                                 <td>{{ $leave->leaveType->name ?? '—' }}</td>
-                                <td>{{ $leave->from_date->format('d-m-Y') }}</td>
-                                <td>{{ $leave->to_date->format('d-m-Y') }}</td>
+                                <td>{{ $leave->start_date->format('d-m-Y') }}</td>
+                                <td>{{ $leave->end_date->format('d-m-Y') }}</td>
                                 <td>{{ $leave->total_days }}</td>
                                 <td>
                                     @php $cols = ['pending'=>'warning', 'approved'=>'success', 'rejected'=>'danger', 'cancelled'=>'secondary']; @endphp

@@ -12,7 +12,7 @@
             <div class="card-body">
                 <form action="{{ route('leaves.store') }}" method="POST">
                     @csrf
-                    @if(auth()->user()->role?->name === 'super_admin' || auth()->user()->role?->name === 'admin')
+                    @can('leaves.full')
                     <div class="mb-3">
                         <label class="form-label">Employee <span class="text-danger">*</span></label>
                         <select name="employee_id" class="form-select @error('employee_id') is-invalid @enderror" required>

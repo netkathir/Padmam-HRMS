@@ -47,7 +47,7 @@
                             <span class="badge bg-{{ $sc }}-subtle text-{{ $sc }}">{{ ucfirst($perm->status) }}</span>
                         </td>
                         <td>
-                            @if($perm->status === 'pending' && (auth()->user()->role?->name === 'super_admin' || auth()->user()->role?->name === 'admin'))
+                            @if($perm->status === 'pending' && auth()->user()->can('leaves.full'))
                             <form action="{{ route('leaves.approve', $perm) }}" method="POST" class="d-inline">
                                 @csrf @method('PATCH')
                                 <button class="btn btn-sm btn-outline-success" title="Approve"><i class="bi bi-check-lg"></i></button>
@@ -74,7 +74,7 @@
             <form action="{{ route('leaves.permissions.store') }}" method="POST">
                 @csrf
                 <div class="modal-body">
-                    @if(auth()->user()->role?->name === 'super_admin' || auth()->user()->role?->name === 'admin')
+                    @can('leaves.full')
                     <div class="mb-3">
                         <label class="form-label">Employee <span class="text-danger">*</span></label>
                         <select name="employee_id" class="form-select" required>

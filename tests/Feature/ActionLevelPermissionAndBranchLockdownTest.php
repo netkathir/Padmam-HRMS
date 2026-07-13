@@ -102,6 +102,33 @@ class ActionLevelPermissionAndBranchLockdownTest extends TestCase
         $this->actingAs($user)->post("http://localhost/leaves/{$leave->id}/approve", ['action' => 'approve'])->assertStatus(403);
     }
 
+    public function test_any_role_named_role_granted_leaves_full_sees_all_requests_and_can_approve(): void
+    {
+        // Deliberately NOT named 'admin'/'super_admin'/'hr' — proves visibility
+        // and approval are driven by the leaves.full permission grant, not by
+        // a hardcoded role-name check.
+        $manager = $this->userWithRole('regional_manager');
+        $this->grant($manager, 'leaves', 'full');
+
+        $employee = $this->makeEmployee();
+        $otherUser = $this->userWithRole('leave_applicant');
+        $leaveType = \App\Models\LeaveType::create(['name' => 'CL', 'code' => 'CL', 'days_per_year' => 12, 'gender_specific' => 'all', 'is_active' => true]);
+        $leave = \App\Models\LeaveRequest::create([
+            'employee_id' => $employee->id, 'leave_type_id' => $leaveType->id,
+            'start_date' => now()->addDay()->toDateString(), 'end_date' => now()->addDay()->toDateString(),
+            'total_days' => 1, 'status' => 'pending', 'applied_by' => $otherUser->id,
+        ]);
+
+        // Sees someone else's leave request in the list (manager-level visibility).
+        $this->actingAs($manager)->get('http://localhost/leaves')->assertStatus(200)->assertSee($employee->full_name);
+
+        // Can approve it.
+        $this->actingAs($manager)->post("http://localhost/leaves/{$leave->id}/approve", ['action' => 'approve'])
+            ->assertRedirect();
+        $leave->refresh();
+        $this->assertEquals('approved', $leave->status);
+    }
+
     public function test_branch_management_blocked_even_when_permission_explicitly_granted(): void
     {
         $user = $this->userWithRole('branch_head_locktest');

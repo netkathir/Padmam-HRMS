@@ -18,9 +18,13 @@ class LeaveController extends Controller
         $query = LeaveRequest::with(['employee.department', 'leaveType', 'approver'])
             ->orderByDesc('created_at');
 
-        // Employees see only their own; managers see their team; admins see all
+        // Full-level access to Leaves means seeing every employee's requests
+        // (managing the module); read/create-level access is self-service
+        // only — scoped to your own leave requests. Permission-driven rather
+        // than tied to specific role names, so any role granted leaves.full
+        // gets manager-level visibility.
         $user = auth()->user();
-        if (! $user->isAdmin()) {
+        if (! $user->can('leaves.full')) {
             $query->where('employee_id', optional($user->employee)->id);
         }
         $query = BranchScope::scopeQueryVia($query, 'employee');
@@ -31,7 +35,7 @@ class LeaveController extends Controller
 
         $leaves     = $query->paginate(20)->withQueryString();
         $leaveTypes = LeaveType::where('is_active', true)->get();
-        $employees  = auth()->user()->isAdmin() ? BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get() : collect();
+        $employees  = $user->can('leaves.full') ? BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get() : collect();
 
         return view('leaves.index', compact('leaves', 'leaveTypes', 'employees'));
     }
@@ -42,7 +46,7 @@ class LeaveController extends Controller
         $employee   = auth()->user()->employee;
         $balances   = $employee ? LeaveBalance::where('employee_id', $employee->id)
             ->where('year', now()->year)->with('leaveType')->get() : collect();
-        $employees  = auth()->user()->isAdmin()
+        $employees  = auth()->user()->can('leaves.full')
             ? BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get()
             : collect();
 
@@ -202,13 +206,14 @@ class LeaveController extends Controller
         $user = auth()->user();
         $query = PermissionRequest::with(['employee', 'approver'])->orderByDesc('date');
 
-        if (! $user->isAdmin()) {
+        if (! $user->can('leaves.full')) {
             $query->where('employee_id', optional($user->employee)->id);
         }
         $query = BranchScope::scopeQueryVia($query, 'employee');
 
         $permissions = $query->paginate(20);
-        return view('leaves.permissions', compact('permissions'));
+        $employees   = $user->can('leaves.full') ? BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get() : collect();
+        return view('leaves.permissions', compact('permissions', 'employees'));
     }
 
     public function storePermission(Request $request)

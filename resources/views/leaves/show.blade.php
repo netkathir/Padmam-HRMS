@@ -66,16 +66,17 @@
         </div>
     </div>
     <div class="col-md-4">
-        @if($leave->status === 'pending' && (auth()->user()->role?->name === 'super_admin' || auth()->user()->role?->name === 'admin'))
+        @if($leave->status === 'pending' && auth()->user()->can('leaves.full'))
         <div class="card">
             <div class="card-header"><h6 class="mb-0">Action</h6></div>
             <div class="card-body">
                 <form action="{{ route('leaves.approve', $leave) }}" method="POST" class="mb-2">
-                    @csrf @method('PATCH')
+                    @csrf
+                    <input type="hidden" name="action" value="approve">
                     <button class="btn btn-success w-100"><i class="bi bi-check-lg"></i> Approve</button>
                 </form>
                 <form action="{{ route('leaves.approve', $leave) }}" method="POST">
-                    @csrf @method('PATCH')
+                    @csrf
                     <input type="hidden" name="action" value="reject">
                     <div class="mb-2">
                         <textarea name="rejection_reason" class="form-control form-control-sm" rows="2" placeholder="Reason for rejection…"></textarea>

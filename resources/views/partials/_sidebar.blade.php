@@ -533,7 +533,10 @@ $showBranchAdmin =
                              so a role that only has, say, masters_departments never
                              sees links to screens it cannot actually open. --}}
                         <div class="sb-sub-group-label">Organisation</div>
-                        @if ($can['masters_branches'])
+                        {{-- Branch Management is Super-Admin-only by design (never
+                             permission-driven), so no accidental role-permission
+                             grant can surface this link for anyone else. --}}
+                        @if ($user->isSuperAdmin())
                             <a href="{{ route('masters.branches.index') }}"
                                 class="sb-link sb-sub-link {{ request()->routeIs('masters.branches.*') ? 'active' : '' }}">
                                 <i class="bi bi-building"></i><span>Branches</span>

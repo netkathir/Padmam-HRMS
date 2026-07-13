@@ -26,7 +26,11 @@ class RolePermissionController extends Controller
         // module shows up immediately without a manual reseed.
         Permission::syncModules();
 
-        $menuModules = config('menu_modules');
+        // Branch Management is Super-Admin-only by design (routes/controller
+        // enforce this regardless of the permission system) — it is
+        // intentionally not assignable here, since granting it to any role
+        // would have no effect and only invites confusion.
+        $menuModules = collect(config('menu_modules'))->except('masters_branches')->all();
 
         $permissions = Permission::whereIn('module', array_keys($menuModules))
             ->orderBy('module')
@@ -54,6 +58,9 @@ class RolePermissionController extends Controller
     public function update(Request $request, Role $role)
     {
         $permissionSelections = $request->input('permissions', []);
+        // Defense in depth against a crafted request: Branch Management can
+        // never be assigned to any role, regardless of what the UI submits.
+        unset($permissionSelections['masters_branches']);
 
         // Branch Administration action flags (Approve/Process/Export Excel/
         // Export PDF/View Sensitive Data/Manage Users) no longer have UI

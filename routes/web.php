@@ -49,23 +49,27 @@ Route::middleware('guest')->group(function () {
 });
 
 // ── Authenticated routes ──────────────────────────────────────────────────
-// Every feature area below (other than Dashboard/Profile, which are always
-// reachable once logged in) is wrapped in `permission:{module}.read` — the
-// same module.access_level ability enforced by the Gate and shown/hidden in
-// the sidebar (resources/views/partials/_sidebar.blade.php) and managed on
-// the Role Permissions page. A role only reaches a route once it has been
-// explicitly granted read (or higher) on that module; anyone else gets a 403
-// via App\Http\Middleware\CheckPermission. super_admin bypasses all of this
+// Every feature area below is gated on the module.access_level ability
+// enforced by the Gate and shown/hidden in the sidebar
+// (resources/views/partials/_sidebar.blade.php) and managed on the Role
+// Permissions page. A role only reaches a route once it has been explicitly
+// granted the matching level on that module; anyone else gets a 403 via
+// App\Http\Middleware\CheckPermission. super_admin bypasses all of this
 // through Gate::before in AppServiceProvider.
+//
+// Access-level hierarchy (per Permission::LEVEL_DESCRIPTIONS): read < create
+// < full — read/create implies viewing; store (adding a new record) requires
+// create; update/destroy/approve/cancel/activate-deactivate-type actions
+// require full. Every resource route below is split per-action to match this
+// (previously the entire CRUD verb set for a resource was gated by a single
+// blanket `.read` check, meaning a role granted only "read" could still
+// reach store/update/destroy directly by URL — this has been corrected
+// throughout).
 Route::middleware('auth')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     // Dashboard — Overall Dashboard (FSD 5.2) and Branch Dashboard (FSD 5.3).
-    // Both now permission-gated like every other module (previously the
-    // Overall Dashboard route had no gate at all; a data migration backfills
-    // dashboard.read onto every pre-existing role so nobody who could reach
-    // it before loses access).
     Route::middleware('permission:dashboard.read')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     });
@@ -79,63 +83,58 @@ Route::middleware('auth')->group(function () {
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
     // Employees
-    Route::middleware('permission:employees.read')->group(function () {
-        Route::resource('employees', EmployeeController::class);
-        Route::get('/employees/{employee}/documents',        [EmployeeController::class, 'documents'])->name('employees.documents');
-        Route::post('/employees/{employee}/documents',       [EmployeeController::class, 'uploadDocument'])->name('employees.documents.upload');
-        Route::get('/employees/{employee}/salary',           [EmployeeController::class, 'salary'])->name('employees.salary');
-        Route::post('/employees/{employee}/salary',          [EmployeeController::class, 'storeSalary'])->name('employees.salary.store');
-        Route::get('/employees/{employee}/exit',             [EmployeeController::class, 'exit'])->name('employees.exit');
-        Route::post('/employees/{employee}/exit',            [EmployeeController::class, 'processExit'])->name('employees.exit.store');
-    });
+    Route::resource('employees', EmployeeController::class)
+        ->middlewareFor(['index', 'create', 'edit', 'show'], 'permission:employees.read')
+        ->middlewareFor(['store'], 'permission:employees.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:employees.full');
+    Route::get('/employees/{employee}/documents',  [EmployeeController::class, 'documents'])->name('employees.documents')->middleware('permission:employees.read');
+    Route::post('/employees/{employee}/documents', [EmployeeController::class, 'uploadDocument'])->name('employees.documents.upload')->middleware('permission:employees.create');
+    Route::get('/employees/{employee}/salary',     [EmployeeController::class, 'salary'])->name('employees.salary')->middleware('permission:employees.read');
+    Route::post('/employees/{employee}/salary',    [EmployeeController::class, 'storeSalary'])->name('employees.salary.store')->middleware('permission:employees.full');
+    Route::get('/employees/{employee}/exit',       [EmployeeController::class, 'exit'])->name('employees.exit')->middleware('permission:employees.read');
+    Route::post('/employees/{employee}/exit',      [EmployeeController::class, 'processExit'])->name('employees.exit.store')->middleware('permission:employees.full');
 
     // Attendance (Contract Attendance shares the same module, per the sidebar)
-    Route::middleware('permission:attendance.read')->group(function () {
-        Route::get('/attendance',                    [AttendanceController::class, 'index'])->name('attendance.index');
-        Route::get('/attendance/mark',               [AttendanceController::class, 'markForm'])->name('attendance.mark');
-        Route::post('/attendance/mark',              [AttendanceController::class, 'mark'])->name('attendance.mark.post');
-        Route::get('/attendance/manual',             [AttendanceController::class, 'manualForm'])->name('attendance.manual');
-        Route::post('/attendance/manual',            [AttendanceController::class, 'manual'])->name('attendance.manual.post');
-        Route::get('/attendance/pending',            [AttendanceController::class, 'pending'])->name('attendance.pending');
-        Route::post('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve');
-        Route::get('/attendance/report',             [AttendanceController::class, 'report'])->name('attendance.report');
+    Route::get('/attendance',                    [AttendanceController::class, 'index'])->name('attendance.index')->middleware('permission:attendance.read');
+    Route::get('/attendance/mark',               [AttendanceController::class, 'markForm'])->name('attendance.mark')->middleware('permission:attendance.read');
+    Route::post('/attendance/mark',              [AttendanceController::class, 'mark'])->name('attendance.mark.post')->middleware('permission:attendance.create');
+    Route::get('/attendance/manual',             [AttendanceController::class, 'manualForm'])->name('attendance.manual')->middleware('permission:attendance.read');
+    Route::post('/attendance/manual',            [AttendanceController::class, 'manual'])->name('attendance.manual.post')->middleware('permission:attendance.create');
+    Route::get('/attendance/pending',            [AttendanceController::class, 'pending'])->name('attendance.pending')->middleware('permission:attendance.read');
+    Route::post('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve')->middleware('permission:attendance.full');
+    Route::get('/attendance/report',             [AttendanceController::class, 'report'])->name('attendance.report')->middleware('permission:attendance.read');
 
-        Route::get('/contract-attendance',           [ContractAttendanceController::class, 'index'])->name('contract-attendance.index');
-        Route::get('/contract-attendance/mark',      [ContractAttendanceController::class, 'markForm'])->name('contract-attendance.mark');
-        Route::post('/contract-attendance/mark',     [ContractAttendanceController::class, 'mark'])->name('contract-attendance.mark.post');
-        Route::get('/contract-attendance/report',    [ContractAttendanceController::class, 'report'])->name('contract-attendance.report');
-    });
+    Route::get('/contract-attendance',           [ContractAttendanceController::class, 'index'])->name('contract-attendance.index')->middleware('permission:attendance.read');
+    Route::get('/contract-attendance/mark',      [ContractAttendanceController::class, 'markForm'])->name('contract-attendance.mark')->middleware('permission:attendance.read');
+    Route::post('/contract-attendance/mark',     [ContractAttendanceController::class, 'mark'])->name('contract-attendance.mark.post')->middleware('permission:attendance.create');
+    Route::get('/contract-attendance/report',    [ContractAttendanceController::class, 'report'])->name('contract-attendance.report')->middleware('permission:attendance.read');
 
     // Leave — static routes MUST come before {leave} wildcard
-    Route::middleware('permission:leaves.read')->group(function () {
-        Route::get('/leaves',                        [LeaveController::class, 'index'])->name('leaves.index');
-        Route::get('/leaves/create',                 [LeaveController::class, 'create'])->name('leaves.create');
-        Route::post('/leaves',                       [LeaveController::class, 'store'])->name('leaves.store');
-        Route::get('/leaves/balance',                [LeaveController::class, 'balance'])->name('leaves.balance');
-        Route::get('/leaves/permissions',            [LeaveController::class, 'permissions'])->name('leaves.permissions');
-        Route::post('/leaves/permissions',           [LeaveController::class, 'storePermission'])->name('leaves.permissions.store');
-        Route::get('/leaves/{leave}',                [LeaveController::class, 'show'])->name('leaves.show');
-        Route::post('/leaves/{leave}/approve',       [LeaveController::class, 'approve'])->name('leaves.approve');
-        Route::post('/leaves/{leave}/cancel',        [LeaveController::class, 'cancel'])->name('leaves.cancel');
-    });
+    Route::get('/leaves',                        [LeaveController::class, 'index'])->name('leaves.index')->middleware('permission:leaves.read');
+    Route::get('/leaves/create',                 [LeaveController::class, 'create'])->name('leaves.create')->middleware('permission:leaves.read');
+    Route::post('/leaves',                       [LeaveController::class, 'store'])->name('leaves.store')->middleware('permission:leaves.create');
+    Route::get('/leaves/balance',                [LeaveController::class, 'balance'])->name('leaves.balance')->middleware('permission:leaves.read');
+    Route::get('/leaves/permissions',            [LeaveController::class, 'permissions'])->name('leaves.permissions')->middleware('permission:leaves.read');
+    Route::post('/leaves/permissions',           [LeaveController::class, 'storePermission'])->name('leaves.permissions.store')->middleware('permission:leaves.create');
+    Route::get('/leaves/{leave}',                [LeaveController::class, 'show'])->name('leaves.show')->middleware('permission:leaves.read');
+    Route::post('/leaves/{leave}/approve',       [LeaveController::class, 'approve'])->name('leaves.approve')->middleware('permission:leaves.full');
+    Route::post('/leaves/{leave}/cancel',        [LeaveController::class, 'cancel'])->name('leaves.cancel')->middleware('permission:leaves.full');
 
     // Payroll (Contract Payroll shares the same module, per the sidebar)
-    Route::middleware('permission:payroll.read')->group(function () {
-        Route::get('/payroll',                       [PayrollController::class, 'index'])->name('payroll.index');
-        Route::get('/payroll/generate',              [PayrollController::class, 'generateForm'])->name('payroll.generate');
-        Route::post('/payroll/generate',             [PayrollController::class, 'generate'])->name('payroll.generate.post');
-        Route::get('/payroll/{payroll}/payslip',     [PayrollController::class, 'payslip'])->name('payroll.payslip');
-        Route::get('/payroll/{payroll}/payment',     [PayrollController::class, 'paymentForm'])->name('payroll.payment');
-        Route::post('/payroll/{payroll}/payment',    [PayrollController::class, 'storePayment'])->name('payroll.payment.store');
+    Route::get('/payroll',                       [PayrollController::class, 'index'])->name('payroll.index')->middleware('permission:payroll.read');
+    Route::get('/payroll/generate',              [PayrollController::class, 'generateForm'])->name('payroll.generate')->middleware('permission:payroll.read');
+    Route::post('/payroll/generate',             [PayrollController::class, 'generate'])->name('payroll.generate.post')->middleware('permission:payroll.full');
+    Route::get('/payroll/{payroll}/payslip',     [PayrollController::class, 'payslip'])->name('payroll.payslip')->middleware('permission:payroll.read');
+    Route::get('/payroll/{payroll}/payment',     [PayrollController::class, 'paymentForm'])->name('payroll.payment')->middleware('permission:payroll.read');
+    Route::post('/payroll/{payroll}/payment',    [PayrollController::class, 'storePayment'])->name('payroll.payment.store')->middleware('permission:payroll.full');
 
-        Route::get('/contract-payroll',              [ContractPayrollController::class, 'index'])->name('contract-payroll.index');
-        Route::get('/contract-payroll/calculate',    [ContractPayrollController::class, 'calculateForm'])->name('contract-payroll.calculate');
-        Route::post('/contract-payroll/calculate',   [ContractPayrollController::class, 'calculate'])->name('contract-payroll.calculate.post');
-        Route::get('/contract-payroll/{id}',         [ContractPayrollController::class, 'show'])->name('contract-payroll.show');
-        Route::post('/contract-payroll/{id}/pay',    [ContractPayrollController::class, 'markPaid'])->name('contract-payroll.pay');
-    });
+    Route::get('/contract-payroll',              [ContractPayrollController::class, 'index'])->name('contract-payroll.index')->middleware('permission:payroll.read');
+    Route::get('/contract-payroll/calculate',    [ContractPayrollController::class, 'calculateForm'])->name('contract-payroll.calculate')->middleware('permission:payroll.read');
+    Route::post('/contract-payroll/calculate',   [ContractPayrollController::class, 'calculate'])->name('contract-payroll.calculate.post')->middleware('permission:payroll.full');
+    Route::get('/contract-payroll/{id}',         [ContractPayrollController::class, 'show'])->name('contract-payroll.show')->middleware('permission:payroll.read');
+    Route::post('/contract-payroll/{id}/pay',    [ContractPayrollController::class, 'markPaid'])->name('contract-payroll.pay')->middleware('permission:payroll.full');
 
-    // Reports
+    // Reports — read-only throughout, no mutating actions.
     Route::middleware('permission:reports.read')->group(function () {
         Route::get('/reports',                       [ReportController::class, 'index'])->name('reports.index');
         Route::get('/reports/attendance',            [ReportController::class, 'attendance'])->name('reports.attendance');
@@ -161,106 +160,141 @@ Route::middleware('auth')->group(function () {
         Route::get('/masters', [MasterController::class, 'index'])->name('masters.index');
     });
 
-    Route::middleware('permission:masters_branches.read')->group(function () {
+    // Branch Management is Super-Admin-only by design — gated on role, not on
+    // the permission system, so it can never be unlocked for any other role
+    // even if masters_branches is accidentally granted via Role Permissions.
+    // BranchController::ensureSuperAdmin() enforces this again at the
+    // controller layer as defense in depth.
+    Route::middleware('role:super_admin')->group(function () {
         Route::resource('masters/branches', BranchController::class, ['as' => 'masters'])->except('show');
         Route::post('masters/branches/{branch}/activate',   [BranchController::class, 'activate'])->name('masters.branches.activate');
         Route::post('masters/branches/{branch}/deactivate', [BranchController::class, 'deactivate'])->name('masters.branches.deactivate');
     });
-    Route::middleware('permission:masters_departments.read')->group(function () {
-        Route::resource('masters/departments', DepartmentController::class, ['as' => 'masters'])->except('show');
-    });
-    Route::middleware('permission:masters_designations.read')->group(function () {
-        Route::resource('masters/designations', DesignationController::class, ['as' => 'masters'])->except('show');
-    });
-    Route::middleware('permission:masters_employee_types.read')->group(function () {
-        Route::resource('masters/employee-types', EmployeeTypeController::class, ['as' => 'masters'])->except('show');
-    });
-    Route::middleware('permission:masters_shifts.read')->group(function () {
-        Route::resource('masters/shifts', ShiftController::class, ['as' => 'masters'])->except('show');
-    });
-    Route::middleware('permission:masters_holidays.read')->group(function () {
-        Route::resource('masters/holidays', HolidayController::class, ['as' => 'masters'])->except('show');
-    });
-    Route::middleware('permission:masters_leave_types.read')->group(function () {
-        Route::resource('masters/leave-types', LeaveTypeController::class, ['as' => 'masters'])->except('show');
-    });
-    Route::middleware('permission:masters_salary_slabs.read')->group(function () {
-        Route::resource('masters/salary-slabs', SalarySlabController::class, ['as' => 'masters'])->except('show');
-    });
-    Route::middleware('permission:masters_earnings.read')->group(function () {
-        Route::resource('masters/earnings', EarningsComponentController::class, ['as' => 'masters', 'parameters' => ['earnings' => 'earningsComponent']])->except('show');
-    });
-    Route::middleware('permission:masters_deductions.read')->group(function () {
-        Route::resource('masters/deductions', DeductionsComponentController::class, ['as' => 'masters', 'parameters' => ['deductions' => 'deductionsComponent']])->except('show');
-    });
-    Route::middleware('permission:masters_ot_rates.read')->group(function () {
-        Route::resource('masters/ot-rates', OtRateController::class, ['as' => 'masters'])->except('show');
-    });
-    Route::middleware('permission:masters_pf_esi.read')->group(function () {
-        Route::resource('masters/pf-esi', PfEsiConfigController::class, ['as' => 'masters', 'parameters' => ['pf-esi' => 'pfEsiConfig']])->except('show');
-    });
-    Route::middleware('permission:masters_contractors.read')->group(function () {
-        Route::resource('masters/contractors', ContractorController::class, ['as' => 'masters'])->except('show');
-        Route::get('masters/contractors/{contractor}/labour',              [ContractorController::class, 'labour'])->name('masters.contractors.labour');
-        Route::post('masters/contractors/{contractor}/labour/assign',      [ContractorController::class, 'assignLabour'])->name('masters.contractors.labour.assign');
-        Route::delete('masters/contractors/{contractor}/labour/{employee}', [ContractorController::class, 'removeLabour'])->name('masters.contractors.labour.remove');
-        Route::get('masters/contractors/{contractor}/attendance',                                [ContractorController::class, 'attendance'])->name('masters.contractors.attendance');
-        Route::get('masters/contractors/{contractor}/payroll',                                   [ContractorController::class, 'payroll'])->name('masters.contractors.payroll');
-        Route::get('masters/contractors/{contractor}/workers',                                   [ContractWorkerController::class, 'index'])->name('masters.contractors.workers.index');
-        Route::get('masters/contractors/{contractor}/workers/create',                            [ContractWorkerController::class, 'create'])->name('masters.contractors.workers.create');
-        Route::post('masters/contractors/{contractor}/workers',                                  [ContractWorkerController::class, 'store'])->name('masters.contractors.workers.store');
-        Route::get('masters/contractors/{contractor}/workers/{contractWorker}/edit',             [ContractWorkerController::class, 'edit'])->name('masters.contractors.workers.edit');
-        Route::put('masters/contractors/{contractor}/workers/{contractWorker}',                  [ContractWorkerController::class, 'update'])->name('masters.contractors.workers.update');
-        Route::delete('masters/contractors/{contractor}/workers/{contractWorker}',               [ContractWorkerController::class, 'destroy'])->name('masters.contractors.workers.destroy');
 
-        // Contract Labour Assignment shares the Contractors module
-        Route::get('/contract-labour', [ContractorController::class, 'contractLabourIndex'])->name('contract-labour.index');
-    });
+    Route::resource('masters/departments', DepartmentController::class, ['as' => 'masters'])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_departments.read')
+        ->middlewareFor(['store'], 'permission:masters_departments.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_departments.full');
+
+    Route::resource('masters/designations', DesignationController::class, ['as' => 'masters'])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_designations.read')
+        ->middlewareFor(['store'], 'permission:masters_designations.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_designations.full');
+
+    Route::resource('masters/employee-types', EmployeeTypeController::class, ['as' => 'masters'])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_employee_types.read')
+        ->middlewareFor(['store'], 'permission:masters_employee_types.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_employee_types.full');
+
+    Route::resource('masters/shifts', ShiftController::class, ['as' => 'masters'])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_shifts.read')
+        ->middlewareFor(['store'], 'permission:masters_shifts.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_shifts.full');
+
+    Route::resource('masters/holidays', HolidayController::class, ['as' => 'masters'])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_holidays.read')
+        ->middlewareFor(['store'], 'permission:masters_holidays.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_holidays.full');
+
+    Route::resource('masters/leave-types', LeaveTypeController::class, ['as' => 'masters'])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_leave_types.read')
+        ->middlewareFor(['store'], 'permission:masters_leave_types.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_leave_types.full');
+
+    Route::resource('masters/salary-slabs', SalarySlabController::class, ['as' => 'masters'])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_salary_slabs.read')
+        ->middlewareFor(['store'], 'permission:masters_salary_slabs.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_salary_slabs.full');
+
+    Route::resource('masters/earnings', EarningsComponentController::class, ['as' => 'masters', 'parameters' => ['earnings' => 'earningsComponent']])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_earnings.read')
+        ->middlewareFor(['store'], 'permission:masters_earnings.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_earnings.full');
+
+    Route::resource('masters/deductions', DeductionsComponentController::class, ['as' => 'masters', 'parameters' => ['deductions' => 'deductionsComponent']])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_deductions.read')
+        ->middlewareFor(['store'], 'permission:masters_deductions.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_deductions.full');
+
+    Route::resource('masters/ot-rates', OtRateController::class, ['as' => 'masters'])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_ot_rates.read')
+        ->middlewareFor(['store'], 'permission:masters_ot_rates.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_ot_rates.full');
+
+    Route::resource('masters/pf-esi', PfEsiConfigController::class, ['as' => 'masters', 'parameters' => ['pf-esi' => 'pfEsiConfig']])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_pf_esi.read')
+        ->middlewareFor(['store'], 'permission:masters_pf_esi.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_pf_esi.full');
+
+    Route::resource('masters/contractors', ContractorController::class, ['as' => 'masters'])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_contractors.read')
+        ->middlewareFor(['store'], 'permission:masters_contractors.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_contractors.full');
+    Route::get('masters/contractors/{contractor}/labour',              [ContractorController::class, 'labour'])->name('masters.contractors.labour')->middleware('permission:masters_contractors.read');
+    Route::post('masters/contractors/{contractor}/labour/assign',      [ContractorController::class, 'assignLabour'])->name('masters.contractors.labour.assign')->middleware('permission:masters_contractors.create');
+    Route::delete('masters/contractors/{contractor}/labour/{employee}', [ContractorController::class, 'removeLabour'])->name('masters.contractors.labour.remove')->middleware('permission:masters_contractors.full');
+    Route::get('masters/contractors/{contractor}/attendance',                                [ContractorController::class, 'attendance'])->name('masters.contractors.attendance')->middleware('permission:masters_contractors.read');
+    Route::get('masters/contractors/{contractor}/payroll',                                   [ContractorController::class, 'payroll'])->name('masters.contractors.payroll')->middleware('permission:masters_contractors.read');
+    Route::get('masters/contractors/{contractor}/workers',                                   [ContractWorkerController::class, 'index'])->name('masters.contractors.workers.index')->middleware('permission:masters_contractors.read');
+    Route::get('masters/contractors/{contractor}/workers/create',                            [ContractWorkerController::class, 'create'])->name('masters.contractors.workers.create')->middleware('permission:masters_contractors.read');
+    Route::post('masters/contractors/{contractor}/workers',                                  [ContractWorkerController::class, 'store'])->name('masters.contractors.workers.store')->middleware('permission:masters_contractors.create');
+    Route::get('masters/contractors/{contractor}/workers/{contractWorker}/edit',             [ContractWorkerController::class, 'edit'])->name('masters.contractors.workers.edit')->middleware('permission:masters_contractors.read');
+    Route::put('masters/contractors/{contractor}/workers/{contractWorker}',                  [ContractWorkerController::class, 'update'])->name('masters.contractors.workers.update')->middleware('permission:masters_contractors.full');
+    Route::delete('masters/contractors/{contractor}/workers/{contractWorker}',               [ContractWorkerController::class, 'destroy'])->name('masters.contractors.workers.destroy')->middleware('permission:masters_contractors.full');
+
+    // Contract Labour Assignment shares the Contractors module
+    Route::get('/contract-labour', [ContractorController::class, 'contractLabourIndex'])->name('contract-labour.index')->middleware('permission:masters_contractors.read');
 
     // Users
-    Route::middleware('permission:users.read')->group(function () {
-        Route::resource('users', UserController::class)->except('show');
-        Route::get('/users/{user}/permissions',       [UserController::class, 'permissions'])->name('users.permissions');
-        Route::put('/users/{user}/permissions',       [UserController::class, 'updatePermissions'])->name('users.permissions.update');
-        Route::post('/users/{user}/activate',          [UserController::class, 'activate'])->name('users.activate');
-        Route::post('/users/{user}/deactivate',        [UserController::class, 'deactivate'])->name('users.deactivate');
-        Route::post('/users/{user}/lock',              [UserController::class, 'lock'])->name('users.lock');
-        Route::post('/users/{user}/unlock',            [UserController::class, 'unlock'])->name('users.unlock');
-    });
+    Route::resource('users', UserController::class)->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:users.read')
+        ->middlewareFor(['store'], 'permission:users.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:users.full');
+    Route::get('/users/{user}/permissions',       [UserController::class, 'permissions'])->name('users.permissions')->middleware('permission:users.read');
+    Route::put('/users/{user}/permissions',       [UserController::class, 'updatePermissions'])->name('users.permissions.update')->middleware('permission:users.full');
+    Route::post('/users/{user}/activate',          [UserController::class, 'activate'])->name('users.activate')->middleware('permission:users.full');
+    Route::post('/users/{user}/deactivate',        [UserController::class, 'deactivate'])->name('users.deactivate')->middleware('permission:users.full');
+    Route::post('/users/{user}/lock',              [UserController::class, 'lock'])->name('users.lock')->middleware('permission:users.full');
+    Route::post('/users/{user}/unlock',            [UserController::class, 'unlock'])->name('users.unlock')->middleware('permission:users.full');
 
     // Roles
-    Route::middleware('permission:roles.read')->group(function () {
-        Route::resource('admin/roles', RoleController::class, ['as' => 'admin'])->except('show');
-    });
+    Route::resource('admin/roles', RoleController::class, ['as' => 'admin'])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:roles.read')
+        ->middlewareFor(['store'], 'permission:roles.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:roles.full');
 
-    // Role Permissions
+    // Role Permissions — assigning permissions is a highly sensitive action;
+    // even loading the assignment form for editing requires full access.
     Route::middleware('permission:role_permissions.read')->group(function () {
         Route::get('/admin/role-permissions',                    [RolePermissionController::class, 'index'])->name('admin.role-permissions.index');
+    });
+    Route::middleware('permission:role_permissions.full')->group(function () {
         Route::get('/admin/role-permissions/{role}/assign',      [RolePermissionController::class, 'assign'])->name('admin.role-permissions.assign');
         Route::post('/admin/role-permissions/{role}/assign',     [RolePermissionController::class, 'update'])->name('admin.role-permissions.update');
     });
 
     // Settings
-    Route::middleware('permission:settings.read')->group(function () {
-        Route::get('/settings',                  [SettingsController::class, 'index'])->name('settings.index');
-        Route::get('/settings/company',          [SettingsController::class, 'company'])->name('settings.company');
-        Route::post('/settings/company',         [SettingsController::class, 'updateCompany'])->name('settings.company.update');
-        Route::get('/settings/general',          [SettingsController::class, 'general'])->name('settings.general');
-        Route::post('/settings/general',         [SettingsController::class, 'updateGeneral'])->name('settings.general.update');
-    });
+    Route::get('/settings',                  [SettingsController::class, 'index'])->name('settings.index')->middleware('permission:settings.read');
+    Route::get('/settings/company',          [SettingsController::class, 'company'])->name('settings.company')->middleware('permission:settings.read');
+    Route::post('/settings/company',         [SettingsController::class, 'updateCompany'])->name('settings.company.update')->middleware('permission:settings.full');
+    Route::get('/settings/general',          [SettingsController::class, 'general'])->name('settings.general')->middleware('permission:settings.read');
+    Route::post('/settings/general',         [SettingsController::class, 'updateGeneral'])->name('settings.general.update')->middleware('permission:settings.full');
 
     // ── Branch Administration ───────────────────────────────────────────
     // Only genuinely new features live here — Branches/Users/Roles/Permissions
     // are managed entirely via the existing Masters > Branches, System Admin >
     // Users/Roles/Role Permissions screens above (single source of truth).
-    Route::middleware('permission:branch_admin_head_assignments.read')->group(function () {
-        Route::resource('branch-admin/head-assignments', BranchHeadAssignmentController::class, [
-            'as' => 'branch-admin',
-            'parameters' => ['head-assignments' => 'headAssignment'],
-        ])->except('show');
-        Route::post('branch-admin/head-assignments/{headAssignment}/deactivate', [BranchHeadAssignmentController::class, 'deactivate'])->name('branch-admin.head-assignments.deactivate');
-    });
+    Route::resource('branch-admin/head-assignments', BranchHeadAssignmentController::class, [
+        'as' => 'branch-admin',
+        'parameters' => ['head-assignments' => 'headAssignment'],
+    ])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:branch_admin_head_assignments.read')
+        ->middlewareFor(['store'], 'permission:branch_admin_head_assignments.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:branch_admin_head_assignments.full');
+    Route::post('branch-admin/head-assignments/{headAssignment}/deactivate', [BranchHeadAssignmentController::class, 'deactivate'])->name('branch-admin.head-assignments.deactivate')->middleware('permission:branch_admin_head_assignments.full');
 
+    // Branch Switcher — changes which branch's data the current session views;
+    // not a CRUD action on protected data, so read-level access is sufficient.
     Route::middleware('permission:branch_admin_switcher.read')->group(function () {
         Route::get('branch-admin/branch-switcher',        [BranchSwitcherController::class, 'index'])->name('branch-admin.branch-switcher.index');
         Route::post('branch-admin/branch-switcher/switch', [BranchSwitcherController::class, 'switch'])->name('branch-admin.branch-switcher.switch');

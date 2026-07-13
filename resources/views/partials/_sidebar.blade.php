@@ -30,14 +30,11 @@
     #sidebar {
         width: var(--sb-width);
         min-width: var(--sb-width);
-        min-height: 100vh;
+        height: 100vh;
         background: linear-gradient(180deg, var(--sb-bg-start) 0%, var(--sb-bg-end) 100%);
         display: flex;
         flex-direction: column;
-        overflow-x: hidden;
-        overflow-y: auto;
-        scrollbar-width: thin;
-        scrollbar-color: rgba(255, 255, 255, .08) transparent;
+        overflow: hidden;
         z-index: 1040;
         flex-shrink: 0;
         border-right: 1px solid rgba(255, 255, 255, .04);
@@ -126,10 +123,31 @@
         margin: 10px 14px;
     }
 
-    /* ── Nav body ── */
+    /* ── Nav body (scrollable) ── */
     .sb-nav {
         flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
         padding: 4px 10px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, .08) transparent;
+    }
+
+    .sb-nav::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .sb-nav::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .sb-nav::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, .12);
+        border-radius: 4px;
+    }
+
+    .sb-nav::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, .2);
     }
 
     /* ── Section label ── */
@@ -283,9 +301,10 @@
         transform: rotate(-90deg);
     }
 
-    /* ── Footer / logout ── */
+    /* ── Footer / logout (sticky bottom) ── */
     .sb-footer {
         padding: 10px 10px 16px;
+        flex-shrink: 0;
     }
 
     .sb-logout {
@@ -323,7 +342,7 @@
             bottom: 0;
             transform: translateX(-100%);
             transition: transform .25s ease;
-            min-height: 100dvh;
+            height: 100dvh;
         }
 
         #sidebar.show {
@@ -349,10 +368,10 @@
     $isRoles = request()->routeIs('admin.roles.*');
     $isRolePerms = request()->routeIs('admin.role-permissions.*');
     $isSettings = request()->routeIs('settings.*');
-    $isProfile              = request()->routeIs('profile.*');
-    $isContractAttendance   = request()->routeIs('contract-attendance.*');
-    $isContractPayroll      = request()->routeIs('contract-payroll.*');
-    $isContractLabour       = request()->routeIs('contract-labour.*');
+    $isProfile = request()->routeIs('profile.*');
+    $isContractAttendance = request()->routeIs('contract-attendance.*');
+    $isContractPayroll = request()->routeIs('contract-payroll.*');
+    $isContractLabour = request()->routeIs('contract-labour.*');
 
     /* ── Permission map — module.read is the sidebar gate ──────────
      *  Hierarchy in Gate: delete > full > create > read
@@ -360,45 +379,46 @@
      *  Module keys come from config/menu_modules.php (the same registry
      *  that drives the Role Permissions admin page) so this list can
      *  never drift out of sync with what's assignable.
-     *  Masters has no permission of its own — any one masters_* sub-screen
-     *  permission unlocks the whole Masters section, and every sub-screen
-     *  is shown unconditionally underneath, matching the original design.
-     * ─────────────────────────────────────────────────────────── */
-    $can = collect(config('menu_modules'))
-        ->keys()
-        ->reject(fn ($module) => $module === 'dashboard')
-        ->mapWithKeys(fn ($module) => [$module => $user->can("$module.read")])
-        ->all();
+ *  Masters has no permission of its own — any one masters_* sub-screen
+ *  permission unlocks the whole Masters section, and every sub-screen
+ *  is shown unconditionally underneath, matching the original design.
+ * ─────────────────────────────────────────────────────────── */
+$can = collect(config('menu_modules'))
+    ->keys()
+    ->reject(fn($module) => $module === 'dashboard')
+    ->mapWithKeys(fn($module) => [$module => $user->can("$module.read")])
+    ->all();
 
-    $mastersModuleKeys = collect(config('menu_modules'))
-        ->keys()
-        ->filter(fn ($module) => str_starts_with($module, 'masters_'))
-        ->all();
+$mastersModuleKeys = collect(config('menu_modules'))
+    ->keys()
+    ->filter(fn($module) => str_starts_with($module, 'masters_'))
+    ->all();
 
-    /* ── Section visibility ──────────────────────────────────────── */
-    $showSysAdmin =
-        $can['users'] || $can['roles'] || $can['role_permissions'] || $can['settings'];
-    $showMasters = collect($mastersModuleKeys)->contains(fn ($module) => $can[$module]);
-    $showPeople = $can['employees'];
-    $showTimeLeave = $can['attendance'] || $can['leaves'];
-    $showPayroll = $can['payroll'];
-    $showInsights         = $can['reports'];
-    $showContractMgmt     = $can['masters_contractors'] || $can['attendance'] || $can['payroll'];
+/* ── Section visibility ──────────────────────────────────────── */
+$showSysAdmin = $can['users'] || $can['roles'] || $can['role_permissions'] || $can['settings'];
+$showMasters = collect($mastersModuleKeys)->contains(fn($module) => $can[$module]);
+$showPeople = $can['employees'];
+$showTimeLeave = $can['attendance'] || $can['leaves'];
+$showPayroll = $can['payroll'];
+$showInsights = $can['reports'];
+$showContractMgmt = $can['masters_contractors'] || $can['attendance'] || $can['payroll'];
 
-    /* ── Collapse state ──────────────────────────────────────────── */
-    $sysAdminOpen = $showSysAdmin && ($isUsers || $isRoles || $isRolePerms || $isSettings);
-    $mastersOpen = $showMasters && $isMasters;
+/* ── Collapse state ──────────────────────────────────────────── */
+$sysAdminOpen = $showSysAdmin && ($isUsers || $isRoles || $isRolePerms || $isSettings);
+$mastersOpen = $showMasters && $isMasters;
 
-    /* ── Branch Administration — only the features with no existing-module
-     *  equivalent live here. Branches/Users/Roles are reached via
-     *  Masters ▸ Branches and System Admin ▸ Users/Roles/Role Permissions —
-     *  no duplicate menu items for the same underlying data.
-     * ─────────────────────────────────────────────────────────── */
-    $isBranchAdminHeadAssignments = request()->routeIs('branch-admin.head-assignments.*');
-    $isBranchAdminSwitcher = request()->routeIs('branch-admin.branch-switcher.*');
-    $isBranchAdminAuditLog = request()->routeIs('branch-admin.audit-log.*');
-    $showBranchAdmin = $can['branch_admin_head_assignments'] || $can['branch_admin_switcher'] || $can['branch_admin_audit_log'];
-    $branchAdminOpen = $showBranchAdmin && ($isBranchAdminHeadAssignments || $isBranchAdminSwitcher || $isBranchAdminAuditLog);
+/* ── Branch Administration — only the features with no existing-module
+ *  equivalent live here. Branches/Users/Roles are reached via
+ *  Masters ▸ Branches and System Admin ▸ Users/Roles/Role Permissions —
+ *  no duplicate menu items for the same underlying data.
+ * ─────────────────────────────────────────────────────────── */
+$isBranchAdminHeadAssignments = request()->routeIs('branch-admin.head-assignments.*');
+$isBranchAdminSwitcher = request()->routeIs('branch-admin.branch-switcher.*');
+$isBranchAdminAuditLog = request()->routeIs('branch-admin.audit-log.*');
+$showBranchAdmin =
+    $can['branch_admin_head_assignments'] || $can['branch_admin_switcher'] || $can['branch_admin_audit_log'];
+    $branchAdminOpen =
+        $showBranchAdmin && ($isBranchAdminHeadAssignments || $isBranchAdminSwitcher || $isBranchAdminAuditLog);
 @endphp
 
 <nav id="sidebar">
@@ -501,95 +521,101 @@
                              sees links to screens it cannot actually open. --}}
                         <div class="sb-sub-group-label">Organisation</div>
                         @if ($can['masters_branches'])
-                        <a href="{{ route('masters.branches.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.branches.*') ? 'active' : '' }}">
-                            <i class="bi bi-building"></i><span>Branches</span>
-                        </a>
+                            <a href="{{ route('masters.branches.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.branches.*') ? 'active' : '' }}">
+                                <i class="bi bi-building"></i><span>Branches</span>
+                            </a>
                         @endif
                         @if ($can['masters_departments'])
-                        <a href="{{ route('masters.departments.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.departments.*') ? 'active' : '' }}">
-                            <i class="bi bi-diagram-3"></i><span>Departments</span>
-                        </a>
+                            <a href="{{ route('masters.departments.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.departments.*') ? 'active' : '' }}">
+                                <i class="bi bi-diagram-3"></i><span>Departments</span>
+                            </a>
                         @endif
                         @if ($can['masters_designations'])
-                        <a href="{{ route('masters.designations.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.designations.*') ? 'active' : '' }}">
-                            <i class="bi bi-person-badge"></i><span>Designations</span>
-                        </a>
+                            <a href="{{ route('masters.designations.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.designations.*') ? 'active' : '' }}">
+                                <i class="bi bi-person-badge"></i><span>Designations</span>
+                            </a>
                         @endif
                         @if ($can['masters_employee_types'])
-                        <a href="{{ route('masters.employee-types.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.employee-types.*') ? 'active' : '' }}">
-                            <i class="bi bi-person-gear"></i><span>Employee Types</span>
-                        </a>
+                            <a href="{{ route('masters.employee-types.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.employee-types.*') ? 'active' : '' }}">
+                                <i class="bi bi-person-gear"></i><span>Employee Types</span>
+                            </a>
                         @endif
 
                         {{-- HR Policy --}}
                         @if ($can['masters_shifts'] || $can['masters_holidays'] || $can['masters_leave_types'])
-                        <div class="sb-sub-group-label">HR Policy</div>
+                            <div class="sb-sub-group-label">HR Policy</div>
                         @endif
                         @if ($can['masters_shifts'])
-                        <a href="{{ route('masters.shifts.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.shifts.*') ? 'active' : '' }}">
-                            <i class="bi bi-clock"></i><span>Shifts</span>
-                        </a>
+                            <a href="{{ route('masters.shifts.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.shifts.*') ? 'active' : '' }}">
+                                <i class="bi bi-clock"></i><span>Shifts</span>
+                            </a>
                         @endif
                         @if ($can['masters_holidays'])
-                        <a href="{{ route('masters.holidays.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.holidays.*') ? 'active' : '' }}">
-                            <i class="bi bi-calendar-heart"></i><span>Holidays</span>
-                        </a>
+                            <a href="{{ route('masters.holidays.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.holidays.*') ? 'active' : '' }}">
+                                <i class="bi bi-calendar-heart"></i><span>Holidays</span>
+                            </a>
                         @endif
                         @if ($can['masters_leave_types'])
-                        <a href="{{ route('masters.leave-types.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.leave-types.*') ? 'active' : '' }}">
-                            <i class="bi bi-calendar-minus"></i><span>Leave Types</span>
-                        </a>
+                            <a href="{{ route('masters.leave-types.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.leave-types.*') ? 'active' : '' }}">
+                                <i class="bi bi-calendar-minus"></i><span>Leave Types</span>
+                            </a>
                         @endif
 
                         {{-- Payroll --}}
-                        @if ($can['masters_salary_slabs'] || $can['masters_earnings'] || $can['masters_deductions'] || $can['masters_ot_rates'] || $can['masters_pf_esi'])
-                        <div class="sb-sub-group-label">Payroll</div>
+                        @if (
+                            $can['masters_salary_slabs'] ||
+                                $can['masters_earnings'] ||
+                                $can['masters_deductions'] ||
+                                $can['masters_ot_rates'] ||
+                                $can['masters_pf_esi']
+                        )
+                            <div class="sb-sub-group-label">Payroll</div>
                         @endif
                         @if ($can['masters_salary_slabs'])
-                        <a href="{{ route('masters.salary-slabs.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.salary-slabs.*') ? 'active' : '' }}">
-                            <i class="bi bi-layers"></i><span>Salary Slabs</span>
-                        </a>
+                            <a href="{{ route('masters.salary-slabs.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.salary-slabs.*') ? 'active' : '' }}">
+                                <i class="bi bi-layers"></i><span>Salary Slabs</span>
+                            </a>
                         @endif
                         @if ($can['masters_earnings'])
-                        <a href="{{ route('masters.earnings.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.earnings.*') ? 'active' : '' }}">
-                            <i class="bi bi-graph-up-arrow"></i><span>Earnings</span>
-                        </a>
+                            <a href="{{ route('masters.earnings.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.earnings.*') ? 'active' : '' }}">
+                                <i class="bi bi-graph-up-arrow"></i><span>Earnings</span>
+                            </a>
                         @endif
                         @if ($can['masters_deductions'])
-                        <a href="{{ route('masters.deductions.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.deductions.*') ? 'active' : '' }}">
-                            <i class="bi bi-graph-down-arrow"></i><span>Deductions</span>
-                        </a>
+                            <a href="{{ route('masters.deductions.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.deductions.*') ? 'active' : '' }}">
+                                <i class="bi bi-graph-down-arrow"></i><span>Deductions</span>
+                            </a>
                         @endif
                         @if ($can['masters_ot_rates'])
-                        <a href="{{ route('masters.ot-rates.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.ot-rates.*') ? 'active' : '' }}">
-                            <i class="bi bi-hourglass-split"></i><span>OT Rates</span>
-                        </a>
+                            <a href="{{ route('masters.ot-rates.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.ot-rates.*') ? 'active' : '' }}">
+                                <i class="bi bi-hourglass-split"></i><span>OT Rates</span>
+                            </a>
                         @endif
                         @if ($can['masters_pf_esi'])
-                        <a href="{{ route('masters.pf-esi.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.pf-esi.*') ? 'active' : '' }}">
-                            <i class="bi bi-shield-plus"></i><span>PF & ESI</span>
-                        </a>
+                            <a href="{{ route('masters.pf-esi.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.pf-esi.*') ? 'active' : '' }}">
+                                <i class="bi bi-shield-plus"></i><span>PF & ESI</span>
+                            </a>
                         @endif
 
                         {{-- Operations --}}
                         @if ($can['masters_contractors'])
-                        <div class="sb-sub-group-label">Operations</div>
-                        <a href="{{ route('masters.contractors.index') }}"
-                            class="sb-link sb-sub-link {{ request()->routeIs('masters.contractors.*') ? 'active' : '' }}">
-                            <i class="bi bi-person-workspace"></i><span>Contractors</span>
-                        </a>
+                            <div class="sb-sub-group-label">Operations</div>
+                            <a href="{{ route('masters.contractors.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.contractors.*') ? 'active' : '' }}">
+                                <i class="bi bi-person-workspace"></i><span>Contractors</span>
+                            </a>
                         @endif
                     </div>
                 </div>
@@ -612,22 +638,22 @@
                 <div class="collapse {{ $branchAdminOpen ? 'show' : '' }}" id="branchAdminMenu">
                     <div class="sb-sub-nav">
                         @if ($can['branch_admin_head_assignments'])
-                        <a href="{{ route('branch-admin.head-assignments.index') }}"
-                            class="sb-link sb-sub-link {{ $isBranchAdminHeadAssignments ? 'active' : '' }}">
-                            <i class="bi bi-person-badge"></i><span>Branch Head Assignment</span>
-                        </a>
+                            <a href="{{ route('branch-admin.head-assignments.index') }}"
+                                class="sb-link sb-sub-link {{ $isBranchAdminHeadAssignments ? 'active' : '' }}">
+                                <i class="bi bi-person-badge"></i><span>Branch Head Assignment</span>
+                            </a>
                         @endif
                         @if ($can['branch_admin_switcher'])
-                        <a href="{{ route('branch-admin.branch-switcher.index') }}"
-                            class="sb-link sb-sub-link {{ $isBranchAdminSwitcher ? 'active' : '' }}">
-                            <i class="bi bi-arrow-left-right"></i><span>Branch Switcher</span>
-                        </a>
+                            <a href="{{ route('branch-admin.branch-switcher.index') }}"
+                                class="sb-link sb-sub-link {{ $isBranchAdminSwitcher ? 'active' : '' }}">
+                                <i class="bi bi-arrow-left-right"></i><span>Branch Switcher</span>
+                            </a>
                         @endif
                         @if ($can['branch_admin_audit_log'])
-                        <a href="{{ route('branch-admin.audit-log.index') }}"
-                            class="sb-link sb-sub-link {{ $isBranchAdminAuditLog ? 'active' : '' }}">
-                            <i class="bi bi-journal-text"></i><span>Audit Log</span>
-                        </a>
+                            <a href="{{ route('branch-admin.audit-log.index') }}"
+                                class="sb-link sb-sub-link {{ $isBranchAdminAuditLog ? 'active' : '' }}">
+                                <i class="bi bi-journal-text"></i><span>Audit Log</span>
+                            </a>
                         @endif
                     </div>
                 </div>
@@ -665,21 +691,21 @@
             <div class="sb-section-label"><i class="bi bi-person-workspace"></i> Contract Mgmt</div>
             @if ($can['masters_contractors'])
                 <a href="{{ route('contract-labour.index') }}"
-                   class="sb-link {{ $isContractLabour ? 'active' : '' }}">
+                    class="sb-link {{ $isContractLabour ? 'active' : '' }}">
                     <i class="bi bi-person-check"></i>
                     <span>Contract Labour</span>
                 </a>
             @endif
             @if ($can['attendance'])
                 <a href="{{ route('contract-attendance.index') }}"
-                   class="sb-link {{ $isContractAttendance ? 'active' : '' }}">
+                    class="sb-link {{ $isContractAttendance ? 'active' : '' }}">
                     <i class="bi bi-calendar2-check"></i>
                     <span>Contract Attendance</span>
                 </a>
             @endif
             @if ($can['payroll'])
                 <a href="{{ route('contract-payroll.index') }}"
-                   class="sb-link {{ $isContractPayroll ? 'active' : '' }}">
+                    class="sb-link {{ $isContractPayroll ? 'active' : '' }}">
                     <i class="bi bi-cash-coin"></i>
                     <span>Contract Payroll</span>
                 </a>

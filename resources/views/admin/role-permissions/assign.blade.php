@@ -197,16 +197,6 @@
                     </label>
                     @endforeach
                 </div>
-                @php $moduleFlags = $assignedFlags[$moduleName] ?? []; @endphp
-                <div class="perm-flags mt-2 d-flex flex-wrap gap-3">
-                    @foreach (['can_approve' => 'Approve', 'can_process' => 'Process', 'can_export_excel' => 'Export Excel', 'can_export_pdf' => 'Export PDF', 'can_view_sensitive' => 'View Sensitive Data', 'can_manage_users' => 'Manage Users'] as $flag => $flagLabel)
-                        <label class="form-check form-check-sm mb-0" style="font-size:12px;">
-                            <input type="checkbox" class="form-check-input" name="flags[{{ $moduleName }}][{{ $flag }}]" value="1"
-                                {{ !empty($moduleFlags[$flag]) ? 'checked' : '' }}>
-                            <span class="form-check-label text-muted">{{ $flagLabel }}</span>
-                        </label>
-                    @endforeach
-                </div>
             </div>
             @endforeach
         </div>

@@ -48,27 +48,27 @@ class RolePermissionController extends Controller
 
         $assigned = $topPermissionPerModule->map(fn($permission) => $permission->id)->toArray();
 
-        // Branch Administration — the 6 fine-grained action flags live on the
-        // role_permissions pivot row for whichever permission is currently
-        // assigned per module, so the grid can pre-check them.
-        $actionFlags = ['can_approve', 'can_process', 'can_export_excel', 'can_export_pdf', 'can_view_sensitive', 'can_manage_users'];
-        $assignedFlags = $topPermissionPerModule->map(function ($permission) use ($actionFlags) {
-            return collect($actionFlags)->mapWithKeys(fn($flag) => [$flag => (bool) $permission->pivot->$flag]);
-        })->toArray();
-
-        return view('admin.role-permissions.assign', compact('role', 'grouped', 'assigned', 'assignedFlags', 'menuModules'));
+        return view('admin.role-permissions.assign', compact('role', 'grouped', 'assigned', 'menuModules'));
     }
 
     public function update(Request $request, Role $role)
     {
         $permissionSelections = $request->input('permissions', []);
-        $actionFlags = ['can_approve', 'can_process', 'can_export_excel', 'can_export_pdf', 'can_view_sensitive', 'can_manage_users'];
 
-        // Branch Administration — the fine-grained action checkboxes for a
-        // module apply to whichever access-level permission ends up synced
-        // for that module, keyed here by module name before we know the
-        // final permission id, then remapped below.
-        $flagsByModule = $request->input('flags', []);
+        // Branch Administration action flags (Approve/Process/Export Excel/
+        // Export PDF/View Sensitive Data/Manage Users) no longer have UI
+        // controls on this page — carry over each module's existing flag
+        // values from the database instead of resetting them to false, since
+        // the request no longer submits them. Enforcement of these flags
+        // elsewhere in the app is unaffected.
+        $actionFlags = ['can_approve', 'can_process', 'can_export_excel', 'can_export_pdf', 'can_view_sensitive', 'can_manage_users'];
+        $hierarchy = ['full' => 3, 'create' => 2, 'read' => 1];
+        $existingFlagsByModule = $role->permissions
+            ->groupBy('module')
+            ->map(function ($permissions) use ($actionFlags, $hierarchy) {
+                $top = $permissions->sortByDesc(fn($permission) => $hierarchy[$permission->access_level] ?? 0)->first();
+                return collect($actionFlags)->mapWithKeys(fn($flag) => [$flag => (bool) $top->pivot->$flag]);
+            });
 
         $syncData = [];
         foreach ($permissionSelections as $module => $value) {
@@ -76,10 +76,10 @@ class RolePermissionController extends Controller
                 continue;
             }
             $permissionId = (int) $value;
-            $moduleFlags = $flagsByModule[$module] ?? [];
+            $moduleFlags = $existingFlagsByModule->get($module);
             $pivotAttributes = [];
             foreach ($actionFlags as $flag) {
-                $pivotAttributes[$flag] = ! empty($moduleFlags[$flag]);
+                $pivotAttributes[$flag] = (bool) ($moduleFlags[$flag] ?? false);
             }
             $syncData[$permissionId] = $pivotAttributes;
         }

@@ -20,13 +20,16 @@ class UserController extends Controller
     {
         $query = User::with(['role', 'branch', 'employee'])->orderBy('name');
 
-        // Branch Administration — additive scoping. A branch-scoped actor
-        // (branch_head/branch_user) only ever sees their own branch's users;
-        // everyone else (including existing admin/hr-style accounts that
-        // predate this module) keeps today's unscoped behavior.
-        if (BranchScope::isBranchScopedUser()) {
-            $query->where('branch_id', auth()->user()->branch_id);
-        } elseif (auth()->user()->isSuperAdmin() && $request->filled('branch_id')) {
+        // Branch Administration — strict branch-wise filtering. A
+        // branch-scoped actor (branch_head/branch_user) only ever sees their
+        // own branch's users; a Super Admin always sees only the currently
+        // selected branch's users (switchable via the Branch Switcher —
+        // there is no "All Branches" view). Only accounts that predate this
+        // module (unscoped, currentBranchId() null) keep today's unscoped
+        // behavior with an optional ad-hoc branch filter.
+        $query = BranchScope::scopeQuery($query);
+
+        if (BranchScope::currentBranchId() === null && $request->filled('branch_id')) {
             $query->where('branch_id', $request->branch_id);
         }
 
@@ -40,7 +43,7 @@ class UserController extends Controller
 
         $users = $query->paginate(20)->withQueryString();
         $roles = Role::orderBy('name')->get();
-        $branches = auth()->user()->isSuperAdmin() ? Branch::active()->orderBy('name')->get() : collect();
+        $branches = BranchScope::currentBranchId() === null ? Branch::active()->orderBy('name')->get() : collect();
 
         return view('users.index', compact('users', 'roles', 'branches'));
     }
@@ -254,17 +257,25 @@ class UserController extends Controller
     {
         $isSuperAdmin = $actor->isSuperAdmin();
         $isBranchScoped = BranchScope::isBranchScopedUser();
+        $currentBranchId = BranchScope::currentBranchId();
 
-        $branches = $isSuperAdmin
-            ? Branch::active()->orderBy('name')->get()
-            : ($isBranchScoped ? Branch::where('id', $actor->branch_id)->get() : collect());
+        // A Super Admin's Branch field is locked to the currently selected
+        // branch too (switch branches via the Branch Switcher to manage
+        // users in a different one) — never a free pick from every branch.
+        $branches = $isBranchScoped
+            ? Branch::where('id', $actor->branch_id)->get()
+            : ($currentBranchId ? Branch::where('id', $currentBranchId)->get() : Branch::active()->orderBy('name')->get());
 
         $userTypeOptions = $isSuperAdmin
             ? ['' => '— None —', 'super_admin' => 'Super Admin', 'branch_head' => 'Branch Head', 'branch_user' => 'Branch User']
             : ($isBranchScoped ? ['branch_user' => 'Branch User'] : ['' => '— None —']);
 
+        // A Branch Head may only assign roles explicitly tagged as applicable
+        // to Branch User accounts — never super_admin, never any other role
+        // beyond their permitted scope.
         $roles = Role::where('is_active', true)
             ->when(! $isSuperAdmin, fn($q) => $q->where('name', '!=', 'super_admin'))
+            ->when($isBranchScoped, fn($q) => $q->whereJsonContains('applicable_user_types', 'branch_user'))
             ->orderBy('display_name')
             ->get();
 
@@ -277,7 +288,7 @@ class UserController extends Controller
             'userTypeOptions' => $userTypeOptions,
             'roles' => $roles,
             'employees' => $employees,
-            'lockedBranchId' => $isBranchScoped ? $actor->branch_id : null,
+            'lockedBranchId' => $isBranchScoped ? $actor->branch_id : ($isSuperAdmin ? $currentBranchId : null),
         ];
     }
 
@@ -320,10 +331,17 @@ class UserController extends Controller
             $data['branch_id'] = $actor->branch_id;
             $data['user_type'] = 'branch_user';
         } elseif ($isSuperAdmin) {
-            if (in_array($data['user_type'] ?? null, ['branch_head', 'branch_user'], true) && empty($data['branch_id'])) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'branch_id' => 'Branch is required for Branch Head and Branch User accounts.',
-                ]);
+            if (in_array($data['user_type'] ?? null, ['branch_head', 'branch_user'], true)) {
+                // Force branch_id to the currently selected branch (via the
+                // Branch Switcher) — a Super Admin manages users in that
+                // branch only, never a free pick from any branch.
+                $currentBranchId = BranchScope::currentBranchId();
+                if (! $currentBranchId) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'branch_id' => 'Select a branch (use the Branch Switcher) before creating a Branch Head or Branch User account.',
+                    ]);
+                }
+                $data['branch_id'] = $currentBranchId;
             }
             if (($data['user_type'] ?? null) === 'super_admin' || empty($data['user_type'])) {
                 $data['branch_id'] = null;
@@ -356,6 +374,18 @@ class UserController extends Controller
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'role_id' => 'The super_admin role cannot be assigned to a Branch Head or Branch User.',
             ]);
+        }
+
+        // Server-side enforcement of "a Branch Head cannot assign roles
+        // beyond their permitted scope" — not just a filtered dropdown, in
+        // case a role_id outside that list is submitted directly.
+        if ($isBranchScoped) {
+            $applicableTypes = $selectedRole?->applicable_user_types ?? [];
+            if (! in_array('branch_user', $applicableTypes, true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'role_id' => 'You may only assign roles applicable to Branch User accounts.',
+                ]);
+            }
         }
 
         if (! empty($data['employee_id']) && ! empty($data['branch_id'])) {

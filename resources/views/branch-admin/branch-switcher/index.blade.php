@@ -9,13 +9,7 @@
         <div class="card-body">
             <p class="text-muted">
                 Current branch:
-                <strong>
-                    @if ($currentBranchId)
-                        {{ $branches->firstWhere('id', $currentBranchId)?->name ?? 'Unknown' }}
-                    @else
-                        All Branches
-                    @endif
-                </strong>
+                <strong>{{ $branches->firstWhere('id', $currentBranchId)?->name ?? 'Unknown' }}</strong>
             </p>
 
             <div class="row g-2 mb-3">
@@ -36,18 +30,6 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr class="{{ ! $currentBranchId ? 'table-primary' : '' }}" data-search="all branches">
-                            <td colspan="2"><strong>All Branches</strong></td>
-                            <td>—</td>
-                            <td>
-                                <form action="{{ route('branch-admin.branch-switcher.clear') }}" method="POST" class="branch-switch-form">
-                                    @csrf
-                                    <button type="submit" class="btn btn-sm btn-outline-primary" {{ ! $currentBranchId ? 'disabled' : '' }}>
-                                        <i class="bi bi-check-circle"></i> {{ ! $currentBranchId ? 'Current' : 'Switch' }}
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
                         @foreach ($branches as $i => $branch)
                             <tr class="{{ (string) $currentBranchId === (string) $branch->id ? 'table-primary' : '' }}"
                                 data-search="{{ strtolower($branch->name . ' ' . $branch->code) }}">

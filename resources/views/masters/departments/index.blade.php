@@ -13,6 +13,7 @@
             <div class="col-md-3">
                 <input type="text" name="search" class="form-control form-control-sm" placeholder="Search name, code…" value="{{ request('search') }}">
             </div>
+            @if ($branches->isNotEmpty())
             <div class="col-md-3">
                 <select name="branch_id" class="form-select form-select-sm">
                     <option value="">All Branches</option>
@@ -21,6 +22,7 @@
                     @endforeach
                 </select>
             </div>
+            @endif
             <div class="col-md-2">
                 <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i> Search</button>
             </div>

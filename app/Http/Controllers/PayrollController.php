@@ -39,9 +39,10 @@ class PayrollController extends Controller
 
     public function generateForm()
     {
-        $departments = \App\Models\Department::orderBy('name')->get();
+        $departments = BranchScope::scopeQuery(\App\Models\Department::query())->orderBy('name')->get();
 
-        $recentPayrolls = PayrollRecord::selectRaw(
+        $recentPayrolls = BranchScope::scopeQueryVia(PayrollRecord::query(), 'employee')
+            ->selectRaw(
                 'month, year, status,
                  COUNT(DISTINCT employee_id) as employee_count,
                  SUM(gross_earnings) as total_gross,

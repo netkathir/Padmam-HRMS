@@ -29,8 +29,8 @@ class AttendanceController extends Controller
         }
 
         $attendance  = $query->paginate(25)->withQueryString();
-        $departments = \App\Models\Department::orderBy('name')->get();
-        $summary     = Attendance::where('date', $date)
+        $departments = BranchScope::scopeQuery(\App\Models\Department::query())->orderBy('name')->get();
+        $summary     = BranchScope::scopeQueryVia(Attendance::where('date', $date), 'employee')
             ->selectRaw('status, COUNT(*) as cnt')->groupBy('status')->pluck('cnt', 'status');
 
         return view('attendance.index', compact('attendance', 'departments', 'summary', 'date'));
@@ -39,7 +39,7 @@ class AttendanceController extends Controller
     public function markForm()
     {
         $employees   = BranchScope::scopeQuery(Employee::active()->orderBy('first_name')->with('department'))->get();
-        $departments = \App\Models\Department::orderBy('name')->get();
+        $departments = BranchScope::scopeQuery(\App\Models\Department::query())->orderBy('name')->get();
         return view('attendance.mark', compact('employees', 'departments'));
     }
 
@@ -178,7 +178,7 @@ class AttendanceController extends Controller
             ->paginate(30)->withQueryString();
 
         $employees   = BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get();
-        $departments = \App\Models\Department::orderBy('name')->get();
+        $departments = BranchScope::scopeQuery(\App\Models\Department::query())->orderBy('name')->get();
 
         return view('attendance.report', compact('records', 'employees', 'departments', 'month', 'year'));
     }

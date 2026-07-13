@@ -57,7 +57,7 @@ class ReportController extends Controller
             ->toArray();
 
         $employees   = BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get();
-        $departments = Department::orderBy('name')->get();
+        $departments = $this->scopedDepartments();
 
         return view('reports.attendance', compact('records', 'summary', 'employees', 'departments', 'fromDate', 'toDate'));
     }
@@ -101,12 +101,11 @@ class ReportController extends Controller
             ->whereMonth('date_of_joining', now()->month)
             ->count();
 
-        $departments   = Department::orderBy('name')->get();
-        $branches      = \App\Models\Branch::orderBy('name')->get();
-        $designations  = \App\Models\Designation::orderBy('name')->get();
+        $departments   = $this->scopedDepartments();
+        $designations  = $this->scopedDesignations();
         $employeeTypes = \App\Models\EmployeeType::orderBy('name')->get();
 
-        return view('reports.employees', compact('employees', 'stats', 'departments', 'branches', 'designations', 'employeeTypes'));
+        return view('reports.employees', compact('employees', 'stats', 'departments', 'designations', 'employeeTypes'));
     }
 
     public function leave(Request $request)
@@ -128,7 +127,7 @@ class ReportController extends Controller
 
         $leaves      = $query->paginate(30)->withQueryString();
         $leaveTypes  = \App\Models\LeaveType::where('is_active', true)->get();
-        $departments = Department::orderBy('name')->get();
+        $departments = $this->scopedDepartments();
 
         return view('reports.leave', compact('leaves', 'leaveTypes', 'departments', 'year'));
     }
@@ -166,7 +165,7 @@ class ReportController extends Controller
             ->selectRaw('COUNT(*) as count, SUM(gross_earnings) as gross, SUM(total_deductions) as deductions, SUM(net_salary) as net')
             ->first();
 
-        $departments = Department::orderBy('name')->get();
+        $departments = $this->scopedDepartments();
 
         return view('reports.payroll', compact('payrollRecords', 'totals', 'departments', 'month', 'year'));
     }
@@ -272,7 +271,7 @@ class ReportController extends Controller
             ->selectRaw('COUNT(*) as count, SUM(pf_employee) as pf_employee, SUM(pf_employer) as pf_employer, SUM(esi_employee) as esi_employee, SUM(esi_employer) as esi_employer')
             ->first();
 
-        $departments = Department::orderBy('name')->get();
+        $departments = $this->scopedDepartments();
 
         return view('reports.pf-esi', compact('records', 'totals', 'departments', 'month', 'year'));
     }
@@ -322,7 +321,7 @@ class ReportController extends Controller
             ->paginate(15, ['*'], 'daily_page')
             ->withQueryString();
 
-        $departments = Department::orderBy('name')->get();
+        $departments = $this->scopedDepartments();
 
         return view('reports.overtime', compact('summary', 'totals', 'dailyOt', 'departments', 'month', 'year'));
     }
@@ -356,9 +355,38 @@ class ReportController extends Controller
             ->selectRaw('COUNT(*) as employee_count, SUM(lop_days) as total_days, SUM(lop_deduction) as total_deduction')
             ->first();
 
-        $departments = Department::orderBy('name')->get();
+        $departments = $this->scopedDepartments();
 
         return view('reports.lop', compact('records', 'totals', 'departments', 'month', 'year'));
+    }
+
+    /**
+     * Department dropdown scoped to the currently effective branch — Department
+     * carries branch_id directly, so a plain BranchScope::scopeQuery() suffices.
+     */
+    private function scopedDepartments()
+    {
+        return BranchScope::scopeQuery(Department::query())->orderBy('name')->get();
+    }
+
+    /**
+     * Designation dropdown scoped the same way as Masters\DesignationController's
+     * own listing — Designation has no branch_id of its own, it's reached
+     * transitively via department_id -> departments.branch_id. A NULL
+     * department_id designation is kept regardless of branch (not yet
+     * assigned to a department, so it can't be excluded by branch).
+     */
+    private function scopedDesignations()
+    {
+        $branchId = BranchScope::currentBranchId();
+
+        return \App\Models\Designation::query()
+            ->when($branchId !== null, fn($q) => $q->where(
+                fn($q2) => $q2->whereNull('department_id')
+                    ->orWhereHas('department', fn($d) => $d->where('branch_id', $branchId))
+            ))
+            ->orderBy('name')
+            ->get();
     }
 
     private function exportCsv($records, string $type): \Symfony\Component\HttpFoundation\StreamedResponse

@@ -18,12 +18,16 @@ class DepartmentController extends Controller
             $s = '%' . $request->search . '%';
             $query->where(fn($q) => $q->where('name', 'like', $s)->orWhere('code', 'like', $s));
         }
-        if ($request->filled('branch_id')) {
+        // A branch is already forced above (BranchScope::scopeQuery) for a
+        // Super Admin (currently selected branch) or a branch-scoped actor
+        // (their own branch) — this ad-hoc filter only still applies for
+        // unscoped legacy accounts, avoiding a redundant/conflicting AND.
+        if (BranchScope::currentBranchId() === null && $request->filled('branch_id')) {
             $query->where('branch_id', $request->branch_id);
         }
 
         $departments = $query->paginate(20)->withQueryString();
-        $branches    = auth()->user()->isSuperAdmin() ? Branch::orderBy('name')->get() : collect();
+        $branches    = BranchScope::currentBranchId() === null ? Branch::orderBy('name')->get() : collect();
         return view('masters.departments.index', compact('departments', 'branches'));
     }
 

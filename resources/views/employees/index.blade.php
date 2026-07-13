@@ -27,6 +27,7 @@
                         @endforeach
                     </select>
                 </div>
+                @if ($branches->isNotEmpty())
                 <div class="col-md-2">
                     <select name="branch_id" class="form-select form-select-sm">
                         <option value="">All Branches</option>
@@ -36,6 +37,7 @@
                         @endforeach
                     </select>
                 </div>
+                @endif
                 <div class="col-md-2">
                     <select name="status" class="form-select form-select-sm">
                         <option value="">All Status</option>

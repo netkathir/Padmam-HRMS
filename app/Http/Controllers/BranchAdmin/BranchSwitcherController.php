@@ -5,6 +5,7 @@ namespace App\Http\Controllers\BranchAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Branch;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 
 class BranchSwitcherController extends Controller
@@ -19,7 +20,9 @@ class BranchSwitcherController extends Controller
         $this->ensureSuperAdmin();
 
         $branches = Branch::active()->orderBy('name')->get();
-        $currentBranchId = session('current_branch_id');
+        // Resolves (and persists, if unset) the effective branch — there is
+        // no "All Branches" mode, a Super Admin always has one selected.
+        $currentBranchId = BranchScope::currentBranchId();
 
         return view('branch-admin.branch-switcher.index', compact('branches', 'currentBranchId'));
     }
@@ -29,24 +32,15 @@ class BranchSwitcherController extends Controller
         $this->ensureSuperAdmin();
 
         $data = $request->validate([
-            'branch_id' => ['nullable', 'exists:branches,id'],
+            'branch_id' => ['required', 'exists:branches,id'],
         ]);
 
-        session(['current_branch_id' => $data['branch_id'] ?? null]);
+        $branch = Branch::findOrFail($data['branch_id']);
+        abort_if(! $branch->is_active, 422, 'Cannot switch to an inactive branch.');
 
-        $branch = $data['branch_id'] ? Branch::find($data['branch_id']) : null;
-        AuditLog::write(auth()->id(), 'switch', 'branches', $data['branch_id'] ?? '', null, ['branch_id' => $data['branch_id'] ?? null], $data['branch_id'] ?? null);
+        session(['current_branch_id' => $branch->id]);
+        AuditLog::write(auth()->id(), 'switch', 'branches', $branch->id, null, ['branch_id' => $branch->id], $branch->id);
 
-        return back()->with('success', $branch ? "Switched to {$branch->name}." : 'Switched to All Branches.');
-    }
-
-    public function clear()
-    {
-        $this->ensureSuperAdmin();
-
-        session()->forget('current_branch_id');
-        AuditLog::write(auth()->id(), 'switch', 'branches', '', null, ['branch_id' => null]);
-
-        return back()->with('success', 'Switched to All Branches.');
+        return back()->with('success', "Switched to {$branch->name}.");
     }
 }

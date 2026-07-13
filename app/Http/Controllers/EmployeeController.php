@@ -34,12 +34,18 @@ class EmployeeController extends Controller
         }
 
         if ($request->filled('department_id')) $query->where('department_id', $request->department_id);
-        if ($request->filled('branch_id'))     $query->where('branch_id', $request->branch_id);
+        // A branch is already forced above (BranchScope::scopeQuery) for a
+        // Super Admin (currently selected branch) or a branch-scoped actor
+        // (their own branch) — this ad-hoc filter only still applies for
+        // unscoped legacy accounts, avoiding a redundant/conflicting AND.
+        if (BranchScope::currentBranchId() === null && $request->filled('branch_id')) {
+            $query->where('branch_id', $request->branch_id);
+        }
         if ($request->filled('status'))        $query->where('status', $request->status);
 
         $employees   = $query->paginate(20)->withQueryString();
-        $departments = Department::orderBy('name')->get();
-        $branches    = Branch::orderBy('name')->get();
+        $departments = BranchScope::scopeQuery(Department::query())->orderBy('name')->get();
+        $branches    = BranchScope::currentBranchId() === null ? Branch::orderBy('name')->get() : collect();
 
         return view('employees.index', compact('employees', 'departments', 'branches'));
     }
@@ -56,6 +62,7 @@ class EmployeeController extends Controller
         $data = BranchScope::stampBranchId($data);
         BranchScope::assertBranchIsActive($data['branch_id']);
         $this->assertDepartmentBelongsToBranch($data['department_id'], $data['branch_id']);
+        $this->assertDesignationBelongsToBranch($data['designation_id'] ?? null, $data['branch_id']);
 
         $employee = DB::transaction(function () use ($data, $request) {
             $emp = Employee::create($data);
@@ -103,6 +110,7 @@ class EmployeeController extends Controller
         $data = BranchScope::stampBranchId($data);
         BranchScope::assertBranchAccess($data['branch_id']);
         $this->assertDepartmentBelongsToBranch($data['department_id'], $data['branch_id']);
+        $this->assertDesignationBelongsToBranch($data['designation_id'] ?? null, $data['branch_id']);
         $employee->update($data);
         return redirect()->route('employees.show', $employee)->with('success', 'Employee updated.');
     }
@@ -226,18 +234,71 @@ class EmployeeController extends Controller
         }
     }
 
+    /**
+     * Server-side guard mirroring assertDepartmentBelongsToBranch() — a
+     * Designation has no branch_id of its own (reached transitively via
+     * department_id), so a crafted request could otherwise submit a
+     * designation whose department belongs to a different branch than the
+     * dropdown (scoped to the current branch) would ever offer.
+     */
+    private function assertDesignationBelongsToBranch(?int $designationId, ?int $branchId): void
+    {
+        if ($designationId === null || $branchId === null) {
+            return;
+        }
+
+        $designation = Designation::find($designationId);
+
+        if ($designation && $designation->department_id !== null && (int) $designation->department?->branch_id !== (int) $branchId) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'designation_id' => 'The selected designation does not belong to the selected branch.',
+            ]);
+        }
+    }
+
     private function formData(): array
     {
+        $currentBranchId = BranchScope::currentBranchId();
+
+        // A branch is already in effect (branch-scoped actor, or a Super
+        // Admin who always has one selected) — lock the Branch field to it
+        // instead of offering every branch, since store()/update() force it
+        // to this same branch via BranchScope::stampBranchId() regardless of
+        // what's submitted. Only genuinely unscoped legacy accounts (null)
+        // get a free pick from every active branch.
+        $branches = $currentBranchId
+            ? Branch::where('id', $currentBranchId)->get()
+            : Branch::active()->orderBy('name')->get();
+
         return [
-            'branches'      => Branch::active()->orderBy('name')->get(),
+            'branches'      => $branches,
+            'lockedBranchId'=> $currentBranchId,
             'departments'   => BranchScope::scopeQuery(Department::query())->orderBy('name')->get(),
-            'designations'  => Designation::orderBy('name')->get(),
+            'designations'  => $this->scopedDesignations($currentBranchId),
             'employeeTypes' => EmployeeType::where('is_active', true)->get(),
             'contractors'   => BranchScope::scopeQueryIncludingGlobal(Contractor::where('is_active', true))->orderBy('name')->get(),
             'shifts'        => Shift::where('is_active', true)->get(),
             'managers'      => BranchScope::scopeQuery(Employee::active())->orderBy('first_name')->get(),
             'roles'         => \App\Models\Role::orderBy('name')->get(),
         ];
+    }
+
+    /**
+     * Designation dropdown scoped the same way as Masters\DesignationController's
+     * own listing — Designation has no branch_id of its own, it's reached
+     * transitively via department_id -> departments.branch_id. A NULL
+     * department_id designation is kept regardless of branch (not yet
+     * assigned to a department, so it can't be excluded by branch).
+     */
+    private function scopedDesignations(?int $branchId)
+    {
+        return Designation::query()
+            ->when($branchId !== null, fn($q) => $q->where(
+                fn($q2) => $q2->whereNull('department_id')
+                    ->orWhereHas('department', fn($d) => $d->where('branch_id', $branchId))
+            ))
+            ->orderBy('name')
+            ->get();
     }
 
     private function rules(int $excludeId = 0): array

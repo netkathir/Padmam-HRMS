@@ -20,7 +20,7 @@ class ContractAttendanceController extends Controller
 {
     public function index(Request $request)
     {
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(['id', 'name', 'code']);
 
         $contractor  = null;
         $attendance  = collect();
@@ -29,6 +29,7 @@ class ContractAttendanceController extends Controller
 
         if ($request->filled('contractor_id')) {
             $contractor  = Contractor::findOrFail($request->contractor_id);
+            BranchScope::assertBranchAccess($contractor->branch_id);
             $employeeIds = BranchScope::scopeQuery($contractor->employees())->pluck('id');
 
             $query = Attendance::with(['employee.department', 'employee.designation'])
@@ -54,7 +55,7 @@ class ContractAttendanceController extends Controller
 
     public function markForm(Request $request)
     {
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(['id', 'name', 'code']);
 
         $contractor  = null;
         $workers     = collect();
@@ -63,6 +64,7 @@ class ContractAttendanceController extends Controller
 
         if ($request->filled('contractor_id')) {
             $contractor = Contractor::findOrFail($request->contractor_id);
+            BranchScope::assertBranchAccess($contractor->branch_id);
 
             $workers = BranchScope::scopeQuery($contractor->employees())
                 ->where('status', 'active')
@@ -95,6 +97,8 @@ class ContractAttendanceController extends Controller
 
         $contractorId = $request->contractor_id;
         $date         = $request->date;
+
+        BranchScope::assertBranchAccess(Contractor::find($contractorId)?->branch_id);
 
         $scopedBranchId = BranchScope::currentBranchId();
 
@@ -135,7 +139,7 @@ class ContractAttendanceController extends Controller
 
     public function report(Request $request)
     {
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(['id', 'name', 'code']);
 
         $month      = (int) $request->input('month', now()->month);
         $year       = (int) $request->input('year', now()->year);
@@ -145,6 +149,7 @@ class ContractAttendanceController extends Controller
 
         if ($request->filled('contractor_id')) {
             $contractor  = Contractor::findOrFail($request->contractor_id);
+            BranchScope::assertBranchAccess($contractor->branch_id);
             $employeeIds = BranchScope::scopeQuery($contractor->employees())->pluck('id');
             $workers     = BranchScope::scopeQuery($contractor->employees())
                 ->with(['department', 'designation'])

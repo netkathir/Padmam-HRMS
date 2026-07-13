@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\OtRate;
 use App\Models\EmployeeType;
 use App\Models\Department;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 
 class OtRateController extends Controller
@@ -26,7 +27,7 @@ class OtRateController extends Controller
     public function create()
     {
         $employeeTypes = EmployeeType::where('is_active', true)->orderBy('name')->get();
-        $departments   = Department::orderBy('name')->get();
+        $departments   = BranchScope::scopeQuery(Department::query())->orderBy('name')->get();
         return view('masters.ot-rates.create', compact('employeeTypes', 'departments'));
     }
 
@@ -52,7 +53,7 @@ class OtRateController extends Controller
     public function edit(OtRate $otRate)
     {
         $employeeTypes = EmployeeType::where('is_active', true)->orderBy('name')->get();
-        $departments   = Department::orderBy('name')->get();
+        $departments   = BranchScope::scopeQuery(Department::query())->orderBy('name')->get();
         return view('masters.ot-rates.edit', compact('otRate', 'employeeTypes', 'departments'));
     }
 

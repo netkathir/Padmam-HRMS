@@ -126,13 +126,16 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Branch <span class="text-danger">*</span></label>
-                        <select name="branch_id" class="form-select @error('branch_id') is-invalid @enderror" required>
+                        <select name="branch_id" class="form-select @error('branch_id') is-invalid @enderror" required {{ $lockedBranchId ? 'disabled' : '' }}>
                             <option value="">Select</option>
                             @foreach ($branches as $b)
-                                <option value="{{ $b->id }}" {{ old('branch_id') == $b->id ? 'selected' : '' }}>
+                                <option value="{{ $b->id }}" {{ (string) old('branch_id', $lockedBranchId) === (string) $b->id ? 'selected' : '' }}>
                                     {{ $b->name }}</option>
                             @endforeach
                         </select>
+                        @if ($lockedBranchId)
+                            <input type="hidden" name="branch_id" value="{{ $lockedBranchId }}">
+                        @endif
                         @error('branch_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror

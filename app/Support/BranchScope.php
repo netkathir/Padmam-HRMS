@@ -12,6 +12,9 @@ use App\Models\Branch;
  * Backward-compatibility guardrail: currentBranchId() returns null for every
  * account that predates this module (user_type is null), which makes every
  * method here a no-op for those accounts — behavior is unchanged for them.
+ *
+ * The application must always have a specific branch in effect for a Super
+ * Admin — there is no "All Branches" mode. See resolveSuperAdminBranchId().
  */
 class BranchScope
 {
@@ -32,9 +35,11 @@ class BranchScope
 
     /**
      * Branch-scoped user (branch_head/branch_user) → always their own branch,
-     * no override possible. Super Admin → session('current_branch_id') if
-     * they've switched to one, else null (unscoped, sees everything — today's
-     * behavior). Anyone else (legacy accounts, user_type null) → always null.
+     * no override possible. Super Admin → always a real, active branch (see
+     * resolveSuperAdminBranchId() — never null, there is no "All Branches"
+     * mode). Anyone else (legacy accounts, user_type null) → always null,
+     * preserving today's unscoped behavior for accounts that predate this
+     * module.
      */
     public static function currentBranchId(): ?int
     {
@@ -49,11 +54,35 @@ class BranchScope
         }
 
         if ($user->isSuperAdmin()) {
-            $sessionBranchId = session('current_branch_id');
-            return $sessionBranchId ? (int) $sessionBranchId : null;
+            return self::resolveSuperAdminBranchId();
         }
 
         return null;
+    }
+
+    /**
+     * A Super Admin always has exactly one branch in effect. Uses the
+     * session-selected branch (set via the Branch Switcher) as long as it's
+     * still a real, active branch; otherwise falls back to — and persists —
+     * the first active branch (lowest id), covering a fresh login, a never-
+     * switched session, or a previously-selected branch that has since been
+     * deactivated/deleted.
+     */
+    private static function resolveSuperAdminBranchId(): ?int
+    {
+        $sessionBranchId = session('current_branch_id');
+
+        if ($sessionBranchId && Branch::active()->whereKey($sessionBranchId)->exists()) {
+            return (int) $sessionBranchId;
+        }
+
+        $fallbackBranchId = Branch::active()->orderBy('id')->value('id');
+
+        if ($fallbackBranchId) {
+            session(['current_branch_id' => $fallbackBranchId]);
+        }
+
+        return $fallbackBranchId;
     }
 
     /**

@@ -255,7 +255,6 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:branch_admin_switcher.read')->group(function () {
         Route::get('branch-admin/branch-switcher',        [BranchSwitcherController::class, 'index'])->name('branch-admin.branch-switcher.index');
         Route::post('branch-admin/branch-switcher/switch', [BranchSwitcherController::class, 'switch'])->name('branch-admin.branch-switcher.switch');
-        Route::post('branch-admin/branch-switcher/clear',  [BranchSwitcherController::class, 'clear'])->name('branch-admin.branch-switcher.clear');
     });
 
     Route::middleware('permission:branch_admin_audit_log.read')->group(function () {

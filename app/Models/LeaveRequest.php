@@ -30,4 +30,13 @@ class LeaveRequest extends Model
     public function isPending(): bool  { return $this->status === 'pending'; }
     public function isApproved(): bool { return $this->status === 'approved'; }
     public function isRejected(): bool { return $this->status === 'rejected'; }
+
+    /**
+     * Leave requests whose date range spans a given day — used by the
+     * Dashboard "on leave" KPIs (distinct from "pending leave requests").
+     */
+    public function scopeCoveringDate($query, $date)
+    {
+        return $query->where('start_date', '<=', $date)->where('end_date', '>=', $date);
+    }
 }

@@ -358,6 +358,7 @@
 
     /* ── Route active helpers ────────────────────────────────────── */
     $isDashboard = request()->routeIs('dashboard');
+    $isBranchDashboard = request()->routeIs('dashboard.branch');
     $isEmployees = request()->routeIs('employees.*');
     $isAttendance = request()->routeIs('attendance.*');
     $isLeaves = request()->routeIs('leaves.*');
@@ -378,14 +379,16 @@
      *  So having 'employees.full' also passes 'employees.read' check.
      *  Module keys come from config/menu_modules.php (the same registry
      *  that drives the Role Permissions admin page) so this list can
-     *  never drift out of sync with what's assignable.
+     *  never drift out of sync with what's assignable. Dashboard/Branch
+     *  Dashboard now participate in this same map (previously Dashboard
+     *  was hard-excluded and rendered unconditionally, back when its route
+     *  had no permission gate at all — both are gated now).
  *  Masters has no permission of its own — any one masters_* sub-screen
  *  permission unlocks the whole Masters section, and every sub-screen
  *  is shown unconditionally underneath, matching the original design.
  * ─────────────────────────────────────────────────────────── */
 $can = collect(config('menu_modules'))
     ->keys()
-    ->reject(fn($module) => $module === 'dashboard')
     ->mapWithKeys(fn($module) => [$module => $user->can("$module.read")])
     ->all();
 
@@ -446,11 +449,21 @@ $showBranchAdmin =
     {{-- ── Navigation ──────────────────────────────────────────── --}}
     <div class="sb-nav">
 
-        {{-- Dashboard — always visible ────────────────────────────── --}}
-        <a href="{{ route('dashboard') }}" class="sb-link {{ $isDashboard ? 'active' : '' }}">
-            <i class="bi bi-speedometer2"></i>
-            <span>Dashboard</span>
-        </a>
+        {{-- Overall Dashboard — gated like every other module now. --}}
+        @if ($can['dashboard'])
+            <a href="{{ route('dashboard') }}" class="sb-link {{ $isDashboard ? 'active' : '' }}">
+                <i class="bi bi-speedometer2"></i>
+                <span>Dashboard</span>
+            </a>
+        @endif
+
+        {{-- Branch Dashboard — single-branch KPIs/charts. --}}
+        @if ($can['branch_dashboard'])
+            <a href="{{ route('dashboard.branch') }}" class="sb-link {{ $isBranchDashboard ? 'active' : '' }}">
+                <i class="bi bi-diagram-3"></i>
+                <span>Branch Dashboard</span>
+            </a>
+        @endif
 
         {{-- ── SYSTEM ADMIN (collapsible) ──────────────────────── --}}
         @if ($showSysAdmin)

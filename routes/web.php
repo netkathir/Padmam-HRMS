@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\BranchDashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\LeaveController;
@@ -60,9 +61,17 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-    // Dashboard — always accessible to any authenticated user, mirroring the
-    // sidebar where Dashboard is never permission-gated.
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    // Dashboard — Overall Dashboard (FSD 5.2) and Branch Dashboard (FSD 5.3).
+    // Both now permission-gated like every other module (previously the
+    // Overall Dashboard route had no gate at all; a data migration backfills
+    // dashboard.read onto every pre-existing role so nobody who could reach
+    // it before loses access).
+    Route::middleware('permission:dashboard.read')->group(function () {
+        Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    });
+    Route::middleware('permission:branch_dashboard.read')->group(function () {
+        Route::get('/dashboard/branch', [BranchDashboardController::class, 'index'])->name('dashboard.branch');
+    });
 
     // Profile — always accessible to the account owner.
     Route::get('/profile',         [ProfileController::class, 'edit'])->name('profile.edit');

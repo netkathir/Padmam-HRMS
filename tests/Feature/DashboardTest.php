@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -20,6 +21,13 @@ class DashboardTest extends TestCase
             'is_active' => true,
         ]);
 
+        // Dashboard FSD — the Overall Dashboard route is now permission-gated
+        // (previously ungated), so a role must be explicitly granted
+        // dashboard.read to reach it, same as every other module.
+        Permission::syncModules();
+        $dashboardRead = Permission::where('module', 'dashboard')->where('access_level', 'read')->first();
+        $role->permissions()->sync([$dashboardRead->id]);
+
         $user = User::create([
             'name' => 'Test User',
             'email' => 'test@example.com',
@@ -29,7 +37,7 @@ class DashboardTest extends TestCase
             'role_id' => $role->id,
         ]);
 
-        $response = $this->actingAs($user)->get('/dashboard');
+        $response = $this->actingAs($user)->get('http://localhost/dashboard');
 
         $response->assertStatus(200);
     }

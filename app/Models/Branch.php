@@ -36,4 +36,11 @@ class Branch extends Model
     public function updatedBy()   { return $this->belongsTo(User::class, 'updated_by'); }
     public function users()             { return $this->hasMany(User::class, 'branch_id'); }
     public function headAssignments()   { return $this->hasMany(BranchHeadAssignment::class); }
+
+    /**
+     * Dashboard FSD multi-branch authorization grant — inverse of
+     * User::branches(). Named distinctly from users() (the existing
+     * hasMany via branch_id) since both relations coexist.
+     */
+    public function authorizedUsers()   { return $this->belongsToMany(User::class, 'user_branches'); }
 }

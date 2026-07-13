@@ -86,6 +86,39 @@ class BranchScope
     }
 
     /**
+     * Dashboard FSD — "Branch multi-select (authorized users only)". The
+     * full set of branch ids a user may ever see/select, distinct from
+     * currentBranchId() (which is exactly one "currently effective" branch
+     * used everywhere else in the app). Only consumed by the Overall/Branch
+     * Dashboard controllers — every other module keeps using
+     * currentBranchId()/scopeQuery() unchanged.
+     *
+     * Super Admin → every active branch (unrestricted, unchanged).
+     * Branch-scoped user (branch_head/branch_user) → their own single
+     * branch (unchanged). Anyone else → whatever branches have been
+     * explicitly granted via the user_branches pivot (User::branches()) —
+     * empty by default, meaning no dashboard access until granted.
+     */
+    public static function authorizedBranchIds(): \Illuminate\Support\Collection
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return collect();
+        }
+
+        if ($user->isSuperAdmin()) {
+            return Branch::active()->orderBy('id')->pluck('id');
+        }
+
+        if (self::isBranchScopedUser()) {
+            return collect([$user->branch_id]);
+        }
+
+        return $user->branches()->orderBy('branches.id')->pluck('branches.id');
+    }
+
+    /**
      * Add a `where($column, currentBranchId)` clause when a branch is in
      * effect. No-op (returns $query untouched) otherwise.
      */

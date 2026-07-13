@@ -13,6 +13,11 @@ return [
         'icon' => 'bi-speedometer2',
         'section' => 'Main',
     ],
+    'branch_dashboard' => [
+        'label' => 'Branch Dashboard',
+        'icon' => 'bi-diagram-3',
+        'section' => 'Main',
+    ],
     'users' => [
         'label' => 'Users',
         'icon' => 'bi-people',

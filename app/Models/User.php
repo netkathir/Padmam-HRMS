@@ -70,6 +70,18 @@ class User extends Authenticatable
             && $this->branch_id !== null;
     }
 
+    /**
+     * Dashboard FSD — "Branch multi-select (authorized users only)". Additive
+     * many-to-many authorization grant for roles other than Super Admin
+     * (unrestricted, all branches) and Branch Head/Branch User (single
+     * branch via branch_id above, unchanged) — e.g. HR Administrator,
+     * Payroll Administrator. Consumed by BranchScope::authorizedBranchIds().
+     */
+    public function branches()
+    {
+        return $this->belongsToMany(Branch::class, 'user_branches');
+    }
+
     // ── Helpers ────────────────────────────────────────────────────
     public function hasRole(string $role): bool
     {

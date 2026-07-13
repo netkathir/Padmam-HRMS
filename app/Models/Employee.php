@@ -13,7 +13,7 @@ class Employee extends Model
 
     protected $fillable = [
         'employee_code', 'branch_id', 'department_id', 'designation_id',
-        'employee_type_id', 'contractor_id', 'shift_id', 'reporting_to', 'salary_slab_id',
+        'employee_type_id', 'primary_employee_type', 'labour_type', 'contractor_id', 'shift_id', 'reporting_to', 'salary_slab_id',
         'first_name', 'last_name', 'date_of_birth', 'gender', 'marital_status',
         'blood_group', 'nationality', 'religion',
         'personal_email', 'official_email', 'phone', 'alternate_phone',
@@ -44,6 +44,8 @@ class Employee extends Model
     public function scopeActive($query) { return $query->where('status', 'active'); }
     public function scopeOfDepartment($query, int $deptId) { return $query->where('department_id', $deptId); }
     public function scopeOfBranch($query, int $branchId) { return $query->where('branch_id', $branchId); }
+    public function scopeStaff($query) { return $query->where('primary_employee_type', 'staff'); }
+    public function scopeCompanyLabour($query) { return $query->where('primary_employee_type', 'labour')->where('labour_type', 'company_labour'); }
 
     // ── Computed ───────────────────────────────────────────────────
     public function getFullNameAttribute(): string

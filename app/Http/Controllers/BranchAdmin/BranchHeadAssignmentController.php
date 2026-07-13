@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Branch;
 use App\Models\BranchHeadAssignment;
 use App\Models\User;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 
 class BranchHeadAssignmentController extends Controller
@@ -20,26 +21,33 @@ class BranchHeadAssignmentController extends Controller
     {
         $this->ensureSuperAdmin();
 
-        $query = BranchHeadAssignment::with(['branch', 'user'])->orderByDesc('effective_from');
+        // Strict branch-wise filtering — always the currently selected
+        // branch (switchable via the Branch Switcher), never "All Branches",
+        // consistent with every other module in the app.
+        $query = BranchScope::scopeQuery(BranchHeadAssignment::with(['branch', 'user']))
+            ->orderByDesc('effective_from');
 
-        if ($request->filled('branch_id')) {
-            $query->where('branch_id', $request->branch_id);
-        }
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
         $assignments = $query->paginate(20)->withQueryString();
-        $branches = Branch::active()->orderBy('name')->get();
 
-        return view('branch-admin.head-assignments.index', compact('assignments', 'branches'));
+        return view('branch-admin.head-assignments.index', compact('assignments'));
     }
 
     public function create()
     {
         $this->ensureSuperAdmin();
 
-        $branches = Branch::active()->orderBy('name')->get();
+        // Branch is always the currently selected one — never a free pick,
+        // consistent with Users/Employees (see BranchScope::stampBranchId()
+        // in store() below, which enforces this server-side too).
+        $currentBranchId = BranchScope::currentBranchId();
+        $branches = $currentBranchId
+            ? Branch::where('id', $currentBranchId)->get()
+            : Branch::active()->orderBy('name')->get();
+
         // A Branch Head cannot be another Branch Head's target of confusion with
         // Super Admin — exclude existing super_admin-role users from the picker.
         $users = User::whereHas('role', fn($q) => $q->where('name', '!=', 'super_admin'))
@@ -47,7 +55,9 @@ class BranchHeadAssignmentController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('branch-admin.head-assignments.create', compact('branches', 'users'));
+        return view('branch-admin.head-assignments.create', compact('branches', 'users') + [
+            'lockedBranchId' => $currentBranchId,
+        ]);
     }
 
     public function store(Request $request)
@@ -55,6 +65,13 @@ class BranchHeadAssignmentController extends Controller
         $this->ensureSuperAdmin();
 
         $data = $this->validateAssignment($request);
+
+        // Force branch_id to the currently selected branch, ignoring
+        // whatever was submitted — the same guardrail every other
+        // create/store path in the app applies (Users, Employees, etc.).
+        $data = BranchScope::stampBranchId($data);
+        BranchScope::assertBranchIsActive($data['branch_id']);
+
         $actor = auth()->user();
 
         $targetUser = User::findOrFail($data['user_id']);
@@ -79,6 +96,7 @@ class BranchHeadAssignmentController extends Controller
     public function edit(BranchHeadAssignment $headAssignment)
     {
         $this->ensureSuperAdmin();
+        BranchScope::assertBranchAccess($headAssignment->branch_id);
 
         return view('branch-admin.head-assignments.edit', ['assignment' => $headAssignment]);
     }
@@ -86,6 +104,7 @@ class BranchHeadAssignmentController extends Controller
     public function update(Request $request, BranchHeadAssignment $headAssignment)
     {
         $this->ensureSuperAdmin();
+        BranchScope::assertBranchAccess($headAssignment->branch_id);
 
         $data = $request->validate([
             'effective_from' => ['required', 'date'],
@@ -128,6 +147,7 @@ class BranchHeadAssignmentController extends Controller
     public function deactivate(BranchHeadAssignment $headAssignment)
     {
         $this->ensureSuperAdmin();
+        BranchScope::assertBranchAccess($headAssignment->branch_id);
 
         $headAssignment->update(['status' => 'inactive', 'effective_to' => now()->toDateString()]);
         BranchHeadAssignment::release($headAssignment->user_id, auth()->id());
@@ -140,6 +160,7 @@ class BranchHeadAssignmentController extends Controller
     public function destroy(BranchHeadAssignment $headAssignment)
     {
         $this->ensureSuperAdmin();
+        BranchScope::assertBranchAccess($headAssignment->branch_id);
 
         if ($headAssignment->status === 'active') {
             return back()->with('error', 'Deactivate this assignment before deleting it.');

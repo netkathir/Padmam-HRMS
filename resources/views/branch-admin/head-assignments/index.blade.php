@@ -15,14 +15,6 @@
         <div class="card-body">
             <form method="GET" class="row g-2 mb-3">
                 <div class="col-md-4">
-                    <select name="branch_id" class="form-select form-select-sm">
-                        <option value="">All Branches</option>
-                        @foreach ($branches as $branch)
-                            <option value="{{ $branch->id }}" {{ (string) request('branch_id') === (string) $branch->id ? 'selected' : '' }}>{{ $branch->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-3">
                     <select name="status" class="form-select form-select-sm">
                         <option value="">All Statuses</option>
                         <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>

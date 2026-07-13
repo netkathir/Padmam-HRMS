@@ -56,6 +56,19 @@
                         @endforeach
                     </div>
                 </div>
+                <div class="col-md-6">
+                    <label class="form-label">Employee Type Applicability <span class="text-danger">*</span></label>
+                    @php $selectedTypes = old('applicable_employee_types', $leaveType->applicable_employee_types ?? ['staff','company_labour','contract_labour']); @endphp
+                    <div class="border rounded p-2 @error('applicable_employee_types') is-invalid @enderror">
+                        @foreach(['staff'=>'Staff','company_labour'=>'Company Labour','contract_labour'=>'Contract Labour'] as $val=>$label)
+                        <div class="form-check">
+                            <input type="checkbox" name="applicable_employee_types[]" class="form-check-input" id="etype_{{ $val }}" value="{{ $val }}" {{ in_array($val, $selectedTypes) ? 'checked' : '' }}>
+                            <label class="form-check-label" for="etype_{{ $val }}">{{ $label }}</label>
+                        </div>
+                        @endforeach
+                    </div>
+                    @error('applicable_employee_types')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                </div>
             </div>
             <div class="mt-4 d-flex gap-2">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Update</button>

@@ -55,6 +55,18 @@ class EmployeeController extends Controller
         return view('employees.create', $this->formData());
     }
 
+    private function assertDepartmentIsActive(?int $departmentId, ?Employee $employee = null): void
+    {
+        if (! $departmentId || ($employee && $employee->department_id === $departmentId)) {
+            return;
+        }
+
+        $department = Department::find($departmentId);
+        if ($department && ! $department->is_active) {
+            abort(422, 'The selected department is inactive and cannot be assigned to new employees.');
+        }
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
@@ -63,6 +75,7 @@ class EmployeeController extends Controller
         BranchScope::assertBranchIsActive($data['branch_id']);
         $this->assertDepartmentBelongsToBranch($data['department_id'], $data['branch_id']);
         $this->assertDesignationBelongsToBranch($data['designation_id'] ?? null, $data['branch_id']);
+        $this->assertDepartmentIsActive($data['department_id'] ?? null);
 
         $employee = DB::transaction(function () use ($data, $request) {
             $emp = Employee::create($data);
@@ -97,7 +110,7 @@ class EmployeeController extends Controller
     public function edit(Employee $employee)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
-        return view('employees.edit', array_merge(compact('employee'), $this->formData()));
+        return view('employees.edit', array_merge(compact('employee'), $this->formData($employee)));
     }
 
     public function update(Request $request, Employee $employee)
@@ -111,6 +124,7 @@ class EmployeeController extends Controller
         BranchScope::assertBranchAccess($data['branch_id']);
         $this->assertDepartmentBelongsToBranch($data['department_id'], $data['branch_id']);
         $this->assertDesignationBelongsToBranch($data['designation_id'] ?? null, $data['branch_id']);
+        $this->assertDepartmentIsActive($data['department_id'], $employee);
         $employee->update($data);
         return redirect()->route('employees.show', $employee)->with('success', 'Employee updated.');
     }
@@ -256,7 +270,7 @@ class EmployeeController extends Controller
         }
     }
 
-    private function formData(): array
+    private function formData(?Employee $employee = null): array
     {
         $currentBranchId = BranchScope::currentBranchId();
 
@@ -273,7 +287,13 @@ class EmployeeController extends Controller
         return [
             'branches'      => $branches,
             'lockedBranchId'=> $currentBranchId,
-            'departments'   => BranchScope::scopeQuery(Department::query())->orderBy('name')->get(),
+            // Inactive departments are excluded from new-employee assignment
+            // (FSD 7.1); an employee's own already-assigned department is kept
+            // in the list on the edit form even if it has since gone inactive,
+            // so the field doesn't silently render blank.
+            'departments'   => BranchScope::scopeQuery(Department::query())
+                ->where(fn($q) => $q->where('is_active', true)->when($employee?->department_id, fn($q2) => $q2->orWhere('id', $employee->department_id)))
+                ->orderBy('name')->get(),
             'designations'  => $this->scopedDesignations($currentBranchId),
             'employeeTypes' => EmployeeType::where('is_active', true)->get(),
             'contractors'   => BranchScope::scopeQueryIncludingGlobal(Contractor::where('is_active', true))->orderBy('name')->get(),

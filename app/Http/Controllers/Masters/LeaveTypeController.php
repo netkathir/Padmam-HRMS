@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 
 class LeaveTypeController extends Controller
 {
+    private const EMPLOYEE_TYPES = ['staff', 'company_labour', 'contract_labour'];
+
     public function index(Request $request)
     {
         $query = LeaveType::orderBy('name');
@@ -40,6 +42,8 @@ class LeaveTypeController extends Controller
             'requires_document'   => ['boolean'],
             'min_notice_days'     => ['nullable', 'integer', 'min:0'],
             'max_consecutive_days' => ['nullable', 'integer', 'min:0'],
+            'applicable_employee_types'   => ['required', 'array', 'min:1'],
+            'applicable_employee_types.*' => ['in:' . implode(',', self::EMPLOYEE_TYPES)],
             'is_active'           => ['boolean'],
         ]);
 
@@ -68,6 +72,8 @@ class LeaveTypeController extends Controller
             'requires_document'   => ['boolean'],
             'min_notice_days'     => ['nullable', 'integer', 'min:0'],
             'max_consecutive_days' => ['nullable', 'integer', 'min:0'],
+            'applicable_employee_types'   => ['required', 'array', 'min:1'],
+            'applicable_employee_types.*' => ['in:' . implode(',', self::EMPLOYEE_TYPES)],
             'is_active'           => ['boolean'],
         ]);
 
@@ -81,6 +87,9 @@ class LeaveTypeController extends Controller
     {
         if ($leaveType->leaveRequests()->exists()) {
             return back()->with('error', 'Cannot delete leave type with associated leave requests.');
+        }
+        if ($leaveType->balances()->exists()) {
+            return back()->with('error', 'Cannot delete leave type with associated leave balances.');
         }
         $leaveType->delete();
         return redirect()->route('masters.leave-types.index')

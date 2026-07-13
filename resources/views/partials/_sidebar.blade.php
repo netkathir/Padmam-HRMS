@@ -590,7 +590,8 @@ $showBranchAdmin =
                                 $can['masters_earnings'] ||
                                 $can['masters_deductions'] ||
                                 $can['masters_ot_rates'] ||
-                                $can['masters_pf_esi']
+                                $can['masters_pf_esi'] ||
+                                $can['masters_banks']
                         )
                             <div class="sb-sub-group-label">Payroll</div>
                         @endif
@@ -598,6 +599,12 @@ $showBranchAdmin =
                             <a href="{{ route('masters.salary-slabs.index') }}"
                                 class="sb-link sb-sub-link {{ request()->routeIs('masters.salary-slabs.*') ? 'active' : '' }}">
                                 <i class="bi bi-layers"></i><span>Salary Slabs</span>
+                            </a>
+                        @endif
+                        @if ($can['masters_banks'])
+                            <a href="{{ route('masters.banks.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.banks.*') ? 'active' : '' }}">
+                                <i class="bi bi-bank"></i><span>Banks</span>
                             </a>
                         @endif
                         @if ($can['masters_earnings'])

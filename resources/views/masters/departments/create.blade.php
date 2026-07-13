@@ -38,6 +38,11 @@
                         <label class="form-check-label">Active</label>
                     </div>
                 </div>
+                <div class="col-12">
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-control @error('description') is-invalid @enderror" rows="3">{{ old('description') }}</textarea>
+                    @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
             </div>
             <div class="mt-4 d-flex gap-2">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save</button>

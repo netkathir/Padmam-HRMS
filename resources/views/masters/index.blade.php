@@ -123,5 +123,14 @@
                 </div>
             </a>
         </div>
+        <div class="col-6 col-md-4 col-lg-3">
+            <a href="{{ route('masters.banks.index') }}" class="card text-decoration-none h-100">
+                <div class="card-body text-center py-4">
+                    <i class="bi bi-bank fs-1 text-secondary mb-2 d-block"></i>
+                    <h6 class="fw-semibold mb-1">Banks</h6>
+                    <small class="text-muted">{{ $bankCount ?? 0 }} records</small>
+                </div>
+            </a>
+        </div>
     </div>
 @endsection

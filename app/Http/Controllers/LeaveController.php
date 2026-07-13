@@ -42,8 +42,13 @@ class LeaveController extends Controller
 
     public function create()
     {
-        $leaveTypes = LeaveType::where('is_active', true)->get();
         $employee   = auth()->user()->employee;
+        // FSD 7.4: "Leave types shall be available only for the selected
+        // employee types" — restrict the self-service dropdown to leave
+        // types applicable to this employee's classification.
+        $leaveTypes = LeaveType::where('is_active', true)->get()
+            ->filter(fn($lt) => $employee ? $lt->appliesToEmployeeType($employee->primary_employee_type, $employee->labour_type) : true)
+            ->values();
         $balances   = $employee ? LeaveBalance::where('employee_id', $employee->id)
             ->where('year', now()->year)->with('leaveType')->get() : collect();
         $employees  = auth()->user()->can('leaves.full')
@@ -67,6 +72,11 @@ class LeaveController extends Controller
             return back()->with('error', 'No employee profile linked to your account.');
         }
         BranchScope::assertBranchIsActive($employee->branch_id);
+
+        $leaveType = LeaveType::findOrFail($data['leave_type_id']);
+        if (! $leaveType->appliesToEmployeeType($employee->primary_employee_type, $employee->labour_type)) {
+            return back()->with('error', 'This leave type is not applicable to your employee category.');
+        }
 
         $totalDays = $this->countLeaveDays($data['start_date'], $data['end_date']);
 

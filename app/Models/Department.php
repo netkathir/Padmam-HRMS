@@ -9,7 +9,7 @@ class Department extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['branch_id', 'name', 'code', 'head_id', 'is_active'];
+    protected $fillable = ['branch_id', 'name', 'code', 'description', 'head_id', 'is_active'];
 
     protected function casts(): array
     {

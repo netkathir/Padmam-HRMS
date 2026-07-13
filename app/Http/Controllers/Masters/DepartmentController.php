@@ -7,6 +7,7 @@ use App\Models\Department;
 use App\Models\Branch;
 use App\Support\BranchScope;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class DepartmentController extends Controller
 {
@@ -41,11 +42,14 @@ class DepartmentController extends Controller
 
     public function store(Request $request)
     {
+        $branchId = BranchScope::currentBranchId() ?? $request->input('branch_id');
+
         $data = $request->validate([
-            'branch_id' => ['required', 'exists:branches,id'],
-            'name'      => ['required', 'string', 'max:100'],
-            'code'      => ['nullable', 'string', 'max:20'],
-            'is_active' => ['boolean'],
+            'branch_id'   => ['required', 'exists:branches,id'],
+            'name'        => ['required', 'string', 'max:100', Rule::unique('departments', 'name')->where('branch_id', $branchId)],
+            'code'        => ['required', 'string', 'max:20', 'unique:departments,code'],
+            'description' => ['nullable', 'string'],
+            'is_active'   => ['boolean'],
         ]);
 
         $data = BranchScope::stampBranchId($data);
@@ -71,11 +75,14 @@ class DepartmentController extends Controller
     {
         BranchScope::assertBranchAccess($department->branch_id);
 
+        $branchId = BranchScope::currentBranchId() ?? $request->input('branch_id');
+
         $data = $request->validate([
-            'branch_id' => ['required', 'exists:branches,id'],
-            'name'      => ['required', 'string', 'max:100'],
-            'code'      => ['nullable', 'string', 'max:20'],
-            'is_active' => ['boolean'],
+            'branch_id'   => ['required', 'exists:branches,id'],
+            'name'        => ['required', 'string', 'max:100', Rule::unique('departments', 'name')->where('branch_id', $branchId)->ignore($department->id)],
+            'code'        => ['required', 'string', 'max:20', 'unique:departments,code,' . $department->id],
+            'description' => ['nullable', 'string'],
+            'is_active'   => ['boolean'],
         ]);
 
         $data = BranchScope::stampBranchId($data);
@@ -93,6 +100,9 @@ class DepartmentController extends Controller
 
         if ($department->designations()->exists()) {
             return back()->with('error', 'Cannot delete department with associated designations.');
+        }
+        if ($department->employees()->exists()) {
+            return back()->with('error', 'Cannot delete department with associated employees.');
         }
         $department->delete();
         return redirect()->route('masters.departments.index')

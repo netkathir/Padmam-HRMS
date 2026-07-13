@@ -22,7 +22,7 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Start</th><th>End</th><th>Break</th><th>Grace</th><th>Overnight</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Start</th><th>End</th><th>Break</th><th>Grace (Late/Early)</th><th>Overnight</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($shifts as $shift)
                     <tr>
@@ -32,7 +32,7 @@
                         <td>{{ $shift->start_time }}</td>
                         <td>{{ $shift->end_time }}</td>
                         <td>{{ $shift->break_minutes ?? 0 }} min</td>
-                        <td>{{ $shift->grace_minutes ?? 0 }} min</td>
+                        <td>{{ $shift->grace_late_entry_minutes ?? 0 }} / {{ $shift->grace_early_exit_minutes ?? 0 }} min</td>
                         <td><span class="badge bg-{{ $shift->is_overnight ? 'warning' : 'light' }} text-{{ $shift->is_overnight ? 'dark' : 'muted' }}">{{ $shift->is_overnight ? 'Yes' : 'No' }}</span></td>
                         <td><span class="badge bg-{{ $shift->is_active ? 'success' : 'danger' }}-subtle text-{{ $shift->is_active ? 'success' : 'danger' }}">{{ $shift->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>

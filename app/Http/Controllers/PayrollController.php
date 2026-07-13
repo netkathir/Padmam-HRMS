@@ -8,6 +8,7 @@ use App\Models\PayrollPayment;
 use App\Models\EmployeeSalaryStructure;
 use App\Models\Attendance;
 use App\Models\PfEsiConfig;
+use App\Models\SalarySlab;
 use App\Support\BranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -81,10 +82,23 @@ class PayrollController extends Controller
         // effective_from), not simply the most-recently-created row — a
         // retroactive/back-dated run must apply the rates that were in
         // force at the time, not whatever was configured most recently.
-        $pfEsi      = PfEsiConfig::effectiveOn(\Carbon\Carbon::create($year, $month, 1)->toDateString());
+        $periodDate = \Carbon\Carbon::create($year, $month, 1)->toDateString();
+        $pfEsi      = PfEsiConfig::effectiveOn($periodDate);
         $workingDays = $this->getWorkingDays($month, $year);
 
+        // FSD 7.5 — "the applicable slab shall be automatically selected...
+        // If no applicable slab is found, the system shall show a validation
+        // message before payroll processing." Only enforced for employee
+        // types that have at least one active slab defined at all; an
+        // employee type with none configured yet falls back to PfEsiConfig
+        // exactly as before this feature existed (no regression for
+        // deployments that haven't configured Salary Slabs).
+        $slabbedEmployeeTypes = SalarySlab::where('is_active', true)->get()
+            ->flatMap(fn($s) => $s->applicable_employee_types ?? ['staff', 'company_labour', 'contract_labour'])
+            ->unique()->all();
+
         $generated = $skipped = $errors = 0;
+        $noSlabEmployees = [];
 
         foreach ($employees as $employee) {
             if ($employee->branch && ! $employee->branch->is_active) { $skipped++; continue; }
@@ -95,6 +109,15 @@ class PayrollController extends Controller
             // Skip if already generated
             if (PayrollRecord::where('employee_id', $employee->id)->where('month', $month)->where('year', $year)->exists()) {
                 $skipped++; continue;
+            }
+
+            $employeeTypeKey = $employee->primary_employee_type === 'staff' ? 'staff' : $employee->labour_type;
+            $slab = SalarySlab::findApplicable((float) $salary->ctc, $employee->primary_employee_type, $employee->labour_type, $employee->branch_id, $periodDate);
+
+            if (! $slab && $employeeTypeKey && in_array($employeeTypeKey, $slabbedEmployeeTypes, true)) {
+                $noSlabEmployees[] = $employee->full_name;
+                $errors++;
+                continue;
             }
 
             // Attendance summary
@@ -109,21 +132,32 @@ class PayrollController extends Controller
                    + $salary->ta + $salary->medical_allowance + $salary->special_allowance;
             $net   = $gross - $perDaySal;
 
-            // PF / ESI
-            $pfEmp = $pfEmpEr = $esiEmp = $esiEmpEr = 0;
-            if ($pfEsi && $employee->is_pf_applicable) {
-                $pfEmp   = min($salary->basic_salary, $pfEsi->pf_wage_ceiling ?? $salary->basic_salary) * ($pfEsi->pf_employee_pct / 100);
-                $pfEmpEr = min($salary->basic_salary, $pfEsi->pf_wage_ceiling ?? $salary->basic_salary) * ($pfEsi->pf_employer_pct / 100);
+            // PF / ESI / TDS — prefer the matched Salary Slab's percentages
+            // (FSD 7.5); fall back to the global PfEsiConfig exactly as
+            // before when no slab applies to this employee.
+            $pfEmp = $pfEmpEr = $esiEmp = $esiEmpEr = $tds = 0;
+            $pfEmployeePct  = $slab->pf_employee_percentage  ?? $pfEsi->pf_employee_pct  ?? null;
+            $pfEmployerPct  = $slab->pf_employer_percentage  ?? $pfEsi->pf_employer_pct  ?? null;
+            $esiEmployeePct = $slab->esi_employee_percentage ?? $pfEsi->esi_employee_pct ?? null;
+            $esiEmployerPct = $slab->esi_employer_percentage ?? $pfEsi->esi_employer_pct ?? null;
+
+            if ($employee->is_pf_applicable && $pfEmployeePct !== null) {
+                $wageBase = min($salary->basic_salary, $pfEsi->pf_wage_ceiling ?? $salary->basic_salary);
+                $pfEmp   = $wageBase * ($pfEmployeePct / 100);
+                $pfEmpEr = $wageBase * ($pfEmployerPct / 100);
             }
-            if ($pfEsi && $employee->is_esi_applicable && $gross <= ($pfEsi->esi_wage_ceiling ?? 21000)) {
-                $esiEmp   = $gross * ($pfEsi->esi_employee_pct / 100);
-                $esiEmpEr = $gross * ($pfEsi->esi_employer_pct / 100);
+            if ($employee->is_esi_applicable && $esiEmployeePct !== null && $gross <= ($pfEsi->esi_wage_ceiling ?? 21000)) {
+                $esiEmp   = $gross * ($esiEmployeePct / 100);
+                $esiEmpEr = $gross * ($esiEmployerPct / 100);
+            }
+            if ($employee->is_tds_applicable && $slab && $slab->tds_percentage) {
+                $tds = $gross * ($slab->tds_percentage / 100);
             }
 
-            $totalDeductions = $pfEmp + $esiEmp;
+            $totalDeductions = $pfEmp + $esiEmp + $tds;
             $netSalary       = $net - $totalDeductions;
 
-            DB::transaction(function () use ($employee, $salary, $month, $year, $gross, $net, $netSalary, $workingDays, $presentDays, $lopDays, $pfEmp, $pfEmpEr, $esiEmp, $esiEmpEr, $totalDeductions) {
+            DB::transaction(function () use ($employee, $salary, $month, $year, $gross, $net, $netSalary, $workingDays, $presentDays, $lopDays, $pfEmp, $pfEmpEr, $esiEmp, $esiEmpEr, $tds, $totalDeductions) {
                 PayrollRecord::create([
                     'employee_id'      => $employee->id,
                     'month'            => $month,
@@ -146,7 +180,7 @@ class PayrollController extends Controller
                     'pf_employer'      => round($pfEmpEr, 2),
                     'esi_employee'     => round($esiEmp, 2),
                     'esi_employer'     => round($esiEmpEr, 2),
-                    'tds'              => 0,
+                    'tds'              => round($tds, 2),
                     'advance_deduction'=> 0,
                     'lop_deduction'    => round($perDaySal, 2),
                     'other_deductions' => 0,
@@ -161,8 +195,13 @@ class PayrollController extends Controller
             $generated++;
         }
 
+        $message = "Payroll processed: {$generated} generated, {$skipped} skipped, {$errors} errors.";
+        if ($noSlabEmployees) {
+            $message .= ' No applicable salary slab found for: ' . implode(', ', $noSlabEmployees) . '.';
+        }
+
         return redirect()->route('payroll.index', ['month' => $month, 'year' => $year])
-            ->with('success', "Payroll processed: {$generated} generated, {$skipped} skipped, {$errors} errors.");
+            ->with($noSlabEmployees ? 'error' : 'success', $message);
     }
 
     public function payslip(PayrollRecord $payroll)

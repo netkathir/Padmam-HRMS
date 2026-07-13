@@ -107,6 +107,11 @@ return [
         'icon' => 'bi-person-workspace',
         'section' => 'Masters',
     ],
+    'masters_banks' => [
+        'label' => 'Banks',
+        'icon' => 'bi-bank',
+        'section' => 'Masters',
+    ],
     'employees' => [
         'label' => 'Employees',
         'icon' => 'bi-person-vcard',

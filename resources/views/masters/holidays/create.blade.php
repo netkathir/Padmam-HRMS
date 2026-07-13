@@ -9,6 +9,11 @@
             @csrf
             <div class="row g-3">
                 <div class="col-md-6">
+                    <label class="form-label">Calendar Name <span class="text-danger">*</span></label>
+                    <input type="text" name="calendar_name" class="form-control @error('calendar_name') is-invalid @enderror" value="{{ old('calendar_name') }}" placeholder="e.g. Head Office Holidays 2026" required>
+                    @error('calendar_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-6">
                     <label class="form-label">Holiday Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}" required>
                     @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -21,14 +26,15 @@
                 <div class="col-md-3">
                     <label class="form-label">Type <span class="text-danger">*</span></label>
                     <select name="type" class="form-select @error('type') is-invalid @enderror" required>
-                        <option value="national" {{ old('type') == 'national' ? 'selected' : '' }}>National</option>
-                        <option value="regional" {{ old('type') == 'regional' ? 'selected' : '' }}>Regional</option>
-                        <option value="optional" {{ old('type') == 'optional' ? 'selected' : '' }}>Optional</option>
+                        <option value="public_holiday" {{ old('type') == 'public_holiday' ? 'selected' : '' }}>Public Holiday</option>
+                        <option value="festival_holiday" {{ old('type') == 'festival_holiday' ? 'selected' : '' }}>Festival Holiday</option>
+                        <option value="optional" {{ old('type') == 'optional' ? 'selected' : '' }}>Optional Holiday</option>
+                        <option value="company_holiday" {{ old('type') == 'company_holiday' ? 'selected' : '' }}>Company Holiday</option>
                     </select>
                     @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Branch {{ $lockedBranchId ? '' : '(leave blank for all)' }}</label>
+                    <label class="form-label">Branch <span class="text-danger">*</span> {{ $lockedBranchId ? '' : '(or All Branches)' }}</label>
                     <select name="branch_id" class="form-select" {{ $lockedBranchId ? 'disabled' : '' }}>
                         <option value="">All Branches</option>
                         @foreach($branches as $b)
@@ -42,10 +48,34 @@
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
                     <div class="form-check">
+                        <input type="hidden" name="is_paid" value="0">
+                        <input type="checkbox" name="is_paid" class="form-check-input" value="1" {{ old('is_paid', '1') == '1' ? 'checked' : '' }}>
+                        <label class="form-check-label">Paid Holiday</label>
+                    </div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check">
                         <input type="hidden" name="is_active" value="0">
                         <input type="checkbox" name="is_active" class="form-check-input" value="1" {{ old('is_active', '1') == '1' ? 'checked' : '' }}>
                         <label class="form-check-label">Active</label>
                     </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Applicable Employee Type <span class="text-danger">*</span></label>
+                    <div class="border rounded p-2 @error('applicable_employee_types') is-invalid @enderror">
+                        @foreach(['staff'=>'Staff','company_labour'=>'Company Labour','contract_labour'=>'Contract Labour'] as $val=>$label)
+                        <div class="form-check">
+                            <input type="checkbox" name="applicable_employee_types[]" class="form-check-input" id="etype_{{ $val }}" value="{{ $val }}" {{ in_array($val, old('applicable_employee_types', ['staff','company_labour','contract_labour'])) ? 'checked' : '' }}>
+                            <label class="form-check-label" for="etype_{{ $val }}">{{ $label }}</label>
+                        </div>
+                        @endforeach
+                    </div>
+                    @error('applicable_employee_types')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-control @error('description') is-invalid @enderror" rows="2">{{ old('description') }}</textarea>
+                    @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
             </div>
             <div class="mt-4 d-flex gap-2">

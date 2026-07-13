@@ -28,6 +28,7 @@ use App\Http\Controllers\Masters\DeductionsComponentController;
 use App\Http\Controllers\Masters\SalarySlabController;
 use App\Http\Controllers\Masters\OtRateController;
 use App\Http\Controllers\Masters\PfEsiConfigController;
+use App\Http\Controllers\Masters\BankController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\RolePermissionController;
 use App\Http\Controllers\BranchAdmin\BranchHeadAssignmentController;
@@ -195,6 +196,7 @@ Route::middleware('auth')->group(function () {
         ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_holidays.read')
         ->middlewareFor(['store'], 'permission:masters_holidays.create')
         ->middlewareFor(['update', 'destroy'], 'permission:masters_holidays.full');
+    Route::post('masters/holidays/sunday-policy', [HolidayController::class, 'updateSundayPolicy'])->name('masters.holidays.sunday-policy')->middleware('permission:masters_holidays.full');
 
     Route::resource('masters/leave-types', LeaveTypeController::class, ['as' => 'masters'])->except('show')
         ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_leave_types.read')
@@ -244,6 +246,11 @@ Route::middleware('auth')->group(function () {
 
     // Contract Labour Assignment shares the Contractors module
     Route::get('/contract-labour', [ContractorController::class, 'contractLabourIndex'])->name('contract-labour.index')->middleware('permission:masters_contractors.read');
+
+    Route::resource('masters/banks', BankController::class, ['as' => 'masters'])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_banks.read')
+        ->middlewareFor(['store'], 'permission:masters_banks.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_banks.full');
 
     // Users
     Route::resource('users', UserController::class)->except('show')

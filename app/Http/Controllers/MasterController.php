@@ -11,6 +11,7 @@ use App\Models\LeaveType;
 use App\Models\EarningsComponent;
 use App\Models\DeductionsComponent;
 use App\Models\PfEsiConfig;
+use App\Models\Bank;
 use Illuminate\Http\Request;
 
 class MasterController extends Controller
@@ -26,6 +27,7 @@ class MasterController extends Controller
             'leaveTypeCount'   => LeaveType::count(),
             'earningsCount'    => EarningsComponent::count(),
             'deductionsCount'  => DeductionsComponent::count(),
+            'bankCount'        => Bank::count(),
         ]);
     }
 }

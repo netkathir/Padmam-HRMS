@@ -23,11 +23,6 @@ return [
         'icon' => 'bi-shield-check',
         'section' => 'System Admin',
     ],
-    'permissions' => [
-        'label' => 'Permissions',
-        'icon' => 'bi-key',
-        'section' => 'System Admin',
-    ],
     'role_permissions' => [
         'label' => 'Role Permissions',
         'icon' => 'bi-person-lock',

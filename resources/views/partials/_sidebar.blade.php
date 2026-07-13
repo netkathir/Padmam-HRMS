@@ -347,7 +347,6 @@
     $isMasters = request()->routeIs('masters.*');
     $isUsers = request()->routeIs('users.*');
     $isRoles = request()->routeIs('admin.roles.*');
-    $isPerms = request()->routeIs('admin.permissions.*');
     $isRolePerms = request()->routeIs('admin.role-permissions.*');
     $isSettings = request()->routeIs('settings.*');
     $isProfile              = request()->routeIs('profile.*');
@@ -359,8 +358,8 @@
      *  Hierarchy in Gate: delete > full > create > read
      *  So having 'employees.full' also passes 'employees.read' check.
      *  Module keys come from config/menu_modules.php (the same registry
-     *  that drives the Permissions and Role Permissions admin pages) so
-     *  this list can never drift out of sync with what's assignable.
+     *  that drives the Role Permissions admin page) so this list can
+     *  never drift out of sync with what's assignable.
      *  Masters has no permission of its own — any one masters_* sub-screen
      *  permission unlocks the whole Masters section, and every sub-screen
      *  is shown unconditionally underneath, matching the original design.
@@ -378,7 +377,7 @@
 
     /* ── Section visibility ──────────────────────────────────────── */
     $showSysAdmin =
-        $can['users'] || $can['roles'] || $can['permissions'] || $can['role_permissions'] || $can['settings'];
+        $can['users'] || $can['roles'] || $can['role_permissions'] || $can['settings'];
     $showMasters = collect($mastersModuleKeys)->contains(fn ($module) => $can[$module]);
     $showPeople = $can['employees'];
     $showTimeLeave = $can['attendance'] || $can['leaves'];
@@ -387,11 +386,11 @@
     $showContractMgmt     = $can['masters_contractors'] || $can['attendance'] || $can['payroll'];
 
     /* ── Collapse state ──────────────────────────────────────────── */
-    $sysAdminOpen = $showSysAdmin && ($isUsers || $isRoles || $isPerms || $isRolePerms || $isSettings);
+    $sysAdminOpen = $showSysAdmin && ($isUsers || $isRoles || $isRolePerms || $isSettings);
     $mastersOpen = $showMasters && $isMasters;
 
     /* ── Branch Administration — only the features with no existing-module
-     *  equivalent live here. Branches/Users/Roles/Permissions are reached via
+     *  equivalent live here. Branches/Users/Roles are reached via
      *  Masters ▸ Branches and System Admin ▸ Users/Roles/Role Permissions —
      *  no duplicate menu items for the same underlying data.
      * ─────────────────────────────────────────────────────────── */
@@ -460,13 +459,6 @@
                                 class="sb-link sb-sub-link {{ $isRoles ? 'active' : '' }}">
                                 <i class="bi bi-shield-check"></i>
                                 <span>Roles</span>
-                            </a>
-                        @endif
-                        @if ($can['permissions'])
-                            <a href="{{ route('admin.permissions.index') }}"
-                                class="sb-link sb-sub-link {{ $isPerms ? 'active' : '' }}">
-                                <i class="bi bi-key"></i>
-                                <span>Permissions</span>
                             </a>
                         @endif
                         @if ($can['role_permissions'])

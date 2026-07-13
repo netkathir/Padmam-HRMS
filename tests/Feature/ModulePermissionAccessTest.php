@@ -95,7 +95,7 @@ class ModulePermissionAccessTest extends TestCase
     {
         $user = $this->actingUserWithRole('no_admin_access');
 
-        $response = $this->actingAs($user)->get('http://localhost/admin/permissions');
+        $response = $this->actingAs($user)->get('http://localhost/admin/roles');
 
         $response->assertStatus(403);
     }

@@ -160,8 +160,7 @@
         @if($grouped->isEmpty())
         <div class="text-center text-muted py-5">
             <i class="bi bi-key d-block mb-2" style="font-size:32px;opacity:.3;"></i>
-            No permissions defined.
-            <a href="{{ route('admin.permissions.create') }}">Add permissions first</a>.
+            No permissions defined. Add a module to <code>config/menu_modules.php</code> to make it assignable here.
         </div>
         @else
         <div class="perm-list">

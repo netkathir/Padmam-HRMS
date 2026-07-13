@@ -28,7 +28,6 @@ use App\Http\Controllers\Masters\SalarySlabController;
 use App\Http\Controllers\Masters\OtRateController;
 use App\Http\Controllers\Masters\PfEsiConfigController;
 use App\Http\Controllers\Admin\RoleController;
-use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\RolePermissionController;
 use App\Http\Controllers\BranchAdmin\BranchHeadAssignmentController;
 use App\Http\Controllers\BranchAdmin\BranchSwitcherController;
@@ -223,15 +222,6 @@ Route::middleware('auth')->group(function () {
     // Roles
     Route::middleware('permission:roles.read')->group(function () {
         Route::resource('admin/roles', RoleController::class, ['as' => 'admin'])->except('show');
-    });
-
-    // Permissions
-    Route::middleware('permission:permissions.read')->group(function () {
-        Route::resource('admin/permissions', PermissionController::class, ['as' => 'admin'])->except('show');
-        Route::get('admin/permissions/module/{module}/edit', [PermissionController::class, 'editModule'])
-            ->name('admin.permissions.module.edit');
-        Route::put('admin/permissions/module/{module}', [PermissionController::class, 'updateModule'])
-            ->name('admin.permissions.module.update');
     });
 
     // Role Permissions

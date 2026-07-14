@@ -112,6 +112,11 @@ return [
         'icon' => 'bi-bank',
         'section' => 'Masters',
     ],
+    'rule_engine' => [
+        'label' => 'Rule Engine',
+        'icon' => 'bi-diagram-3-fill',
+        'section' => 'System Admin',
+    ],
     'employees' => [
         'label' => 'Employees',
         'icon' => 'bi-person-vcard',

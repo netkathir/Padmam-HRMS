@@ -39,6 +39,21 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
+                    <div class="col-md-4">
+                        @php
+                            $currentCategory = $employee->primary_employee_type === 'staff' ? 'staff' : $employee->labour_type;
+                        @endphp
+                        <label class="form-label">Employee Category <span class="text-danger">*</span></label>
+                        <select name="employee_category" class="form-select @error('employee_category') is-invalid @enderror" required>
+                            <option value="">Select</option>
+                            <option value="staff" {{ old('employee_category', $currentCategory) == 'staff' ? 'selected' : '' }}>Staff</option>
+                            <option value="company_labour" {{ old('employee_category', $currentCategory) == 'company_labour' ? 'selected' : '' }}>Company Labour</option>
+                            <option value="contract_labour" {{ old('employee_category', $currentCategory) == 'contract_labour' ? 'selected' : '' }}>Contract Labour</option>
+                        </select>
+                        @error('employee_category')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
                     <div class="col-md-3">
                         <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
                         <input type="date" name="date_of_birth"

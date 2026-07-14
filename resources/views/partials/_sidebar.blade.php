@@ -369,6 +369,7 @@
     $isRoles = request()->routeIs('admin.roles.*');
     $isRolePerms = request()->routeIs('admin.role-permissions.*');
     $isSettings = request()->routeIs('settings.*');
+    $isRuleEngine = request()->routeIs('rule-engine.*');
     $isProfile = request()->routeIs('profile.*');
     $isContractAttendance = request()->routeIs('contract-attendance.*');
     $isContractPayroll = request()->routeIs('contract-payroll.*');
@@ -398,7 +399,7 @@ $mastersModuleKeys = collect(config('menu_modules'))
     ->all();
 
 /* ── Section visibility ──────────────────────────────────────── */
-$showSysAdmin = $can['users'] || $can['roles'] || $can['role_permissions'] || $can['settings'];
+$showSysAdmin = $can['users'] || $can['roles'] || $can['role_permissions'] || $can['settings'] || $can['rule_engine'];
 $showMasters = collect($mastersModuleKeys)->contains(fn($module) => $can[$module]);
 $showPeople = $can['employees'];
 $showTimeLeave = $can['attendance'] || $can['leaves'];
@@ -407,7 +408,7 @@ $showInsights = $can['reports'];
 $showContractMgmt = $can['masters_contractors'] || $can['attendance'] || $can['payroll'];
 
 /* ── Collapse state ──────────────────────────────────────────── */
-$sysAdminOpen = $showSysAdmin && ($isUsers || $isRoles || $isRolePerms || $isSettings);
+$sysAdminOpen = $showSysAdmin && ($isUsers || $isRoles || $isRolePerms || $isSettings || $isRuleEngine);
 $mastersOpen = $showMasters && $isMasters;
 
 /* ── Branch Administration — only the features with no existing-module
@@ -506,6 +507,13 @@ $showBranchAdmin =
                                 class="sb-link sb-sub-link {{ $isSettings ? 'active' : '' }}">
                                 <i class="bi bi-sliders"></i>
                                 <span>Settings</span>
+                            </a>
+                        @endif
+                        @if ($can['rule_engine'])
+                            <a href="{{ route('rule-engine.index') }}"
+                                class="sb-link sb-sub-link {{ $isRuleEngine ? 'active' : '' }}">
+                                <i class="bi bi-diagram-3-fill"></i>
+                                <span>Rule Engine</span>
                             </a>
                         @endif
                     </div>

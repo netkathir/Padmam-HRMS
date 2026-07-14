@@ -16,6 +16,7 @@ class PayrollRecord extends Model
         'other_deductions', 'total_deductions',
         'pf_employer', 'esi_employer',
         'net_salary', 'status', 'generated_by', 'generated_at',
+        'applied_rules', 'calculated_lop_days', 'lop_override_reason',
     ];
 
     protected function casts(): array {
@@ -24,6 +25,7 @@ class PayrollRecord extends Model
             'absent_days'       => 'decimal:2',
             'leave_days'        => 'decimal:2',
             'lop_days'          => 'decimal:2',
+            'calculated_lop_days' => 'decimal:2',
             'ot_hours'          => 'decimal:2',
             'basic_salary'      => 'decimal:2',
             'hra'               => 'decimal:2',
@@ -45,6 +47,7 @@ class PayrollRecord extends Model
             'esi_employer'      => 'decimal:2',
             'net_salary'        => 'decimal:2',
             'generated_at'      => 'datetime',
+            'applied_rules'     => 'array',
         ];
     }
     public function employee()    { return $this->belongsTo(Employee::class); }

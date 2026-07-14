@@ -10,6 +10,7 @@ use App\Models\EmployeeType;
 use App\Models\Contractor;
 use App\Models\Shift;
 use App\Models\User;
+use App\Services\EmployeeNumberGenerator;
 use App\Support\BranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -67,12 +68,54 @@ class EmployeeController extends Controller
         }
     }
 
+    /**
+     * Module 4 FSD 8.3 — resolve and apply the Employee Number Rule, if any,
+     * for this new hire's classification/branch. No rule configured is a
+     * complete no-op: $data['employee_code'] is left exactly as submitted,
+     * preserving today's manual-entry behavior for any deployment that
+     * hasn't configured Employee Number Rules.
+     */
+    private function applyEmployeeNumberRule(array $data): array
+    {
+        $category = $data['employee_category'];
+        $primaryType = $category === 'staff' ? 'staff' : 'labour';
+        $labourType = $category === 'staff' ? null : $category;
+        $data['primary_employee_type'] = $primaryType;
+        $data['labour_type'] = $labourType;
+
+        $generator = app(EmployeeNumberGenerator::class);
+        // Contractor-wise numbering: this form doesn't capture contractor_id
+        // at creation time (contractor assignment happens afterwards, via
+        // the existing Contractor labour-assignment screen), so
+        // contractor-specific rules simply won't match here — expected, not
+        // a bug, given how contractor assignment already works in this app.
+        $rule = $generator->resolveRule($primaryType, $labourType, $data['branch_id'] ?? null, null);
+
+        if ($rule) {
+            $detail = $rule->employeeNumberRule;
+            $canManuallyOverride = $detail->allow_manual_override && auth()->user()->can('rule_engine.full');
+            if (! $canManuallyOverride || empty($data['employee_code'])) {
+                $data['employee_code'] = $generator->generate($rule, $data['branch_id'] ?? null, null);
+            }
+        }
+
+        return $data;
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
         $data['created_by'] = auth()->id();
         $data = BranchScope::stampBranchId($data);
         BranchScope::assertBranchIsActive($data['branch_id']);
+
+        $data = $this->applyEmployeeNumberRule($data);
+        unset($data['employee_category']);
+
+        if (empty($data['employee_code'])) {
+            return back()->withErrors(['employee_code' => 'Employee Code is required (no numbering rule is configured for this employee category).'])->withInput();
+        }
+
         $this->assertDepartmentBelongsToBranch($data['department_id'], $data['branch_id']);
         $this->assertDesignationBelongsToBranch($data['designation_id'] ?? null, $data['branch_id']);
         $this->assertDepartmentIsActive($data['department_id'] ?? null);
@@ -117,6 +160,12 @@ class EmployeeController extends Controller
     {
         BranchScope::assertBranchAccess($employee->branch_id);
         $data = $request->validate($this->rules($employee->id));
+        if (empty($data['employee_code'])) {
+            // employee_code is only nullable in rules() to support
+            // auto-generation on create; on update an empty submission
+            // must never blank out an existing employee's code.
+            unset($data['employee_code']);
+        }
         // A branch-scoped actor can never move an employee to another branch,
         // even via a crafted request — branch_id is always re-forced here,
         // exactly as on create.
@@ -125,6 +174,12 @@ class EmployeeController extends Controller
         $this->assertDepartmentBelongsToBranch($data['department_id'], $data['branch_id']);
         $this->assertDesignationBelongsToBranch($data['designation_id'] ?? null, $data['branch_id']);
         $this->assertDepartmentIsActive($data['department_id'], $employee);
+
+        $category = $data['employee_category'];
+        $data['primary_employee_type'] = $category === 'staff' ? 'staff' : 'labour';
+        $data['labour_type'] = $category === 'staff' ? null : $category;
+        unset($data['employee_category']);
+
         $employee->update($data);
         return redirect()->route('employees.show', $employee)->with('success', 'Employee updated.');
     }
@@ -326,7 +381,13 @@ class EmployeeController extends Controller
         return [
             'first_name'       => ['required', 'string', 'max:100'],
             'last_name'        => ['required', 'string', 'max:100'],
-            'employee_code'    => ['required', 'string', 'max:20', 'unique:employees,employee_code,' . $excludeId],
+            // Nullable here even though the column is NOT NULL — when a
+            // Module 4 Employee Number Rule applies, store() auto-generates
+            // it server-side; store() re-checks for emptiness in the no-rule
+            // case so manual entry is still effectively required exactly as
+            // before this feature existed.
+            'employee_code'    => ['nullable', 'string', 'max:20', 'unique:employees,employee_code,' . $excludeId],
+            'employee_category' => ['required', 'in:staff,company_labour,contract_labour'],
             'branch_id'        => ['required', 'exists:branches,id'],
             'department_id'    => ['required', 'exists:departments,id'],
             'designation_id'   => ['required', 'exists:designations,id'],

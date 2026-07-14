@@ -27,6 +27,7 @@ class Attendance extends Model
         'approved_by',
         'approved_at',
         'remarks',
+        'applied_rules',
     ];
     protected function casts(): array {
         return [
@@ -35,6 +36,7 @@ class Attendance extends Model
             'is_late' => 'boolean',
             'is_early_exit' => 'boolean',
             'is_manual_entry' => 'boolean',
+            'applied_rules' => 'array',
         ];
     }
 

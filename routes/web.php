@@ -29,6 +29,7 @@ use App\Http\Controllers\Masters\SalarySlabController;
 use App\Http\Controllers\Masters\OtRateController;
 use App\Http\Controllers\Masters\PfEsiConfigController;
 use App\Http\Controllers\Masters\BankController;
+use App\Http\Controllers\RuleEngine\RuleController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\RolePermissionController;
 use App\Http\Controllers\BranchAdmin\BranchHeadAssignmentController;
@@ -128,6 +129,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/payroll/{payroll}/payslip',     [PayrollController::class, 'payslip'])->name('payroll.payslip')->middleware('permission:payroll.read');
     Route::get('/payroll/{payroll}/payment',     [PayrollController::class, 'paymentForm'])->name('payroll.payment')->middleware('permission:payroll.read');
     Route::post('/payroll/{payroll}/payment',    [PayrollController::class, 'storePayment'])->name('payroll.payment.store')->middleware('permission:payroll.full');
+    Route::get('/payroll/lop-review',            [PayrollController::class, 'lopReview'])->name('payroll.lop-review')->middleware('permission:payroll.read');
+    Route::post('/payroll/{payroll}/lop',        [PayrollController::class, 'updateLop'])->name('payroll.lop.update')->middleware('permission:payroll.full');
 
     Route::get('/contract-payroll',              [ContractPayrollController::class, 'index'])->name('contract-payroll.index')->middleware('permission:payroll.read');
     Route::get('/contract-payroll/calculate',    [ContractPayrollController::class, 'calculateForm'])->name('contract-payroll.calculate')->middleware('permission:payroll.read');
@@ -251,6 +254,15 @@ Route::middleware('auth')->group(function () {
         ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_banks.read')
         ->middlewareFor(['store'], 'permission:masters_banks.create')
         ->middlewareFor(['update', 'destroy'], 'permission:masters_banks.full');
+
+    // Module 4 — Rule Engine (single screen, category-driven; Employee Number
+    // Configuration is not a separate form per the FSD).
+    Route::resource('rule-engine', RuleController::class, ['parameters' => ['rule-engine' => 'rule']])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:rule_engine.read')
+        ->middlewareFor(['store'], 'permission:rule_engine.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:rule_engine.full');
+    Route::post('rule-engine/preview-employee-number', [RuleController::class, 'previewEmployeeNumber'])
+        ->name('rule-engine.preview-employee-number')->middleware('permission:rule_engine.read');
 
     // Users
     Route::resource('users', UserController::class)->except('show')

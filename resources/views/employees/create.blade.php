@@ -31,11 +31,24 @@
                         @enderror
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Employee Code <span class="text-danger">*</span></label>
+                        <label class="form-label">Employee Code</label>
                         <input type="text" name="employee_code"
                             class="form-control @error('employee_code') is-invalid @enderror"
-                            value="{{ old('employee_code') }}" required>
+                            value="{{ old('employee_code') }}" placeholder="Auto-generated if a numbering rule applies">
+                        <div class="form-text">Leave blank to auto-generate from the Rule Engine's Employee Number Rule, if one is configured.</div>
                         @error('employee_code')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Employee Category <span class="text-danger">*</span></label>
+                        <select name="employee_category" class="form-select @error('employee_category') is-invalid @enderror" required>
+                            <option value="">Select</option>
+                            <option value="staff" {{ old('employee_category') == 'staff' ? 'selected' : '' }}>Staff</option>
+                            <option value="company_labour" {{ old('employee_category') == 'company_labour' ? 'selected' : '' }}>Company Labour</option>
+                            <option value="contract_labour" {{ old('employee_category') == 'contract_labour' ? 'selected' : '' }}>Contract Labour</option>
+                        </select>
+                        @error('employee_category')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>

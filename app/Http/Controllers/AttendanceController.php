@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Attendance;
 use App\Models\AttendanceLog;
+use App\Models\BusinessRule;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Support\BranchScope;
+use App\Support\RuleEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -191,15 +193,119 @@ class AttendanceController extends Controller
         return view('attendance.report', compact('records', 'employees', 'departments', 'month', 'year'));
     }
 
+    /**
+     * Module 4 FSD 8.4 — Attendance Rule. This is called for every
+     * mark()/manual() save exactly as before this feature existed; the only
+     * behavior change is additive (grace/rounding/late/OT/full-half-day
+     * computation) and only when an Attendance Rule actually resolves for
+     * the employee's context — no rule configured means this method behaves
+     * byte-for-byte as it did previously (work_minutes = out - in, nothing
+     * else touched).
+     *
+     * Guardrail (FSD: "shall not silently replace manually corrected
+     * attendance"): entries submitted through the dedicated manual()
+     * correction flow are flagged is_manual_entry=true and are NEVER
+     * touched here — only mark()'s routine/bulk entries (is_manual_entry
+     * stays false) are auto-computed/corrected by the rule engine, which is
+     * the intended automation target, not a "correction."
+     */
     private function recalculate(Attendance $attendance): void
     {
-        if (! $attendance->in_time || ! $attendance->out_time) return;
+        if (! $attendance->in_time || ! $attendance->out_time) {
+            $this->applyIncompletePunchTreatment($attendance);
+            return;
+        }
 
         $inMin  = $this->timeToMinutes($attendance->in_time);
         $outMin = $this->timeToMinutes($attendance->out_time);
         $work   = max(0, $outMin - $inMin);
 
-        $attendance->update(['work_minutes' => $work]);
+        $updates = ['work_minutes' => $work];
+
+        if (! $attendance->is_manual_entry) {
+            $employee = $attendance->employee ?? Employee::find($attendance->employee_id);
+            $rule = $employee ? BusinessRule::resolveFor(
+                'attendance', $employee->branch_id, $employee->primary_employee_type,
+                $employee->labour_type, $employee->contractor_id, $attendance->date->toDateString()
+            ) : null;
+            $detail = $rule?->attendanceRule;
+
+            if ($detail && $detail->appliesToShift($attendance->shift_id)) {
+                if ($detail->rounding_minutes) {
+                    $work = RuleEngine::roundMinutes($work, $detail->rounding_minutes);
+                    $updates['work_minutes'] = $work;
+                }
+
+                $shift = $attendance->shift;
+                if ($shift) {
+                    $shiftStartMin = $this->timeToMinutes($shift->start_time);
+                    $shiftEndMin   = $this->timeToMinutes($shift->end_time);
+
+                    $lateMin  = max(0, $inMin - $shiftStartMin - $detail->late_grace_minutes);
+                    $earlyMin = max(0, $shiftEndMin - $outMin - $detail->early_exit_grace_minutes);
+                    $updates['is_late'] = $lateMin > 0;
+                    $updates['late_minutes'] = $lateMin;
+                    $updates['is_early_exit'] = $earlyMin > 0;
+                    $updates['early_exit_minutes'] = $earlyMin;
+                    $updates['ot_minutes'] = max(0, $outMin - $shiftEndMin);
+                }
+
+                $workHours = $work / 60;
+                if ($workHours >= $detail->min_full_day_hours) {
+                    $updates['status'] = 'present';
+                } elseif ($workHours >= $detail->min_half_day_hours) {
+                    $updates['status'] = 'half_day';
+                } else {
+                    $updates['status'] = 'absent';
+                }
+
+                $updates['applied_rules'] = array_merge($attendance->applied_rules ?? [], ['attendance' => $rule->id]);
+            }
+        }
+
+        $attendance->update($updates);
+    }
+
+    /**
+     * FSD 8.4 — Missing Punch Treatment / Single Punch Treatment. Only
+     * applied once the attendance date has passed (a same-day/future record
+     * with an incomplete punch just hasn't finished its day yet) and never
+     * for manually-corrected entries.
+     */
+    private function applyIncompletePunchTreatment(Attendance $attendance): void
+    {
+        if ($attendance->is_manual_entry) {
+            return;
+        }
+        if (! $attendance->date->lt(now()->startOfDay())) {
+            return; // only a genuinely past day — today is still in progress
+        }
+
+        $employee = $attendance->employee ?? Employee::find($attendance->employee_id);
+        if (! $employee) {
+            return;
+        }
+
+        $rule = BusinessRule::resolveFor(
+            'attendance', $employee->branch_id, $employee->primary_employee_type,
+            $employee->labour_type, $employee->contractor_id, $attendance->date->toDateString()
+        );
+        $detail = $rule?->attendanceRule;
+        if (! $detail || ! $detail->appliesToShift($attendance->shift_id)) {
+            return;
+        }
+
+        $hasOnePunch = (bool) ($attendance->in_time xor $attendance->out_time);
+        $treatment = $hasOnePunch ? $detail->single_punch_treatment : $detail->missing_punch_treatment;
+
+        if (! in_array($treatment, ['absent', 'half_day'], true)) {
+            return; // pending_review — leave status untouched for manual review
+        }
+
+        $attendance->update([
+            'status' => $treatment,
+            'applied_rules' => array_merge($attendance->applied_rules ?? [], ['attendance' => $rule->id]),
+        ]);
     }
 
     private function timeToMinutes(string $time): int

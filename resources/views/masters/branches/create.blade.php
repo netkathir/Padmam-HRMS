@@ -18,10 +18,12 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Branch Code <span class="text-danger">*</span></label>
+                    {{-- Branch Code is auto-generated server-side (one higher than the
+                         latest existing code) — hidden here, not user-entered. --}}
+                    <div class="col-md-3 d-none">
+                        <label class="form-label">Branch Code</label>
                         <input type="text" name="code" class="form-control @error('code') is-invalid @enderror"
-                            value="{{ old('code') }}" required>
+                            value="{{ old('code') }}">
                         @error('code')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror

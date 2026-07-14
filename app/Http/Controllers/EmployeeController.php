@@ -16,6 +16,8 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Services\EmployeeNumberGenerator;
 use App\Support\BranchScope;
+use App\Support\SequentialCodeGenerator;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -78,10 +80,11 @@ class EmployeeController extends Controller
 
     /**
      * Module 4 FSD 8.3 — resolve and apply the Employee Number Rule, if any,
-     * for this new hire's classification/branch. No rule configured is a
-     * complete no-op: $data['employee_code'] is left exactly as submitted,
-     * preserving today's manual-entry behavior for any deployment that
-     * hasn't configured Employee Number Rules.
+     * for this new hire's classification/branch. If no Employee Number Rule
+     * is configured in the Rule Engine, this falls back to a simple
+     * branch-wise sequence (one higher than the latest code already used in
+     * that branch) — Employee Code is no longer manually entered, on this
+     * form or as a bare fallback.
      */
     private function applyEmployeeNumberRule(array $data): array
     {
@@ -91,6 +94,21 @@ class EmployeeController extends Controller
         $data['primary_employee_type'] = $primaryType;
         $data['labour_type'] = $labourType;
 
+        $data['employee_code'] = $this->resolveEmployeeCode($data, $primaryType, $labourType);
+
+        return $data;
+    }
+
+    /**
+     * Decides the Employee Code to use: the applicable Employee Number
+     * Rule's generated value (unless manual override is both permitted and
+     * provided), or — when no rule is configured — the branch-wise default
+     * sequence. Callable again on its own (with employee_code reset to
+     * null) to regenerate a fresh candidate if the first one collides at
+     * insert time.
+     */
+    private function resolveEmployeeCode(array $data, string $primaryType, ?string $labourType): ?string
+    {
         $generator = app(EmployeeNumberGenerator::class);
         // Contractor-wise numbering: resolved using the contractor now
         // captured directly on this form for Contract Labour (FSD 10.8).
@@ -100,11 +118,90 @@ class EmployeeController extends Controller
             $detail = $rule->employeeNumberRule;
             $canManuallyOverride = $detail->allow_manual_override && auth()->user()->can('rule_engine.full');
             if (! $canManuallyOverride || empty($data['employee_code'])) {
-                $data['employee_code'] = $generator->generate($rule, $data['branch_id'] ?? null, $data['contractor_id'] ?? null);
+                return $generator->generate($rule, $data['branch_id'] ?? null, $data['contractor_id'] ?? null);
+            }
+            return $data['employee_code'] ?? null;
+        }
+
+        return ($data['employee_code'] ?? null) ?: $this->generateDefaultBranchEmployeeCode($data['branch_id'] ?? null);
+    }
+
+    /**
+     * Default Employee Code generator used when no Employee Number Rule is
+     * configured — each branch keeps its own independent sequence (e.g.
+     * Branch A and Branch B can both reach "EMP0001"), continuing whatever
+     * prefix/padding that branch's own codes already use. A row lock on the
+     * branch's latest employee serializes concurrent creations within the
+     * same branch; the retry loop is a defensive fallback against the rare
+     * duplicate-key race the lock doesn't cover — the composite unique
+     * index on (branch_id, employee_code) is the actual guarantee.
+     */
+    private function generateDefaultBranchEmployeeCode(?int $branchId): string
+    {
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            try {
+                return DB::transaction(function () use ($branchId) {
+                    $lastCode = Employee::where('branch_id', $branchId)
+                        ->orderByDesc('id')
+                        ->lockForUpdate()
+                        ->value('employee_code');
+
+                    return SequentialCodeGenerator::next($lastCode, 'EMP0001');
+                });
+            } catch (QueryException $e) {
+                $isDuplicate = (string) $e->getCode() === '23000';
+                if (! $isDuplicate || $attempt === 5) {
+                    throw $e;
+                }
             }
         }
 
-        return $data;
+        throw new \RuntimeException('Unable to generate a unique Employee Code after several attempts.');
+    }
+
+    /**
+     * Creates the employee (and its login user, if requested) in a
+     * transaction. The row lock in generateDefaultBranchEmployeeCode()/the
+     * Rule Engine's own counter lock make a collision here unlikely but not
+     * provably impossible (the lock is released before this insert runs) —
+     * if employee_code was auto-generated and this still collides, a fresh
+     * code is generated and the insert is retried.
+     */
+    private function createEmployeeWithRetry(array $data, Request $request, bool $codeWasGenerated, string $primaryType, ?string $labourType): Employee
+    {
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            try {
+                return DB::transaction(function () use ($data, $request) {
+                    $emp = Employee::create($data);
+
+                    // Create login user if email provided
+                    if ($request->filled('official_email') && $request->boolean('create_user')) {
+                        User::create([
+                            'name'        => $emp->full_name,
+                            'email'       => $emp->official_email,
+                            'password'    => Hash::make('Welcome@' . now()->year),
+                            'role_id'     => $request->input('role_id', 2),
+                            'employee_id' => $emp->id,
+                            'is_active'   => true,
+                        ]);
+                    }
+
+                    return $emp;
+                });
+            } catch (QueryException $e) {
+                $isDuplicate = (string) $e->getCode() === '23000';
+                if (! $isDuplicate || ! $codeWasGenerated || $attempt === 5) {
+                    throw $e;
+                }
+                $data['employee_code'] = $this->resolveEmployeeCode(
+                    array_merge($data, ['employee_code' => null]),
+                    $primaryType,
+                    $labourType
+                );
+            }
+        }
+
+        throw new \RuntimeException('Unable to create the employee with a unique Employee Code after several attempts.');
     }
 
     /**
@@ -269,7 +366,11 @@ class EmployeeController extends Controller
         $data = $this->stripUnauthorizedRuleOverrides($data);
         $data = $this->stripUnauthorizedContractorRate($data);
 
+        $submittedCode = $data['employee_code'] ?? null;
+        $primaryType = $data['employee_category'] === 'staff' ? 'staff' : 'labour';
+        $labourType = self::LABOUR_TYPE_MAP[$data['employee_category']];
         $data = $this->applyEmployeeNumberRule($data);
+        $codeWasGenerated = ($data['employee_code'] ?? null) !== $submittedCode;
         unset($data['employee_category']);
 
         if (empty($data['employee_code'])) {
@@ -288,23 +389,7 @@ class EmployeeController extends Controller
             $data['display_name'] = trim(collect([$data['first_name'] ?? null, $data['middle_name'] ?? null, $data['last_name'] ?? null])->filter()->implode(' '));
         }
 
-        $employee = DB::transaction(function () use ($data, $request) {
-            $emp = Employee::create($data);
-
-            // Create login user if email provided
-            if ($request->filled('official_email') && $request->boolean('create_user')) {
-                User::create([
-                    'name'        => $emp->full_name,
-                    'email'       => $emp->official_email,
-                    'password'    => Hash::make('Welcome@' . now()->year),
-                    'role_id'     => $request->input('role_id', 2),
-                    'employee_id' => $emp->id,
-                    'is_active'   => true,
-                ]);
-            }
-
-            return $emp;
-        });
+        $employee = $this->createEmployeeWithRetry($data, $request, $codeWasGenerated, $primaryType, $labourType);
 
         return redirect()->route('employees.show', $employee)
             ->with('success', 'Employee created successfully.');
@@ -723,12 +808,22 @@ class EmployeeController extends Controller
             'middle_name'      => ['nullable', 'string', 'max:100', $nameRegex],
             'last_name'        => ['nullable', 'string', 'max:100', $nameRegex],
             'display_name'     => ['nullable', 'string', 'max:200'],
-            // Nullable here even though the column is NOT NULL — when a
-            // Module 4 Employee Number Rule applies, store() auto-generates
-            // it server-side; store() re-checks for emptiness in the no-rule
-            // case so manual entry is still effectively required exactly as
-            // before this feature existed.
-            'employee_code'    => ['nullable', 'string', 'max:20', 'unique:employees,employee_code,' . $excludeId],
+            // Nullable here even though the column is NOT NULL — Employee
+            // Code is now always auto-generated server-side (a configured
+            // Employee Number Rule, or else the branch-wise default
+            // sequence); store() re-checks for emptiness as a safety net.
+            // Uniqueness is scoped per branch (not global) since each
+            // branch runs its own independent numbering sequence — the same
+            // code string can legitimately exist in two different branches.
+            // Uses the same branch_id precedence as BranchScope::stampBranchId()
+            // (the currently selected branch overrides whatever the form
+            // submitted) so the check matches what will actually be saved.
+            'employee_code'    => [
+                'nullable', 'string', 'max:20',
+                Rule::unique('employees', 'employee_code')
+                    ->where(fn ($query) => $query->where('branch_id', BranchScope::currentBranchId() ?? request()->input('branch_id')))
+                    ->ignore($excludeId),
+            ],
             'biometric_id'     => ['required', 'string', 'max:50'],
             'employee_category' => ['required', 'in:staff,company_labour,contract_labour'],
             'branch_id'        => ['required', 'exists:branches,id'],

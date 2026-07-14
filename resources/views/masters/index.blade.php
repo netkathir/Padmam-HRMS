@@ -24,6 +24,10 @@
                 </div>
             </a>
         </div>
+        {{-- Designations is temporarily hidden from the Masters landing page
+             (UI only — route/controller/data are untouched and this tile can
+             be restored by uncommenting it). --}}
+        {{--
         <div class="col-6 col-md-4 col-lg-3">
             <a href="{{ route('masters.designations.index') }}" class="card text-decoration-none h-100">
                 <div class="card-body text-center py-4">
@@ -33,6 +37,7 @@
                 </div>
             </a>
         </div>
+        --}}
         <div class="col-6 col-md-4 col-lg-3">
             <a href="{{ route('masters.employee-types.index') }}" class="card text-decoration-none h-100">
                 <div class="card-body text-center py-4">

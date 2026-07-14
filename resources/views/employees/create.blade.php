@@ -51,12 +51,15 @@
                         <input type="text" name="display_name" class="form-control"
                             value="{{ old('display_name') }}" placeholder="Defaults to full name">
                     </div>
-                    <div class="col-md-3">
+                    {{-- Employee Code is always auto-generated server-side now (the
+                         Rule Engine's Employee Number Rule if one is configured,
+                         otherwise a branch-wise default sequence) — hidden here,
+                         not user-entered. --}}
+                    <div class="col-md-3 d-none">
                         <label class="form-label">Employee Code</label>
                         <input type="text" name="employee_code"
                             class="form-control @error('employee_code') is-invalid @enderror"
-                            value="{{ old('employee_code') }}" placeholder="Auto-generated if a numbering rule applies">
-                        <div class="form-text">Leave blank to auto-generate from the Rule Engine's Employee Number Rule, if one is configured.</div>
+                            value="{{ old('employee_code') }}">
                         @error('employee_code')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror

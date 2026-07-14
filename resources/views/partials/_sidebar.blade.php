@@ -556,12 +556,17 @@ $showBranchAdmin =
                                 <i class="bi bi-diagram-3"></i><span>Departments</span>
                             </a>
                         @endif
+                        {{-- Designations is temporarily hidden from the Masters menu
+                             (UI only — routes/controller/permissions/data are untouched
+                             and this link can be restored by uncommenting it). --}}
+                        {{--
                         @if ($can['masters_designations'])
                             <a href="{{ route('masters.designations.index') }}"
                                 class="sb-link sb-sub-link {{ request()->routeIs('masters.designations.*') ? 'active' : '' }}">
                                 <i class="bi bi-person-badge"></i><span>Designations</span>
                             </a>
                         @endif
+                        --}}
                         @if ($can['masters_employee_types'])
                             <a href="{{ route('masters.employee-types.index') }}"
                                 class="sb-link sb-sub-link {{ request()->routeIs('masters.employee-types.*') ? 'active' : '' }}">

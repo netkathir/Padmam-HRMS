@@ -34,10 +34,8 @@ class DepartmentController extends Controller
 
     public function create()
     {
-        $isSuperAdmin = auth()->user()->isSuperAdmin();
-        $branches = $isSuperAdmin ? Branch::active()->orderBy('name')->get() : Branch::where('id', BranchScope::currentBranchId())->get();
-        $lockedBranchId = $isSuperAdmin ? null : BranchScope::currentBranchId();
-        return view('masters.departments.create', compact('branches', 'lockedBranchId'));
+        $currentBranch = BranchScope::currentBranch();
+        return view('masters.departments.create', compact('currentBranch'));
     }
 
     public function store(Request $request)
@@ -65,10 +63,8 @@ class DepartmentController extends Controller
     public function edit(Department $department)
     {
         BranchScope::assertBranchAccess($department->branch_id);
-        $isSuperAdmin = auth()->user()->isSuperAdmin();
-        $branches = $isSuperAdmin ? Branch::active()->orderBy('name')->get() : Branch::where('id', $department->branch_id)->get();
-        $lockedBranchId = $isSuperAdmin ? null : $department->branch_id;
-        return view('masters.departments.edit', compact('department', 'branches', 'lockedBranchId'));
+        $currentBranch = $department->branch;
+        return view('masters.departments.edit', compact('department', 'currentBranch'));
     }
 
     public function update(Request $request, Department $department)

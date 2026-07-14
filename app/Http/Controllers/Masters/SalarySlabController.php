@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SalarySlab;
 use App\Models\EarningsComponent;
 use App\Models\DeductionsComponent;
-use App\Models\Branch;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 
 class SalarySlabController extends Controller
@@ -28,10 +28,10 @@ class SalarySlabController extends Controller
 
     public function create()
     {
-        $earnings   = EarningsComponent::where('is_active', true)->orderBy('sort_order')->get();
-        $deductions = DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get();
-        $branches   = Branch::active()->orderBy('name')->get();
-        return view('masters.salary-slabs.create', compact('earnings', 'deductions', 'branches'));
+        $earnings      = EarningsComponent::where('is_active', true)->orderBy('sort_order')->get();
+        $deductions    = DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get();
+        $currentBranch = BranchScope::currentBranch();
+        return view('masters.salary-slabs.create', compact('earnings', 'deductions', 'currentBranch'));
     }
 
     private function rules(): array
@@ -97,6 +97,8 @@ class SalarySlabController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
+        $data = BranchScope::stampBranchId($data);
+        BranchScope::assertBranchIsActive($data['branch_id'] ?? null);
         $this->assertNoOverlap($data);
 
         $slab = SalarySlab::create(collect($data)->except('components')->all());
@@ -114,10 +116,10 @@ class SalarySlabController extends Controller
     public function edit(SalarySlab $salarySlab)
     {
         $salarySlab->load('components');
-        $earnings   = EarningsComponent::where('is_active', true)->orderBy('sort_order')->get();
-        $deductions = DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get();
-        $branches   = Branch::active()->orderBy('name')->get();
-        return view('masters.salary-slabs.edit', compact('salarySlab', 'earnings', 'deductions', 'branches'));
+        $earnings      = EarningsComponent::where('is_active', true)->orderBy('sort_order')->get();
+        $deductions    = DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get();
+        $currentBranch = $salarySlab->branch ?? BranchScope::currentBranch();
+        return view('masters.salary-slabs.edit', compact('salarySlab', 'earnings', 'deductions', 'currentBranch'));
     }
 
     public function update(Request $request, SalarySlab $salarySlab)
@@ -125,6 +127,7 @@ class SalarySlabController extends Controller
         $rules = $this->rules();
         $rules['name'] = ['required', 'string', 'max:100', 'unique:salary_slabs,name,' . $salarySlab->id];
         $data = $request->validate($rules);
+        $data = BranchScope::stampBranchId($data);
         $this->assertNoOverlap($data, $salarySlab->id);
 
         $salarySlab->update(collect($data)->except('components')->all());

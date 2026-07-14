@@ -4,7 +4,6 @@ namespace App\Http\Controllers\BranchAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
-use App\Models\Branch;
 use App\Models\BranchHeadAssignment;
 use App\Models\User;
 use App\Support\BranchScope;
@@ -43,10 +42,7 @@ class BranchHeadAssignmentController extends Controller
         // Branch is always the currently selected one — never a free pick,
         // consistent with Users/Employees (see BranchScope::stampBranchId()
         // in store() below, which enforces this server-side too).
-        $currentBranchId = BranchScope::currentBranchId();
-        $branches = $currentBranchId
-            ? Branch::where('id', $currentBranchId)->get()
-            : Branch::active()->orderBy('name')->get();
+        $currentBranch = BranchScope::currentBranch();
 
         // A Branch Head cannot be another Branch Head's target of confusion with
         // Super Admin — exclude existing super_admin-role users from the picker.
@@ -55,9 +51,7 @@ class BranchHeadAssignmentController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('branch-admin.head-assignments.create', compact('branches', 'users') + [
-            'lockedBranchId' => $currentBranchId,
-        ]);
+        return view('branch-admin.head-assignments.create', compact('currentBranch', 'users'));
     }
 
     public function store(Request $request)

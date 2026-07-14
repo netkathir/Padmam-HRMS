@@ -10,20 +10,10 @@
             <form action="{{ route('branch-admin.head-assignments.store') }}" method="POST">
                 @csrf
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Branch <span class="text-danger">*</span></label>
-                        <select name="branch_id" class="form-select @error('branch_id') is-invalid @enderror" required {{ $lockedBranchId ? 'disabled' : '' }}>
-                            <option value="">Select Branch</option>
-                            @foreach ($branches as $branch)
-                                <option value="{{ $branch->id }}" {{ (string) old('branch_id', $lockedBranchId) === (string) $branch->id ? 'selected' : '' }}>{{ $branch->name }}</option>
-                            @endforeach
-                        </select>
-                        @if ($lockedBranchId)
-                            <input type="hidden" name="branch_id" value="{{ $lockedBranchId }}">
-                            <div class="form-text">New assignments are always created for the currently selected branch. Use the Branch Switcher to assign a head to a different branch.</div>
-                        @endif
-                        @error('branch_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
+                    @include('partials._locked_branch_field', [
+                        'currentBranch' => $currentBranch,
+                        'branchFieldHelp' => 'New assignments are always created for the currently selected branch. Use the Branch Switcher to assign a head to a different branch.',
+                    ])
                     <div class="col-md-6">
                         <label class="form-label">Branch Head <span class="text-danger">*</span></label>
                         <select name="user_id" class="form-select @error('user_id') is-invalid @enderror" required>

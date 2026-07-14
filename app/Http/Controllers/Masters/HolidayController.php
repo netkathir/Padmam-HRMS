@@ -55,10 +55,8 @@ class HolidayController extends Controller
 
     public function create()
     {
-        $isSuperAdmin = auth()->user()->isSuperAdmin();
-        $branches = $isSuperAdmin ? Branch::active()->orderBy('name')->get() : Branch::where('id', BranchScope::currentBranchId())->get();
-        $lockedBranchId = $isSuperAdmin ? null : BranchScope::currentBranchId();
-        return view('masters.holidays.create', compact('branches', 'lockedBranchId'));
+        $currentBranch = BranchScope::currentBranch();
+        return view('masters.holidays.create', compact('currentBranch'));
     }
 
     private function rules(): array
@@ -122,10 +120,8 @@ class HolidayController extends Controller
     public function edit(Holiday $holiday)
     {
         BranchScope::assertBranchAccess($holiday->branch_id);
-        $isSuperAdmin = auth()->user()->isSuperAdmin();
-        $branches = $isSuperAdmin ? Branch::active()->orderBy('name')->get() : Branch::where('id', $holiday->branch_id)->get();
-        $lockedBranchId = $isSuperAdmin ? null : $holiday->branch_id;
-        return view('masters.holidays.edit', compact('holiday', 'branches', 'lockedBranchId'));
+        $currentBranch = $holiday->branch ?? BranchScope::currentBranch();
+        return view('masters.holidays.edit', compact('holiday', 'currentBranch'));
     }
 
     public function update(Request $request, Holiday $holiday)

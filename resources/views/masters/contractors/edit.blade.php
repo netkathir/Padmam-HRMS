@@ -36,18 +36,7 @@
                     <label class="form-label">Company Name</label>
                     <input type="text" name="company_name" class="form-control" value="{{ old('company_name', $contractor->company_name) }}" maxlength="150">
                 </div>
-                @if ($branches->isNotEmpty())
-                <div class="col-md-6">
-                    <label class="form-label">Primary Branch</label>
-                    <select name="branch_id" class="form-select @error('branch_id') is-invalid @enderror">
-                        <option value="">— Unassigned (visible to Super Admin only) —</option>
-                        @foreach ($branches as $branch)
-                            <option value="{{ $branch->id }}" {{ (string) old('branch_id', $contractor->branch_id) === (string) $branch->id ? 'selected' : '' }}>{{ $branch->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('branch_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                @endif
+                @include('partials._locked_branch_field', ['currentBranch' => $currentBranch, 'branchFieldLabel' => 'Primary Branch'])
 
                 <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">Contact Details</h6></div>
                 <div class="col-md-4">

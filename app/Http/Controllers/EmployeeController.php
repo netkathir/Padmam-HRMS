@@ -745,19 +745,15 @@ class EmployeeController extends Controller
     {
         $currentBranchId = BranchScope::currentBranchId();
 
-        // A branch is already in effect (branch-scoped actor, or a Super
-        // Admin who always has one selected) — lock the Branch field to it
-        // instead of offering every branch, since store()/update() force it
-        // to this same branch via BranchScope::stampBranchId() regardless of
-        // what's submitted. Only genuinely unscoped legacy accounts (null)
-        // get a free pick from every active branch.
-        $branches = $currentBranchId
-            ? Branch::where('id', $currentBranchId)->get()
-            : Branch::active()->orderBy('name')->get();
+        // The Branch field is always the currently active branch (Branch
+        // Switcher for Super Admin, own branch for a branch-scoped actor) —
+        // store()/update() force it to this same branch via
+        // BranchScope::stampBranchId() regardless of what's submitted, so it
+        // is shown read-only rather than as a selectable dropdown.
+        $currentBranch = $currentBranchId ? Branch::find($currentBranchId) : $employee?->branch;
 
         return [
-            'branches'      => $branches,
-            'lockedBranchId'=> $currentBranchId,
+            'currentBranch' => $currentBranch,
             // Inactive departments are excluded from new-employee assignment
             // (FSD 7.1); an employee's own already-assigned department is kept
             // in the list on the edit form even if it has since gone inactive,

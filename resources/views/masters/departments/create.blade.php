@@ -8,19 +8,7 @@
         <form action="{{ route('masters.departments.store') }}" method="POST">
             @csrf
             <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label">Branch <span class="text-danger">*</span></label>
-                    <select name="branch_id" class="form-select @error('branch_id') is-invalid @enderror" {{ $lockedBranchId ? 'disabled' : '' }} {{ $lockedBranchId ? '' : 'required' }}>
-                        <option value="">Select Branch</option>
-                        @foreach($branches as $b)
-                            <option value="{{ $b->id }}" {{ (string) old('branch_id', $lockedBranchId) === (string) $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
-                        @endforeach
-                    </select>
-                    @if ($lockedBranchId)
-                        <input type="hidden" name="branch_id" value="{{ $lockedBranchId }}">
-                    @endif
-                    @error('branch_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
+                @include('partials._locked_branch_field', ['currentBranch' => $currentBranch])
                 <div class="col-md-6">
                     <label class="form-label">Department Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}" required>

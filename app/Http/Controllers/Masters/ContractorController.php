@@ -54,9 +54,15 @@ class ContractorController extends Controller
 
     private function formOptions(): array
     {
-        $isSuperAdmin = auth()->user()->isSuperAdmin();
         return [
-            'branches' => $isSuperAdmin ? Branch::active()->orderBy('name')->get() : collect(),
+            // The owning branch (`branch_id`) is always the currently active
+            // one — store()/update() force it via BranchScope::stampBranchId()
+            // regardless of what's submitted, so it's shown read-only.
+            'currentBranch' => BranchScope::currentBranch(),
+            // `allBranches` remains the full list for the separate Branch
+            // Applicability multi-select (`branch_ids[]`) — a deliberate,
+            // multi-branch feature (a contractor's labour can work across
+            // several branches), unrelated to the single owning branch above.
             'allBranches' => Branch::active()->orderBy('name')->get(),
             'states' => config('states', []),
         ];
@@ -134,7 +140,9 @@ class ContractorController extends Controller
     {
         BranchScope::assertBranchAccess($contractor->branch_id);
         $contractor->load(['branches', 'documents']);
-        return view('masters.contractors.edit', array_merge(compact('contractor'), $this->formOptions()));
+        $options = $this->formOptions();
+        $options['currentBranch'] = $contractor->branch ?? $options['currentBranch'];
+        return view('masters.contractors.edit', array_merge(compact('contractor'), $options));
     }
 
     public function update(Request $request, Contractor $contractor)

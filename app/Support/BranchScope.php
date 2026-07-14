@@ -61,6 +61,18 @@ class BranchScope
     }
 
     /**
+     * The Branch model behind currentBranchId(), for screens that need to
+     * display the active branch (read-only) instead of a selectable dropdown
+     * — e.g. Create/Edit forms for branch-scoped Masters.
+     */
+    public static function currentBranch(): ?Branch
+    {
+        $id = self::currentBranchId();
+
+        return $id ? Branch::find($id) : null;
+    }
+
+    /**
      * A Super Admin always has exactly one branch in effect. Uses the
      * session-selected branch (set via the Branch Switcher) as long as it's
      * still a real, active branch; otherwise falls back to — and persists —

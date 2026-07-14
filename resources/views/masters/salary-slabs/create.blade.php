@@ -52,16 +52,7 @@
                 </div>
 
                 <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">Applicability & Effective Period</h6></div>
-                <div class="col-md-4">
-                    <label class="form-label">Branch {{ '(or All Branches)' }}</label>
-                    <select name="branch_id" class="form-select @error('branch_id') is-invalid @enderror">
-                        <option value="">All Branches</option>
-                        @foreach($branches as $b)
-                            <option value="{{ $b->id }}" {{ (string) old('branch_id') === (string) $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('branch_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
+                @include('partials._locked_branch_field', ['currentBranch' => $currentBranch, 'branchFieldCol' => 'col-md-4'])
                 <div class="col-md-4">
                     <label class="form-label">Effective From <span class="text-danger">*</span></label>
                     <input type="date" name="effective_from" class="form-control @error('effective_from') is-invalid @enderror" value="{{ old('effective_from', now()->toDateString()) }}" required>

@@ -33,19 +33,7 @@
                     </select>
                     @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">Branch <span class="text-danger">*</span> {{ $lockedBranchId ? '' : '(or All Branches)' }}</label>
-                    <select name="branch_id" class="form-select" {{ $lockedBranchId ? 'disabled' : '' }}>
-                        <option value="">All Branches</option>
-                        @foreach($branches as $b)
-                            <option value="{{ $b->id }}" {{ (string) old('branch_id', $lockedBranchId ?? $holiday->branch_id) === (string) $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
-                        @endforeach
-                    </select>
-                    @if ($lockedBranchId)
-                        <input type="hidden" name="branch_id" value="{{ $lockedBranchId }}">
-                        <div class="form-text">Locked to your assigned branch.</div>
-                    @endif
-                </div>
+                @include('partials._locked_branch_field', ['currentBranch' => $currentBranch])
                 <div class="col-md-3 d-flex align-items-end">
                     <div class="form-check">
                         <input type="hidden" name="is_paid" value="0">

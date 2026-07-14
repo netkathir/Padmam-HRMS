@@ -23,7 +23,13 @@
 @endif
 @php
     $employee = $payroll->employee;
-    $mask = fn($v) => $v ? str_repeat('•', max(0, strlen($v) - 4)) . substr($v, -4) : '—';
+    // Module 11 (FSD 15.2) — PAN/UAN/PF/ESI/bank account were previously
+    // masked unconditionally here with no bypass at all (not even for Super
+    // Admin). Now gated by the same dedicated View Sensitive Data permission
+    // used everywhere else (Employee profile, Reports).
+    $canViewSensitive = $canViewSensitive ?? \App\Support\SensitiveDataAccess::canView('payroll');
+    $mask = fn($v) => $v ? ($canViewSensitive ? $v : str_repeat('•', max(0, strlen($v) - 4)) . substr($v, -4)) : '—';
+    $bankAccountNumber = $employee->bankDetails->first();
     $showEmployerContribution = \App\Models\Setting::get('payroll', 'show_employer_contribution_on_payslip', true);
 @endphp
 <div class="card" id="payslip-card">
@@ -55,7 +61,7 @@
             <div class="col-md-4"><strong>Department:</strong> {{ $employee->department->name ?? '—' }}</div>
             <div class="col-md-4"><strong>Designation:</strong> {{ $employee->designation->name ?? '—' }}</div>
             <div class="col-md-4"><strong>Date of Joining:</strong> {{ $employee->date_of_joining?->format('d M Y') ?? '—' }}</div>
-            <div class="col-md-4"><strong>Bank Account:</strong> {{ $employee->bankDetails->first()?->masked_account_number ?? '—' }}</div>
+            <div class="col-md-4"><strong>Bank Account:</strong> {{ $bankAccountNumber ? ($canViewSensitive ? $bankAccountNumber->account_number : $bankAccountNumber->masked_account_number) : '—' }}</div>
             <div class="col-md-4"><strong>PAN:</strong> {{ $mask($employee->pan_number) }}</div>
             <div class="col-md-4"><strong>UAN:</strong> {{ $mask($employee->uan_number) }}</div>
             <div class="col-md-4"><strong>PF Number:</strong> {{ $mask($employee->pf_number) }}</div>

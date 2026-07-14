@@ -89,18 +89,22 @@
                 </div>
             </div>
 
-            @if($canApprove)
+            @if($canConfirm || $canClose)
             <div class="d-flex gap-2 mb-3">
+                @if($canConfirm)
                 <form action="{{ route('payroll.confirm') }}" method="POST" onsubmit="return confirm('Confirm payroll for every eligible employee in this period?');">
                     @csrf
                     <input type="hidden" name="month" value="{{ $month }}"><input type="hidden" name="year" value="{{ $year }}">
                     <button class="btn btn-sm btn-info"><i class="bi bi-check2-square"></i> Confirm Payroll (Period)</button>
                 </form>
+                @endif
+                @if($canClose)
                 <form action="{{ route('payroll.close') }}" method="POST" onsubmit="return confirm('Close payroll for every confirmed employee in this period? Changes will require reopening.');">
                     @csrf
                     <input type="hidden" name="month" value="{{ $month }}"><input type="hidden" name="year" value="{{ $year }}">
                     <button class="btn btn-sm btn-dark"><i class="bi bi-lock"></i> Close Payroll (Period)</button>
                 </form>
+                @endif
             </div>
             @endif
 

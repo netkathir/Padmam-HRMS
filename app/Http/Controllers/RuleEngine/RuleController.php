@@ -10,6 +10,8 @@ use App\Models\DeductionsComponent;
 use App\Models\EarningsComponent;
 use App\Models\Shift;
 use App\Services\EmployeeNumberGenerator;
+use App\Support\BranchAdminPermissions;
+use App\Support\BranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule as ValidationRule;
@@ -238,8 +240,23 @@ class RuleController extends Controller
         }
     }
 
+    /**
+     * Module 11 (FSD 15.2) — "Rule Engine access shall be limited to
+     * authorized administrators." Additive on top of the existing coarse
+     * `permission:rule_engine.create/full` route gate: for branch-scoped
+     * users specifically, also requires the dedicated Modify Rules flag.
+     */
+    private function ensureCanModifyRules(): void
+    {
+        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'rule_engine', 'modify_rules')) {
+            abort(403, 'You do not have the "Modify Rules" permission for Rule Engine in Branch Administration.');
+        }
+    }
+
     public function store(Request $request)
     {
+        $this->ensureCanModifyRules();
+
         $category = $request->input('category');
         $header = $request->validate($this->headerRules(null, $category));
         $detail = $request->validate($this->detailRules($category));
@@ -263,6 +280,8 @@ class RuleController extends Controller
 
     public function update(Request $request, BusinessRule $rule)
     {
+        $this->ensureCanModifyRules();
+
         // Category is fixed after creation — changing it would orphan the
         // detail row and its category-specific validation.
         $category = $rule->category;
@@ -287,6 +306,13 @@ class RuleController extends Controller
 
     public function destroy(BusinessRule $rule)
     {
+        $this->ensureCanModifyRules();
+
+        // Module 11 (FSD 15.2) — "Delete permission shall be restricted."
+        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'rule_engine', 'delete')) {
+            abort(403, 'You do not have the "Delete" permission for Rule Engine in Branch Administration.');
+        }
+
         $rule->delete();
         return redirect()->route('rule-engine.index')->with('success', 'Rule deleted successfully.');
     }

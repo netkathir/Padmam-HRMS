@@ -318,7 +318,12 @@ class EmployeeController extends Controller
             'weeklyOffRuleOverride', 'attendanceRuleOverride', 'payrollRuleOverride']);
 
         $banks = Bank::where('is_active', true)->orderBy('name')->get();
-        $canViewFullBankDetails = auth()->user()->can('employees.full');
+        // Module 11 (FSD 15.2) — bank/statutory unmasking is gated by the
+        // dedicated View Sensitive Data permission, not the coarse `full`
+        // access level (previously any user with Edit/Delete access to
+        // Employees could also see the unmasked bank account number, which
+        // conflated two unrelated permissions).
+        $canViewFullBankDetails = \App\Support\SensitiveDataAccess::canView('employees');
 
         return view('employees.show', compact('employee', 'banks', 'canViewFullBankDetails'));
     }
@@ -374,6 +379,12 @@ class EmployeeController extends Controller
     public function destroy(Employee $employee)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
+
+        // Module 11 (FSD 15.2) — "Delete permission shall be restricted."
+        if (BranchScope::isBranchScopedUser() && ! \App\Support\BranchAdminPermissions::can(auth()->user(), 'employees', 'delete')) {
+            abort(403, 'You do not have the "Delete" permission for Employees in Branch Administration.');
+        }
+
         $employee->update(['status' => 'terminated']);
         $employee->delete();
         return redirect()->route('employees.index')->with('success', 'Employee removed.');
@@ -661,7 +672,7 @@ class EmployeeController extends Controller
             'banks'         => Bank::where('is_active', true)->orderBy('name')->get(),
             'canOverrideRules' => auth()->user()->can('rule_engine.full'),
             'canSetContractorRate' => auth()->user()->can('employees.full'),
-            'canViewFullBankDetails' => auth()->user()->can('employees.full'),
+            'canViewFullBankDetails' => \App\Support\SensitiveDataAccess::canView('employees'),
             'ruleOptions'   => auth()->user()->can('rule_engine.full') ? $this->ruleOptions() : [],
             'states'        => config('states', []),
         ];

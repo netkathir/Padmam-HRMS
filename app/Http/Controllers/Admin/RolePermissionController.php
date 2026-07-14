@@ -13,6 +13,23 @@ use Illuminate\Http\Request;
 
 class RolePermissionController extends Controller
 {
+    /**
+     * Module 11 (FSD 15.2) — the fine-grained action flags actually consulted
+     * somewhere in the app, per module. Only modules/flags listed here get a
+     * checkbox on the assignment screen — every flag shown here corresponds
+     * to a real, enforced check (BranchAdminPermissions::can(module, flag)),
+     * so there is never a checkbox that silently does nothing.
+     */
+    public const MODULE_ACTION_FLAGS = [
+        'payroll' => ['process', 'confirm', 'close', 'reopen', 'modify_payroll', 'delete', 'export_excel', 'export_pdf'],
+        'attendance' => ['process', 'recalculate', 'export_excel', 'export_pdf'],
+        'rule_engine' => ['modify_rules', 'delete'],
+        'employees' => ['view_sensitive', 'delete', 'export_excel', 'export_pdf'],
+        'users' => ['manage_users', 'delete'],
+        'reports' => ['view_sensitive', 'export_excel', 'export_pdf'],
+        'branch_admin_audit_log' => ['view_audit_log'],
+    ];
+
     public function index()
     {
         $roles = Role::withCount('permissions')->orderBy('id')->get();
@@ -43,16 +60,24 @@ class RolePermissionController extends Controller
             ->filter(fn($module) => $grouped->has($module))
             ->mapWithKeys(fn($module) => [$module => $grouped[$module]]);
 
+        $hierarchy = ['full' => 3, 'create' => 2, 'read' => 1];
         $topPermissionPerModule = $role->permissions
             ->groupBy('module')
-            ->map(function ($permissions) {
-                $hierarchy = ['full' => 3, 'create' => 2, 'read' => 1];
-                return $permissions->sortByDesc(fn($permission) => $hierarchy[$permission->access_level] ?? 0)->first();
-            });
+            ->map(fn($permissions) => $permissions->sortByDesc(fn($permission) => $hierarchy[$permission->access_level] ?? 0)->first());
 
         $assigned = $topPermissionPerModule->map(fn($permission) => $permission->id)->toArray();
 
-        return view('admin.role-permissions.assign', compact('role', 'grouped', 'assigned', 'menuModules'));
+        // Module 11 — current flag values per module, keyed the same way the
+        // view submits them (flags[module][flag]), so the checkboxes reflect
+        // what's actually granted today.
+        $flagValues = $topPermissionPerModule->map(function ($permission) {
+            return collect(self::MODULE_ACTION_FLAGS[$permission->module] ?? [])
+                ->mapWithKeys(fn($flag) => [$flag => (bool) ($permission->pivot->{"can_$flag"} ?? false)]);
+        });
+
+        $moduleActionFlags = self::MODULE_ACTION_FLAGS;
+
+        return view('admin.role-permissions.assign', compact('role', 'grouped', 'assigned', 'menuModules', 'flagValues', 'moduleActionFlags'));
     }
 
     public function update(Request $request, Role $role)
@@ -62,20 +87,15 @@ class RolePermissionController extends Controller
         // never be assigned to any role, regardless of what the UI submits.
         unset($permissionSelections['masters_branches']);
 
-        // Branch Administration action flags (Approve/Process/Export Excel/
-        // Export PDF/View Sensitive Data/Manage Users) no longer have UI
-        // controls on this page — carry over each module's existing flag
-        // values from the database instead of resetting them to false, since
-        // the request no longer submits them. Enforcement of these flags
-        // elsewhere in the app is unaffected.
-        $actionFlags = ['can_approve', 'can_process', 'can_export_excel', 'can_export_pdf', 'can_view_sensitive', 'can_manage_users'];
-        $hierarchy = ['full' => 3, 'create' => 2, 'read' => 1];
-        $existingFlagsByModule = $role->permissions
-            ->groupBy('module')
-            ->map(function ($permissions) use ($actionFlags, $hierarchy) {
-                $top = $permissions->sortByDesc(fn($permission) => $hierarchy[$permission->access_level] ?? 0)->first();
-                return collect($actionFlags)->mapWithKeys(fn($flag) => [$flag => (bool) $top->pivot->$flag]);
-            });
+        // Every fine-grained flag this pivot table carries (Module 11 — 8
+        // more added alongside the original 6). Only the subset declared in
+        // MODULE_ACTION_FLAGS for a given module is ever shown/submitted by
+        // the UI; any flag not applicable to a module simply stays false.
+        $allFlags = [
+            'approve', 'process', 'export_excel', 'export_pdf', 'view_sensitive', 'manage_users',
+            'confirm', 'close', 'reopen', 'recalculate', 'modify_rules', 'modify_payroll', 'view_audit_log', 'delete',
+        ];
+        $flagInputs = $request->input('flags', []);
 
         $syncData = [];
         foreach ($permissionSelections as $module => $value) {
@@ -83,10 +103,11 @@ class RolePermissionController extends Controller
                 continue;
             }
             $permissionId = (int) $value;
-            $moduleFlags = $existingFlagsByModule->get($module);
+            $applicableFlags = self::MODULE_ACTION_FLAGS[$module] ?? [];
             $pivotAttributes = [];
-            foreach ($actionFlags as $flag) {
-                $pivotAttributes[$flag] = (bool) ($moduleFlags[$flag] ?? false);
+            foreach ($allFlags as $flag) {
+                $pivotAttributes["can_$flag"] = in_array($flag, $applicableFlags, true)
+                    && (bool) ($flagInputs[$module][$flag] ?? false);
             }
             $syncData[$permissionId] = $pivotAttributes;
         }

@@ -553,8 +553,10 @@ class AttendanceController extends Controller
     {
         $request->validate(['attendance_ids' => ['required', 'array'], 'attendance_ids.*' => ['exists:attendance,id']]);
 
-        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'attendance', 'process')) {
-            abort(403, 'You do not have the "Process" permission for Attendance in Branch Administration.');
+        // Module 11 (FSD 15.2) — dedicated Recalculate permission (previously
+        // reused the general Process flag).
+        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'attendance', 'recalculate')) {
+            abort(403, 'You do not have the "Recalculate" permission for Attendance in Branch Administration.');
         }
 
         $count = 0;

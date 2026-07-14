@@ -63,7 +63,37 @@ class AuthController extends Controller
 
         $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
 
+        // FSD 15.1 — "Force Password Change." The middleware below also
+        // enforces this on every subsequent request (so it can't be
+        // bypassed by navigating directly to another URL) — this redirect
+        // just avoids an unnecessary extra hop through the dashboard first.
+        if ($user->force_password_change) {
+            return redirect()->route('password.force-change');
+        }
+
         return redirect()->intended(route('dashboard'));
+    }
+
+    /** FSD 15.1 — "Force Password Change" screen, redirected to by AuthController::login() and ForcePasswordChange middleware. */
+    public function forcePasswordChangeForm()
+    {
+        if (! Auth::user()->force_password_change) {
+            return redirect()->route('dashboard');
+        }
+
+        return view('auth.force-password-change');
+    }
+
+    public function forcePasswordChangeUpdate(Request $request)
+    {
+        $request->validate(['password' => ['required', 'confirmed', PasswordRule::min(8)]]);
+
+        Auth::user()->update([
+            'password' => Hash::make($request->password),
+            'force_password_change' => false,
+        ]);
+
+        return redirect()->route('dashboard')->with('success', 'Password changed successfully.');
     }
 
     public function logout(Request $request)

@@ -116,11 +116,23 @@
         'full'   => ['label' => 'Full Access', 'icon' => 'bi-gear'],
     ];
 
-    $rows = $grouped->map(function ($perms, $moduleName) use ($assigned, $menuModules) {
+    // Module 11 (FSD 15.2) — human-readable labels for the fine-grained
+    // action-flag checkboxes; only rendered for a module when
+    // RolePermissionController::MODULE_ACTION_FLAGS lists it.
+    $flagLabels = [
+        'process' => 'Process', 'confirm' => 'Confirm', 'close' => 'Close', 'reopen' => 'Reopen',
+        'recalculate' => 'Recalculate', 'modify_rules' => 'Modify Rules', 'modify_payroll' => 'Modify Payroll',
+        'view_audit_log' => 'View Audit Log', 'delete' => 'Delete', 'export_excel' => 'Export Excel',
+        'export_pdf' => 'Export PDF', 'view_sensitive' => 'View Sensitive Data', 'manage_users' => 'Manage Users',
+    ];
+
+    $rows = $grouped->map(function ($perms, $moduleName) use ($assigned, $menuModules, $flagValues, $moduleActionFlags) {
         return [
             'label' => $menuModules[$moduleName]['label'] ?? ucfirst(str_replace('_', ' ', $moduleName)),
             'levelMap' => $perms->keyBy('access_level'),
             'selectedId' => $assigned[$moduleName] ?? null,
+            'actionFlags' => $moduleActionFlags[$moduleName] ?? [],
+            'flagValues' => $flagValues[$moduleName] ?? collect(),
         ];
     });
 
@@ -197,6 +209,22 @@
                     @endforeach
                 </div>
             </div>
+            @if(!empty($row['actionFlags']))
+            <div class="perm-row perm-flags-row" style="padding-top: 0; padding-bottom: 14px;">
+                <div class="perm-module-label"></div>
+                <div class="d-flex flex-wrap gap-3">
+                    @foreach($row['actionFlags'] as $flag)
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="1"
+                               name="flags[{{ $moduleName }}][{{ $flag }}]"
+                               id="flag-{{ $moduleName }}-{{ $flag }}"
+                               {{ ($row['flagValues'][$flag] ?? false) ? 'checked' : '' }}>
+                        <label class="form-check-label small" for="flag-{{ $moduleName }}-{{ $flag }}">{{ $flagLabels[$flag] ?? ucfirst($flag) }}</label>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
             @endforeach
         </div>
         @endif

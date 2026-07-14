@@ -67,7 +67,15 @@ class UserController extends Controller
         unset($data['password_confirmation']);
         $data['created_by'] = $actor->id;
 
+        // Module 11 — role_ids/branch_ids drive the new role_user/user_branches
+        // pivots, not direct columns on `users` itself.
+        $roleIds = $data['role_ids'];
+        $branchIds = $data['branch_ids'];
+        unset($data['role_ids'], $data['branch_ids']);
+
         $user = User::create($data);
+        $user->roles()->sync($roleIds);
+        $user->branches()->sync($branchIds);
 
         // Creating a user with User Type = Branch Head is a real Branch Head
         // Assignment (same single-active-head-per-branch guarantee, same
@@ -115,12 +123,18 @@ class UserController extends Controller
         unset($data['password_confirmation']);
         $data['updated_by'] = $actor->id;
 
+        $roleIds = $data['role_ids'];
+        $branchIds = $data['branch_ids'];
+        unset($data['role_ids'], $data['branch_ids']);
+
         $oldValues = $user->only(['name', 'role_id', 'user_type', 'branch_id', 'is_active', 'is_locked', 'remarks']);
         $roleChanged = (int) $user->role_id !== (int) ($data['role_id'] ?? $user->role_id);
         $wasBranchHead = $user->user_type === 'branch_head';
         $oldBranchId = $user->branch_id;
 
         $user->update($data);
+        $user->roles()->sync($roleIds);
+        $user->branches()->sync($branchIds);
 
         // Same Branch Head Assignment sync as store() — becoming, changing
         // branch as, or ceasing to be a Branch Head all route through the
@@ -157,6 +171,12 @@ class UserController extends Controller
         $actor = auth()->user();
         $this->ensureManageUsersPermissionIfBranchScoped($actor);
         $this->assertSameBranchIfScoped($actor, $user);
+
+        // Module 11 (FSD 15.2) — "Delete permission shall be restricted,"
+        // in addition to the existing Manage Users check above.
+        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can($actor, 'users', 'delete')) {
+            abort(403, 'You do not have the "Delete" permission for Users in Branch Administration.');
+        }
 
         if ($user->id === auth()->id()) {
             return back()->with('error', 'You cannot delete your own account.');
@@ -284,10 +304,20 @@ class UserController extends Controller
 
         $employees = BranchScope::scopeQuery(Employee::orderBy('first_name'))->get(['id', 'employee_code', 'first_name', 'last_name', 'branch_id']);
 
+        // Module 11 (FSD 15.1) — "Branch Access: Multi-select, mandatory, one
+        // or more branches." Deliberately unconstrained by currentBranchId()
+        // (unlike $branches above, which drives the single "currently active
+        // branch" field) — this is the same broader authorization list
+        // already used by BranchScope::authorizedBranchIds() for hr_admin/
+        // payroll_admin/management-style accounts, now finally surfaced on
+        // this form instead of only being settable via raw SQL.
+        $allBranches = Branch::active()->orderBy('name')->get();
+
         return [
             'isSuperAdmin' => $isSuperAdmin,
             'isBranchScoped' => $isBranchScoped,
             'branches' => $branches,
+            'allBranches' => $allBranches,
             'userTypeOptions' => $userTypeOptions,
             'roles' => $roles,
             'employees' => $employees,
@@ -307,17 +337,28 @@ class UserController extends Controller
         };
 
         $rules = [
-            'name'         => ['required', 'string', 'max:255'],
-            'email'        => ['required', 'email', 'max:255', 'unique:users,email' . ($ignoreId ? ",$ignoreId" : '')],
+            // FSD 15.1 — "User Name: mandatory, unique."
+            'name'         => ['required', 'string', 'max:255', 'unique:users,name' . ($ignoreId ? ",$ignoreId" : '')],
+            // FSD 15.1 — "Email Address: optional, valid email" (previously required here).
+            'email'        => ['nullable', 'email', 'max:255', 'unique:users,email' . ($ignoreId ? ",$ignoreId" : '')],
             'username'     => ['required', 'string', 'max:50', 'unique:users,username' . ($ignoreId ? ",$ignoreId" : '')],
-            'mobile'       => ['nullable', 'string', 'max:20'],
+            // FSD 15.1 — "Mobile Number: optional, valid format."
+            'mobile'       => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
             'user_type'    => ['nullable', 'in:' . implode(',', $allowedUserTypes)],
-            'branch_id'    => ['nullable', 'exists:branches,id'],
             'employee_id'  => ['nullable', 'exists:employees,id'],
-            'role_id'      => ['required', 'exists:roles,id'],
+            // Module 11 (FSD 15.1) — "Role: Multi-select, mandatory, at least
+            // one role" and "Branch Access: Multi-select, mandatory, one or
+            // more branches." Both replace what used to be single required
+            // dropdowns (role_id/branch_id) — those singular columns are kept
+            // (derived below) for every existing piece of code that reads them.
+            'role_ids'     => ['required', 'array', 'min:1'],
+            'role_ids.*'   => ['exists:roles,id'],
+            'branch_ids'   => ['required', 'array', 'min:1'],
+            'branch_ids.*' => ['exists:branches,id'],
             'force_password_change' => ['boolean'],
             'account_expiry_date'   => ['nullable', 'date'],
-            'status'       => ['nullable', 'in:active,inactive,locked'],
+            // FSD 15.1 — "Status: Dropdown, mandatory: Active, Inactive, Locked."
+            'status'       => ['required', 'in:active,inactive,locked'],
             'remarks'      => ['nullable', 'string', 'max:1000'],
             'is_active'    => ['boolean'],
         ];
@@ -331,7 +372,12 @@ class UserController extends Controller
         if ($isBranchScoped) {
             // A branch-scoped actor can only ever create/keep branch_user
             // accounts in their own branch — never assign to another branch.
+            // Branch Access (the new multi-select) is likewise forced to
+            // exactly that one branch — these two account types are single-
+            // branch-restricted everywhere else in the app (BranchScope), so
+            // letting the multi-select imply broader access would be misleading.
             $data['branch_id'] = $actor->branch_id;
+            $data['branch_ids'] = [$actor->branch_id];
             $data['user_type'] = 'branch_user';
         } elseif ($isSuperAdmin) {
             if (in_array($data['user_type'] ?? null, ['branch_head', 'branch_user'], true)) {
@@ -345,9 +391,13 @@ class UserController extends Controller
                     ]);
                 }
                 $data['branch_id'] = $currentBranchId;
+                $data['branch_ids'] = [$currentBranchId];
             }
             if (($data['user_type'] ?? null) === 'super_admin' || empty($data['user_type'])) {
                 $data['branch_id'] = null;
+                // branch_ids stays as submitted — this is the genuine multi-
+                // branch "Branch Access" grant (BranchScope::authorizedBranchIds())
+                // for account types that aren't restricted to a single branch.
             }
             if (empty($data['user_type'])) {
                 $data['user_type'] = null; // normalize '' to NULL, never store an empty string
@@ -359,34 +409,45 @@ class UserController extends Controller
             $data['branch_id'] = null;
         }
 
-        // User Type must always match the underlying Role — otherwise you get
-        // exactly the bug this module was fixed for: a "Super Admin" whose
-        // real role isn't super_admin (mislabeled, actually restricted), or
-        // the inverse — a "Branch Head" secretly holding the super_admin role
-        // (mislabeled, actually unrestricted and able to bypass branch scoping
-        // entirely, breaking "a Branch Head cannot access another branch").
-        $selectedRole = \App\Models\Role::find($data['role_id']);
-        $roleIsSuperAdmin = $selectedRole?->name === 'super_admin';
+        // Module 11 multi-role — the "primary" role (kept in `role_id` for
+        // every existing piece of code that reads it singularly) is
+        // deterministically the lowest-id selected role. Every actual
+        // permission check unions across ALL selected roles regardless
+        // (User::allRoles()) — role_id only matters for the handful of
+        // places that still display/filter on a single role.
+        $selectedRoles = \App\Models\Role::whereIn('id', $data['role_ids'])->orderBy('id')->get();
+        $data['role_id'] = $selectedRoles->first()?->id ?? $data['role_ids'][0];
 
-        if (($data['user_type'] ?? null) === 'super_admin' && ! $roleIsSuperAdmin) {
+        // User Type must always match the underlying Role(s) — otherwise you
+        // get exactly the bug this module was fixed for: a "Super Admin"
+        // whose real role isn't super_admin (mislabeled, actually
+        // restricted), or the inverse — a "Branch Head" secretly holding the
+        // super_admin role (mislabeled, actually unrestricted and able to
+        // bypass branch scoping entirely). Checked across ALL selected
+        // roles, not just the primary — a secondary super_admin role would
+        // grant the same unrestricted bypass via User::isSuperAdmin().
+        $anyRoleIsSuperAdmin = $selectedRoles->contains(fn ($r) => $r->name === 'super_admin');
+
+        if (($data['user_type'] ?? null) === 'super_admin' && ! $anyRoleIsSuperAdmin) {
             throw \Illuminate\Validation\ValidationException::withMessages([
-                'role_id' => 'A Super Admin user type must be assigned the super_admin role.',
+                'role_ids' => 'A Super Admin user type must include the super_admin role.',
             ]);
         }
-        if (in_array($data['user_type'] ?? null, ['branch_head', 'branch_user'], true) && $roleIsSuperAdmin) {
+        if (in_array($data['user_type'] ?? null, ['branch_head', 'branch_user'], true) && $anyRoleIsSuperAdmin) {
             throw \Illuminate\Validation\ValidationException::withMessages([
-                'role_id' => 'The super_admin role cannot be assigned to a Branch Head or Branch User.',
+                'role_ids' => 'The super_admin role cannot be assigned to a Branch Head or Branch User.',
             ]);
         }
 
         // Server-side enforcement of "a Branch Head cannot assign roles
         // beyond their permitted scope" — not just a filtered dropdown, in
-        // case a role_id outside that list is submitted directly.
+        // case a role_id outside that list is submitted directly. Checked
+        // for every selected role, not just the primary.
         if ($isBranchScoped) {
-            $applicableTypes = $selectedRole?->applicable_user_types ?? [];
-            if (! in_array('branch_user', $applicableTypes, true)) {
+            $outOfScope = $selectedRoles->first(fn ($r) => ! in_array('branch_user', $r->applicable_user_types ?? [], true));
+            if ($outOfScope) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    'role_id' => 'You may only assign roles applicable to Branch User accounts.',
+                    'role_ids' => 'You may only assign roles applicable to Branch User accounts.',
                 ]);
             }
         }

@@ -2,32 +2,25 @@
 
 namespace App\Support\Reports;
 
-use App\Support\BranchAdminPermissions;
-use App\Support\BranchScope;
+use App\Support\SensitiveDataAccess;
 
 /**
  * FSD 14.2 — "Sensitive fields shall be masked based on user permission."
- * Single source of truth for the masking rule (bullets + last 4 characters,
- * identical to the one existing masking accessor in the app,
- * EmployeeBankDetail::getMaskedAccountNumberAttribute()) and for the
- * permission gate (mirrors BranchAdminPermissions' existing bypass: never
- * enforced for non-branch-scoped/Super Admin accounts).
+ * Thin, backward-compatible wrapper over the shared App\Support\
+ * SensitiveDataAccess helper (Module 11 — the same masking rule/gate is now
+ * also used by the Employee profile and Payslip screens, not just Reports).
+ * Kept as its own class so every existing `ReportMasking::` call site in the
+ * Reports module needs no changes.
  */
 class ReportMasking
 {
     public static function mask(?string $value): string
     {
-        $value = (string) $value;
-
-        return $value === '' ? '' : str_repeat('•', max(0, strlen($value) - 4)) . substr($value, -4);
+        return SensitiveDataAccess::mask($value);
     }
 
     public static function canViewSensitive(): bool
     {
-        if (! BranchScope::isBranchScopedUser()) {
-            return true;
-        }
-
-        return BranchAdminPermissions::can(auth()->user(), 'reports', 'view_sensitive');
+        return SensitiveDataAccess::canView('reports');
     }
 }

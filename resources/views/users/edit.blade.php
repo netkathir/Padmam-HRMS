@@ -7,6 +7,12 @@
     <div class="col-md-9">
         <div class="card">
             <div class="card-body">
+                @php
+                    $selectedRoleIds = old('role_ids', $user->roles->pluck('id')->all());
+                    $selectedBranchIds = old('branch_ids', $user->branches->pluck('id')->isNotEmpty()
+                        ? $user->branches->pluck('id')->all()
+                        : ($user->branch_id ? [$user->branch_id] : []));
+                @endphp
                 <form action="{{ route('users.update', $user) }}" method="POST" enctype="multipart/form-data">
                     @csrf @method('PUT')
                     <div class="row g-3">
@@ -21,13 +27,13 @@
                             @error('username')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Email Address <span class="text-danger">*</span></label>
-                            <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email', $user->email) }}" required>
+                            <label class="form-label">Email Address</label>
+                            <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email', $user->email) }}">
                             @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Mobile Number</label>
-                            <input type="text" name="mobile" class="form-control @error('mobile') is-invalid @enderror" value="{{ old('mobile', $user->mobile) }}">
+                            <input type="text" name="mobile" class="form-control @error('mobile') is-invalid @enderror" value="{{ old('mobile', $user->mobile) }}" placeholder="e.g. +91 98765 43210">
                             @error('mobile')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
@@ -45,7 +51,7 @@
                                 @error('user_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">Branch</label>
+                                <label class="form-label">Branch <small class="text-muted">(currently active)</small></label>
                                 <select name="branch_id" id="branchSelect" class="form-select @error('branch_id') is-invalid @enderror" {{ $lockedBranchId ? 'disabled' : '' }}>
                                     <option value="">— Not Applicable —</option>
                                     @foreach ($branches as $branch)
@@ -59,15 +65,44 @@
                             </div>
                         @endif
 
-                        <div class="col-md-4">
-                            <label class="form-label">Role <span class="text-danger">*</span></label>
-                            <select name="role_id" class="form-select @error('role_id') is-invalid @enderror" required>
-                                <option value="">Select role…</option>
-                                @foreach($roles as $role)
-                                <option value="{{ $role->id }}" {{ old('role_id', $user->role_id) == $role->id ? 'selected' : '' }}>{{ ucfirst(str_replace('_',' ',$role->name)) }}</option>
-                                @endforeach
-                            </select>
-                            @error('role_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="col-md-6">
+                            <label class="form-label">Role <span class="text-danger">*</span> <small class="text-muted">(select one or more)</small></label>
+                            <div class="border rounded p-2 @error('role_ids') is-invalid @enderror" style="max-height: 160px; overflow-y: auto;">
+                                @forelse($roles as $role)
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="role_ids[]" value="{{ $role->id }}" id="role{{ $role->id }}"
+                                        {{ in_array($role->id, $selectedRoleIds) ? 'checked' : '' }}>
+                                    <label class="form-check-label" for="role{{ $role->id }}">{{ $role->display_name ?: ucfirst(str_replace('_',' ',$role->name)) }}</label>
+                                </div>
+                                @empty
+                                <span class="text-muted">No assignable roles available.</span>
+                                @endforelse
+                            </div>
+                            @error('role_ids')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                            @error('role_ids.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Branch Access <span class="text-danger">*</span> <small class="text-muted">(one or more branches)</small></label>
+                            @if ($lockedBranchId)
+                                <div class="border rounded p-2 bg-light">
+                                    {{ $branches->firstWhere('id', $lockedBranchId)->name ?? '—' }}
+                                    <small class="text-muted d-block">This account is restricted to a single branch.</small>
+                                </div>
+                                <input type="hidden" name="branch_ids[]" value="{{ $lockedBranchId }}">
+                            @else
+                                <div class="border rounded p-2 @error('branch_ids') is-invalid @enderror" style="max-height: 160px; overflow-y: auto;">
+                                    @foreach($allBranches as $branch)
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="branch_ids[]" value="{{ $branch->id }}" id="branchAccess{{ $branch->id }}"
+                                            {{ in_array($branch->id, $selectedBranchIds) ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="branchAccess{{ $branch->id }}">{{ $branch->name }}</label>
+                                    </div>
+                                    @endforeach
+                                </div>
+                                @error('branch_ids')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                @error('branch_ids.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                            @endif
                         </div>
 
                         <div class="col-md-6">
@@ -82,10 +117,13 @@
 
                         <div class="col-md-6">
                             <label class="form-label">Employee Mapping</label>
+                            <input type="search" id="employeeSearch" class="form-control form-control-sm mb-1" placeholder="Search employee by name or code…">
                             <select name="employee_id" id="employeeSelect" class="form-select">
                                 <option value="">— None —</option>
                                 @foreach($employees as $emp)
-                                <option value="{{ $emp->id }}" data-branch="{{ $emp->branch_id }}" {{ old('employee_id', $user->employee_id) == $emp->id ? 'selected' : '' }}>
+                                <option value="{{ $emp->id }}" data-branch="{{ $emp->branch_id }}"
+                                    data-search="{{ strtolower($emp->employee_code.' '.$emp->first_name.' '.$emp->last_name) }}"
+                                    {{ old('employee_id', $user->employee_id) == $emp->id ? 'selected' : '' }}>
                                     {{ $emp->employee_code }} — {{ $emp->first_name }} {{ $emp->last_name }}
                                 </option>
                                 @endforeach
@@ -105,13 +143,14 @@
                             @error('account_expiry_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Status</label>
+                            <label class="form-label">Status <span class="text-danger">*</span></label>
                             @php $currentStatus = $user->is_locked ? 'locked' : ($user->is_active ? 'active' : 'inactive'); @endphp
-                            <select name="status" class="form-select">
+                            <select name="status" class="form-select @error('status') is-invalid @enderror" required>
                                 <option value="active" {{ old('status', $currentStatus) === 'active' ? 'selected' : '' }}>Active</option>
                                 <option value="inactive" {{ old('status', $currentStatus) === 'inactive' ? 'selected' : '' }}>Inactive</option>
                                 <option value="locked" {{ old('status', $currentStatus) === 'locked' ? 'selected' : '' }}>Locked</option>
                             </select>
+                            @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-4 d-flex align-items-end">
                             <div class="form-check mb-2">
@@ -155,17 +194,22 @@
 (function () {
     var branchSelect = document.getElementById('branchSelect');
     var employeeSelect = document.getElementById('employeeSelect');
-    if (!branchSelect || !employeeSelect) return;
+    var employeeSearch = document.getElementById('employeeSearch');
+    if (!employeeSelect) return;
 
     function filterEmployees() {
-        var branchId = branchSelect.value;
+        var branchId = branchSelect ? branchSelect.value : '';
+        var term = employeeSearch ? employeeSearch.value.trim().toLowerCase() : '';
         Array.from(employeeSelect.options).forEach(function (opt) {
             if (!opt.value) return;
-            opt.hidden = branchId && opt.dataset.branch !== branchId;
+            var matchesBranch = !branchId || opt.dataset.branch === branchId;
+            var matchesSearch = !term || (opt.dataset.search || '').indexOf(term) !== -1;
+            opt.hidden = !(matchesBranch && matchesSearch);
         });
     }
 
-    branchSelect.addEventListener('change', filterEmployees);
+    if (branchSelect) branchSelect.addEventListener('change', filterEmployees);
+    if (employeeSearch) employeeSearch.addEventListener('input', filterEmployees);
     filterEmployees();
 })();
 </script>

@@ -68,9 +68,14 @@ Route::middleware('guest')->group(function () {
 // blanket `.read` check, meaning a role granted only "read" could still
 // reach store/update/destroy directly by URL — this has been corrected
 // throughout).
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'force.password.change'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+    // FSD 15.1 — "Force Password Change." Reachable even while the flag is
+    // set (the ForcePasswordChange middleware exempts these two routes).
+    Route::get('/change-password', [AuthController::class, 'forcePasswordChangeForm'])->name('password.force-change');
+    Route::post('/change-password', [AuthController::class, 'forcePasswordChangeUpdate'])->name('password.force-change.update');
 
     // Dashboard — Overall Dashboard (FSD 5.2) and Branch Dashboard (FSD 5.3).
     Route::middleware('permission:dashboard.read')->group(function () {
@@ -161,18 +166,20 @@ Route::middleware('auth')->group(function () {
     Route::get('/payroll',                       [PayrollController::class, 'index'])->name('payroll.index')->middleware('permission:payroll.read');
     Route::get('/payroll/generate',              [PayrollController::class, 'generateForm'])->name('payroll.generate')->middleware('permission:payroll.read');
     Route::post('/payroll/generate',             [PayrollController::class, 'generate'])->name('payroll.generate.post')->middleware('permission:payroll.full');
-    Route::get('/payroll/{payroll}/payslip',     [PayrollController::class, 'payslip'])->name('payroll.payslip')->middleware('permission:payroll.read');
-    Route::get('/payroll/{payroll}/payslip/pdf', [PayrollController::class, 'payslipPdf'])->name('payroll.payslip.pdf')->middleware('permission:payroll.read');
-    Route::post('/payroll/{payroll}/payslip/email', [PayrollController::class, 'emailPayslip'])->name('payroll.payslip.email')->middleware('permission:payroll.read');
-    Route::get('/payroll/payslip/bulk',          [PayrollController::class, 'payslipBulk'])->name('payroll.payslip.bulk')->middleware('permission:payroll.read');
+    // Module 11 (FSD 15.2) — Payslip is its own permission-controlled module.
+    Route::get('/payroll/{payroll}/payslip',     [PayrollController::class, 'payslip'])->name('payroll.payslip')->middleware('permission:payslip.read');
+    Route::get('/payroll/{payroll}/payslip/pdf', [PayrollController::class, 'payslipPdf'])->name('payroll.payslip.pdf')->middleware('permission:payslip.read');
+    Route::post('/payroll/{payroll}/payslip/email', [PayrollController::class, 'emailPayslip'])->name('payroll.payslip.email')->middleware('permission:payslip.read');
+    Route::get('/payroll/payslip/bulk',          [PayrollController::class, 'payslipBulk'])->name('payroll.payslip.bulk')->middleware('permission:payslip.read');
     Route::get('/payroll/{payroll}/payment',     [PayrollController::class, 'paymentForm'])->name('payroll.payment')->middleware('permission:payroll.read');
     Route::post('/payroll/{payroll}/payment',    [PayrollController::class, 'storePayment'])->name('payroll.payment.store')->middleware('permission:payroll.full');
     Route::post('/payroll/{payroll}/adjustment', [PayrollController::class, 'manualAdjustment'])->name('payroll.adjustment.store')->middleware('permission:payroll.full');
     Route::delete('/payroll/{payroll}/adjustment/{type}/{id}', [PayrollController::class, 'deleteManualAdjustment'])->name('payroll.adjustment.destroy')->middleware('permission:payroll.full');
-    Route::get('/payroll/lop-review',            [PayrollController::class, 'lopReview'])->name('payroll.lop-review')->middleware('permission:payroll.read');
-    Route::post('/payroll/{payroll}/lop',        [PayrollController::class, 'updateLop'])->name('payroll.lop.update')->middleware('permission:payroll.full');
-    Route::post('/payroll/lop-review/confirm',   [PayrollController::class, 'confirmLop'])->name('payroll.lop.confirm')->middleware('permission:payroll.full');
-    Route::post('/payroll/lop-review/bulk',      [PayrollController::class, 'bulkLopAction'])->name('payroll.lop.bulk')->middleware('permission:payroll.full');
+    // Module 11 (FSD 15.2) — LOP is its own permission-controlled module.
+    Route::get('/payroll/lop-review',            [PayrollController::class, 'lopReview'])->name('payroll.lop-review')->middleware('permission:lop.read');
+    Route::post('/payroll/{payroll}/lop',        [PayrollController::class, 'updateLop'])->name('payroll.lop.update')->middleware('permission:lop.full');
+    Route::post('/payroll/lop-review/confirm',   [PayrollController::class, 'confirmLop'])->name('payroll.lop.confirm')->middleware('permission:lop.full');
+    Route::post('/payroll/lop-review/bulk',      [PayrollController::class, 'bulkLopAction'])->name('payroll.lop.bulk')->middleware('permission:lop.full');
     Route::post('/payroll/confirm',              [PayrollController::class, 'confirmPayroll'])->name('payroll.confirm')->middleware('permission:payroll.full');
     Route::post('/payroll/close',                [PayrollController::class, 'closePayroll'])->name('payroll.close')->middleware('permission:payroll.full');
     Route::post('/payroll/{payroll}/reopen',     [PayrollController::class, 'reopenPayroll'])->name('payroll.reopen')->middleware('permission:payroll.full');

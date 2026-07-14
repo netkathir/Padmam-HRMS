@@ -33,15 +33,18 @@ class BranchAdminPermissions
 
         $column = "can_$action";
 
-        return $user->role?->permissions()
+        // Module 11 multi-role — granted if ANY of the user's assigned roles
+        // (union, not just the primary role_id) carries this flag for this
+        // module. A single-role user sees no behavior change.
+        return $user->allRoles()->contains(fn ($role) => $role->permissions()
             ->wherePivot($column, true)
             ->where('module', $moduleKey)
-            ->exists() ?? false;
+            ->exists());
     }
 
     /**
-     * "Manage Users" isn't tied to a single module — granted if the user's
-     * role has it set on any of its module permission grants.
+     * "Manage Users" isn't tied to a single module — granted if ANY of the
+     * user's assigned roles has it set on any of its module permission grants.
      */
     public static function canManageUsers(?User $user): bool
     {
@@ -53,8 +56,8 @@ class BranchAdminPermissions
             return true;
         }
 
-        return $user->role?->permissions()
+        return $user->allRoles()->contains(fn ($role) => $role->permissions()
             ->wherePivot('can_manage_users', true)
-            ->exists() ?? false;
+            ->exists());
     }
 }

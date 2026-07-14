@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Branch;
 use App\Models\User;
+use App\Support\BranchAdminPermissions;
 use App\Support\BranchScope;
 use Illuminate\Http\Request;
 
@@ -20,6 +21,14 @@ class AuditLogController extends Controller
         // sees only their own branch's audit trail; Super Admin always sees
         // exactly the currently selected branch's trail (switchable via the
         // Branch Switcher — there is no "All Branches" view).
+        //
+        // Module 11 (FSD 15.2) — additionally requires the dedicated View
+        // Audit Log flag for branch-scoped viewers, alongside the coarse
+        // read gate above.
+        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'branch_admin_audit_log', 'view_audit_log')) {
+            abort(403, 'You do not have the "View Audit Log" permission in Branch Administration.');
+        }
+
         $query = BranchScope::scopeQuery(AuditLog::with(['user', 'branch']))->orderByDesc('created_at');
 
         if ($request->filled('from_date')) {

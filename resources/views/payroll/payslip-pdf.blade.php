@@ -22,7 +22,12 @@
 <body>
     @php
         $employee = $payroll->employee;
-        $mask = fn($v) => $v ? str_repeat('*', max(0, strlen($v) - 4)) . substr($v, -4) : '-';
+        // Module 11 (FSD 15.2) — same dedicated View Sensitive Data gate as
+        // the on-screen payslip and Employee profile (previously masked
+        // unconditionally here with no bypass at all).
+        $canViewSensitive = $canViewSensitive ?? \App\Support\SensitiveDataAccess::canView('payroll');
+        $mask = fn($v) => $v ? ($canViewSensitive ? $v : str_repeat('*', max(0, strlen($v) - 4)) . substr($v, -4)) : '-';
+        $bankAccountNumber = $employee->bankDetails->first();
         $showEmployerContribution = \App\Models\Setting::get('payroll', 'show_employer_contribution_on_payslip', true);
     @endphp
     <div class="header">
@@ -56,7 +61,7 @@
         <tr><td colspan="2"><strong>Contractor:</strong> {{ $employee->contractor->name }}</td></tr>
         @endif
         <tr>
-            <td><strong>Bank Account:</strong> {{ $employee->bankDetails->first()?->masked_account_number ?? '-' }}</td>
+            <td><strong>Bank Account:</strong> {{ $bankAccountNumber ? ($canViewSensitive ? $bankAccountNumber->account_number : $bankAccountNumber->masked_account_number) : '-' }}</td>
             <td><strong>PAN:</strong> {{ $mask($employee->pan_number) }}</td>
         </tr>
         <tr>

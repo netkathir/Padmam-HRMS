@@ -137,6 +137,20 @@ return [
         'icon' => 'bi-cash-stack',
         'section' => 'Payroll',
     ],
+    // Module 11 (FSD 15.2) — LOP and Payslip are listed as their own
+    // distinct permission-controlled modules; both used to reuse the
+    // `payroll` module key. Their routes now gate on these instead —
+    // no controller logic changed, only which permission applies.
+    'lop' => [
+        'label' => 'LOP',
+        'icon' => 'bi-graph-down-arrow',
+        'section' => 'Payroll',
+    ],
+    'payslip' => [
+        'label' => 'Payslip',
+        'icon' => 'bi-file-earmark-text',
+        'section' => 'Payroll',
+    ],
     'reports' => [
         'label' => 'Reports',
         'icon' => 'bi-bar-chart-line',

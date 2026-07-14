@@ -40,6 +40,30 @@ class User extends Authenticatable
         return $this->belongsTo(Role::class);
     }
 
+    /**
+     * Module 11 (FSD 15.1) — "Role: Multi-select, mandatory, at least one
+     * role." Additive alongside the singular `role_id`/`role()` above, which
+     * is kept in sync as the "primary" role (first selected) so any legacy
+     * code reading `$user->role` directly keeps working unchanged.
+     */
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'role_user');
+    }
+
+    /**
+     * The full set of roles this user should be evaluated against for every
+     * permission check — falls back to the singular `role` if `roles` is
+     * ever empty (defensive: should not happen after the role_user backfill,
+     * but keeps a user with no role_user row from silently losing access).
+     */
+    public function allRoles()
+    {
+        $roles = $this->roles;
+
+        return $roles->isNotEmpty() ? $roles : collect($this->role ? [$this->role] : []);
+    }
+
     public function employee()
     {
         return $this->belongsTo(Employee::class);
@@ -83,18 +107,21 @@ class User extends Authenticatable
     }
 
     // ── Helpers ────────────────────────────────────────────────────
+    /** Checks across ALL assigned roles (Module 11 multi-role), not just the primary one. */
     public function hasRole(string $role): bool
     {
-        return $this->role?->name === $role;
+        return $this->allRoles()->contains(fn ($r) => $r->name === $role);
     }
 
+    /** True if Super Admin is any of this user's assigned roles, not just the primary one. */
     public function isSuperAdmin(): bool
     {
-        return $this->role?->name === 'super_admin';
+        return $this->allRoles()->contains(fn ($r) => $r->name === 'super_admin');
     }
 
     /**
-     * Check whether this user's role has been granted the given permission name.
+     * Check whether ANY of this user's assigned roles has been granted the
+     * given permission name (union across roles — Module 11 multi-role).
      * super_admin always returns true (Gate::before also enforces this).
      */
     public function hasPermission(string $permission): bool
@@ -102,8 +129,8 @@ class User extends Authenticatable
         if ($this->isSuperAdmin()) {
             return true;
         }
-        // Eloquent lazily-loads and caches role->permissions per request
-        return $this->role?->permissions->contains('name', $permission) ?? false;
+
+        return $this->allRoles()->contains(fn ($r) => $r->permissions->contains('name', $permission));
     }
 
     public function getAvatarUrlAttribute(): string

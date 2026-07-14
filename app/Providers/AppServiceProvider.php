@@ -33,7 +33,11 @@ class AppServiceProvider extends ServiceProvider
                 return true;
             }
 
-            $userPerms = $user->role?->permissions->pluck('name') ?? collect();
+            // Module 11 multi-role — union of every assigned role's permissions,
+            // not just the primary role_id. A single-role user (the common case,
+            // and every pre-existing user after the role_user backfill) sees no
+            // behavior change: allRoles() returns exactly their one role.
+            $userPerms = $user->allRoles()->flatMap(fn ($r) => $r->permissions->pluck('name'))->unique();
 
             // Fast path: exact match
             if ($userPerms->contains($ability)) {

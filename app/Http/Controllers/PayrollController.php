@@ -53,10 +53,14 @@ class PayrollController extends Controller
             ->first();
 
         $departments = BranchScope::scopeQuery(Department::query())->orderBy('name')->get();
-        $canApprove = ! BranchScope::isBranchScopedUser() || BranchAdminPermissions::can(auth()->user(), 'payroll', 'approve');
-        $canReopen = ! BranchScope::isBranchScopedUser() || BranchAdminPermissions::can(auth()->user(), 'payroll', 'process');
+        // Module 11 (FSD 15.2) — Confirm/Close/Reopen each have their own
+        // permission flag now (previously all three collapsed onto
+        // approve/process).
+        $canConfirm = ! BranchScope::isBranchScopedUser() || BranchAdminPermissions::can(auth()->user(), 'payroll', 'confirm');
+        $canClose = ! BranchScope::isBranchScopedUser() || BranchAdminPermissions::can(auth()->user(), 'payroll', 'close');
+        $canReopen = ! BranchScope::isBranchScopedUser() || BranchAdminPermissions::can(auth()->user(), 'payroll', 'reopen');
 
-        return view('payroll.index', compact('records', 'summary', 'month', 'year', 'departments', 'canApprove', 'canReopen'));
+        return view('payroll.index', compact('records', 'summary', 'month', 'year', 'departments', 'canConfirm', 'canClose', 'canReopen'));
     }
 
     public function generateForm(Request $request)
@@ -722,8 +726,11 @@ class PayrollController extends Controller
     {
         BranchScope::assertBranchAccess($payroll->employee?->branch_id);
 
-        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'payroll', 'approve')) {
-            abort(403, 'You do not have the "Approve" permission for Payroll in Branch Administration.');
+        // Module 11 (FSD 15.2) — dedicated Modify Payroll permission, not
+        // the general Approve flag (manual earnings/deductions are a
+        // materially different action from confirming/closing a payroll run).
+        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'payroll', 'modify_payroll')) {
+            abort(403, 'You do not have the "Modify Payroll" permission for Payroll in Branch Administration.');
         }
 
         if (! $payroll->isEditable()) {
@@ -752,8 +759,14 @@ class PayrollController extends Controller
     {
         BranchScope::assertBranchAccess($payroll->employee?->branch_id);
 
-        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'payroll', 'approve')) {
-            abort(403, 'You do not have the "Approve" permission for Payroll in Branch Administration.');
+        // Module 11 (FSD 15.2) — "Delete permission shall be restricted."
+        // Requires BOTH Modify Payroll (it's a payroll change) AND the
+        // dedicated Delete flag (it's a destructive action).
+        if (BranchScope::isBranchScopedUser() && (
+            ! BranchAdminPermissions::can(auth()->user(), 'payroll', 'modify_payroll')
+            || ! BranchAdminPermissions::can(auth()->user(), 'payroll', 'delete')
+        )) {
+            abort(403, 'You do not have the "Modify Payroll" + "Delete" permissions for Payroll in Branch Administration.');
         }
         if (! $payroll->isEditable()) {
             return back()->withErrors(['type' => 'This payroll record is ' . $payroll->status_label . ' and can no longer be edited. Reopen it first.']);
@@ -1026,8 +1039,11 @@ class PayrollController extends Controller
             'year'  => ['required', 'integer', 'min:2020'],
         ]);
 
-        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'payroll', 'approve')) {
-            abort(403, 'You do not have the "Approve" permission for Payroll in Branch Administration.');
+        // Module 11 (FSD 15.2) — "Payroll confirmation, closure, and
+        // reopening shall have separate permissions." Previously shared
+        // `approve`/`process` with other actions; each now has its own flag.
+        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'payroll', 'confirm')) {
+            abort(403, 'You do not have the "Confirm" permission for Payroll in Branch Administration.');
         }
 
         $query = PayrollRecord::where('month', $data['month'])->where('year', $data['year'])
@@ -1059,8 +1075,8 @@ class PayrollController extends Controller
             'year'  => ['required', 'integer', 'min:2020'],
         ]);
 
-        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'payroll', 'approve')) {
-            abort(403, 'You do not have the "Approve" permission for Payroll in Branch Administration.');
+        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'payroll', 'close')) {
+            abort(403, 'You do not have the "Close" permission for Payroll in Branch Administration.');
         }
 
         $query = PayrollRecord::where('month', $data['month'])->where('year', $data['year'])->where('status', 'confirmed');
@@ -1087,8 +1103,8 @@ class PayrollController extends Controller
     {
         BranchScope::assertBranchAccess($payroll->employee?->branch_id);
 
-        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'payroll', 'process')) {
-            abort(403, 'You do not have the "Process" permission for Payroll in Branch Administration.');
+        if (BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'payroll', 'reopen')) {
+            abort(403, 'You do not have the "Reopen" permission for Payroll in Branch Administration.');
         }
 
         if (! in_array($payroll->status, ['confirmed', 'closed'], true)) {

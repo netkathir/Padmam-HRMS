@@ -33,7 +33,11 @@ class Role extends Model
     public function permissions()
     {
         return $this->belongsToMany(Permission::class, 'role_permissions')
-            ->withPivot(['can_approve', 'can_process', 'can_export_excel', 'can_export_pdf', 'can_view_sensitive', 'can_manage_users']);
+            ->withPivot([
+                'can_approve', 'can_process', 'can_export_excel', 'can_export_pdf', 'can_view_sensitive', 'can_manage_users',
+                'can_confirm', 'can_close', 'can_reopen', 'can_recalculate', 'can_modify_rules', 'can_modify_payroll',
+                'can_view_audit_log', 'can_delete',
+            ]);
     }
 
     public function createdBy()

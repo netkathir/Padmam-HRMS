@@ -95,11 +95,19 @@
                 <div class="card-header">Government IDs &amp; Statutory</div>
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-sm-6"><strong>Aadhaar Number:</strong> {{ $employee->aadhaar_number ?? '—' }}</div>
-                        <div class="col-sm-6"><strong>PAN Number:</strong> {{ $employee->pan_number ?? '—' }}</div>
-                        <div class="col-sm-6"><strong>UAN Number:</strong> {{ $employee->uan_number ?? '—' }}</div>
-                        <div class="col-sm-6"><strong>PF Applicable:</strong> {{ $employee->is_pf_applicable ? 'Yes' : 'No' }}{{ $employee->pf_number ? ' (' . $employee->pf_number . ')' : '' }}</div>
-                        <div class="col-sm-6"><strong>ESI Applicable:</strong> {{ $employee->is_esi_applicable ? 'Yes' : 'No' }}{{ $employee->esi_number ? ' (' . $employee->esi_number . ')' : '' }}</div>
+                        @php
+                            // Module 11 (FSD 15.2) — these were previously shown fully
+                            // unmasked to anyone with basic Employee read access, with
+                            // no permission check at all. Now gated by the same
+                            // dedicated View Sensitive Data permission used for bank
+                            // details on this page (below) and on Payslips/Reports.
+                            $maskStatutory = fn($v) => $v ? ($canViewFullBankDetails ? $v : \App\Support\SensitiveDataAccess::mask($v)) : '—';
+                        @endphp
+                        <div class="col-sm-6"><strong>Aadhaar Number:</strong> {{ $maskStatutory($employee->aadhaar_number) }}</div>
+                        <div class="col-sm-6"><strong>PAN Number:</strong> {{ $maskStatutory($employee->pan_number) }}</div>
+                        <div class="col-sm-6"><strong>UAN Number:</strong> {{ $maskStatutory($employee->uan_number) }}</div>
+                        <div class="col-sm-6"><strong>PF Applicable:</strong> {{ $employee->is_pf_applicable ? 'Yes' : 'No' }}{{ $employee->pf_number ? ' (' . $maskStatutory($employee->pf_number) . ')' : '' }}</div>
+                        <div class="col-sm-6"><strong>ESI Applicable:</strong> {{ $employee->is_esi_applicable ? 'Yes' : 'No' }}{{ $employee->esi_number ? ' (' . $maskStatutory($employee->esi_number) . ')' : '' }}</div>
                         <div class="col-sm-6"><strong>TDS Applicable:</strong> {{ $employee->is_tds_applicable ? 'Yes' : 'No' }}</div>
                     </div>
                 </div>

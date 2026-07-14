@@ -41,31 +41,21 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <select name="type" class="form-select form-select-sm">
-                    <option value="">All Types</option>
-                    <option value="public_holiday" {{ request('type') == 'public_holiday' ? 'selected' : '' }}>Public Holiday</option>
-                    <option value="festival_holiday" {{ request('type') == 'festival_holiday' ? 'selected' : '' }}>Festival Holiday</option>
-                    <option value="optional" {{ request('type') == 'optional' ? 'selected' : '' }}>Optional Holiday</option>
-                    <option value="company_holiday" {{ request('type') == 'company_holiday' ? 'selected' : '' }}>Company Holiday</option>
-                </select>
-            </div>
-            <div class="col-md-2">
                 <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i> Filter</button>
             </div>
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Calendar</th><th>Date</th><th>Holiday</th><th>Type</th><th>Branch</th><th>Paid</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Holiday</th><th>Start Date</th><th>End Date</th><th>Applicable Employee Types</th><th>Paid</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
-                    @php $typeColors = ['public_holiday'=>'primary','festival_holiday'=>'info','optional'=>'warning','company_holiday'=>'secondary']; $typeLabels = ['public_holiday'=>'Public','festival_holiday'=>'Festival','optional'=>'Optional','company_holiday'=>'Company']; @endphp
+                    @php $typeLabels = ['staff'=>'Staff','company_labour'=>'Company Labour','contract_labour'=>'Contract Labour']; @endphp
                     @forelse($holidays as $holiday)
                     <tr>
                         <td>{{ $holidays->firstItem() + $loop->index }}</td>
-                        <td>{{ $holiday->calendar_name }}</td>
-                        <td>{{ $holiday->date->format('d M Y') }} <small class="text-muted">({{ $holiday->date->format('l') }})</small></td>
                         <td>{{ $holiday->name }}</td>
-                        <td><span class="badge bg-{{ $typeColors[$holiday->type] ?? 'secondary' }}-subtle text-{{ $typeColors[$holiday->type] ?? 'secondary' }}">{{ $typeLabels[$holiday->type] ?? ucfirst($holiday->type) }}</span></td>
-                        <td>{{ $holiday->branch->name ?? 'All Branches' }}</td>
+                        <td>{{ $holiday->start_date->format('d M Y') }} <small class="text-muted">({{ $holiday->start_date->format('l') }})</small></td>
+                        <td>{{ $holiday->end_date->format('d M Y') }} <small class="text-muted">({{ $holiday->end_date->format('l') }})</small></td>
+                        <td>{{ collect($holiday->applicable_employee_types ?? [])->map(fn($t) => $typeLabels[$t] ?? $t)->join(', ') ?: '—' }}</td>
                         <td><span class="badge bg-{{ $holiday->is_paid ? 'success' : 'secondary' }}-subtle text-{{ $holiday->is_paid ? 'success' : 'secondary' }}">{{ $holiday->is_paid ? 'Paid' : 'Unpaid' }}</span></td>
                         <td><span class="badge bg-{{ $holiday->is_active ? 'success' : 'danger' }}-subtle text-{{ $holiday->is_active ? 'success' : 'danger' }}">{{ $holiday->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
@@ -77,7 +67,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="9" class="text-center text-muted py-4">No holidays found.</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-4">No holidays found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

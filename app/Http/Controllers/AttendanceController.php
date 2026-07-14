@@ -501,8 +501,9 @@ class AttendanceController extends Controller
     /** FSD 11.3 — "Apply holiday and weekly off rules" (employee-specific or branch rule). */
     private function resolveHolidayOrWeeklyOffStatus(Employee $employee, Branch $branch, \Carbon\Carbon $date): ?string
     {
-        $holiday = Holiday::where('is_active', true)->where('date', $date->toDateString())
-            ->where(fn($q) => $q->whereNull('branch_id')->orWhere('branch_id', $employee->branch_id))
+        $holiday = Holiday::where('is_active', true)
+            ->where('start_date', '<=', $date->toDateString())
+            ->where('end_date', '>=', $date->toDateString())
             ->get()
             ->first(fn($h) => $h->appliesToEmployeeType($employee->primary_employee_type, $employee->labour_type));
 

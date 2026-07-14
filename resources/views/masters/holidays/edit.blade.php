@@ -9,47 +9,22 @@
             @csrf @method('PUT')
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label">Calendar Name <span class="text-danger">*</span></label>
-                    <input type="text" name="calendar_name" class="form-control @error('calendar_name') is-invalid @enderror" value="{{ old('calendar_name', $holiday->calendar_name) }}" required>
-                    @error('calendar_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-6">
                     <label class="form-label">Holiday Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $holiday->name) }}" required>
                     @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Date <span class="text-danger">*</span></label>
-                    <input type="date" name="date" class="form-control @error('date') is-invalid @enderror" value="{{ old('date', $holiday->date->format('Y-m-d')) }}" required>
-                    @error('date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <label class="form-label">Holiday Start Date <span class="text-danger">*</span></label>
+                    <input type="date" name="start_date" class="form-control @error('start_date') is-invalid @enderror" value="{{ old('start_date', $holiday->start_date->format('Y-m-d')) }}" required>
+                    @error('start_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Type <span class="text-danger">*</span></label>
-                    <select name="type" class="form-select @error('type') is-invalid @enderror" required>
-                        <option value="public_holiday"   {{ old('type', $holiday->type) == 'public_holiday'   ? 'selected' : '' }}>Public Holiday</option>
-                        <option value="festival_holiday" {{ old('type', $holiday->type) == 'festival_holiday' ? 'selected' : '' }}>Festival Holiday</option>
-                        <option value="optional"         {{ old('type', $holiday->type) == 'optional'         ? 'selected' : '' }}>Optional Holiday</option>
-                        <option value="company_holiday"  {{ old('type', $holiday->type) == 'company_holiday'  ? 'selected' : '' }}>Company Holiday</option>
-                    </select>
-                    @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                @include('partials._locked_branch_field', ['currentBranch' => $currentBranch])
-                <div class="col-md-3 d-flex align-items-end">
-                    <div class="form-check">
-                        <input type="hidden" name="is_paid" value="0">
-                        <input type="checkbox" name="is_paid" class="form-check-input" value="1" {{ old('is_paid', $holiday->is_paid) ? 'checked' : '' }}>
-                        <label class="form-check-label">Paid Holiday</label>
-                    </div>
-                </div>
-                <div class="col-md-3 d-flex align-items-end">
-                    <div class="form-check">
-                        <input type="hidden" name="is_active" value="0">
-                        <input type="checkbox" name="is_active" class="form-check-input" value="1" {{ old('is_active', $holiday->is_active) ? 'checked' : '' }}>
-                        <label class="form-check-label">Active</label>
-                    </div>
+                    <label class="form-label">Holiday End Date <span class="text-danger">*</span></label>
+                    <input type="date" name="end_date" class="form-control @error('end_date') is-invalid @enderror" value="{{ old('end_date', $holiday->end_date->format('Y-m-d')) }}" required>
+                    @error('end_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Applicable Employee Type <span class="text-danger">*</span></label>
+                    <label class="form-label">Applicable Employee Types <span class="text-danger">*</span></label>
                     @php $selectedTypes = old('applicable_employee_types', $holiday->applicable_employee_types ?? ['staff','company_labour','contract_labour']); @endphp
                     <div class="border rounded p-2 @error('applicable_employee_types') is-invalid @enderror">
                         @foreach(['staff'=>'Staff','company_labour'=>'Company Labour','contract_labour'=>'Contract Labour'] as $val=>$label)
@@ -61,10 +36,20 @@
                     </div>
                     @error('applicable_employee_types')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                 </div>
-                <div class="col-12">
-                    <label class="form-label">Description</label>
-                    <textarea name="description" class="form-control @error('description') is-invalid @enderror" rows="2">{{ old('description', $holiday->description) }}</textarea>
-                    @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check">
+                        <input type="hidden" name="is_paid" value="0">
+                        <input type="checkbox" name="is_paid" class="form-check-input" value="1" {{ old('is_paid', $holiday->is_paid) ? 'checked' : '' }}>
+                        <label class="form-check-label">Paid Holiday</label>
+                    </div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check">
+                        <input type="hidden" name="is_active" value="0">
+                        <input type="checkbox" name="is_active" class="form-check-input" value="1" {{ old('is_active', $holiday->is_active) ? 'checked' : '' }}>
+                        <label class="form-check-label">Status (Active) <span class="text-danger">*</span></label>
+                    </div>
+                    @error('is_active')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                 </div>
             </div>
             <div class="mt-4 d-flex gap-2">

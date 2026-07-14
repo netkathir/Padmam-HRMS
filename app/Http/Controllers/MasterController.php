@@ -23,7 +23,7 @@ class MasterController extends Controller
             'deptCount'        => Department::count(),
             'desigCount'       => Designation::count(),
             'shiftCount'       => Shift::count(),
-            'holidayCount'     => Holiday::whereYear('date', now()->year)->count(),
+            'holidayCount'     => Holiday::where(fn($q) => $q->whereYear('start_date', now()->year)->orWhereYear('end_date', now()->year))->count(),
             'leaveTypeCount'   => LeaveType::count(),
             'earningsCount'    => EarningsComponent::count(),
             'deductionsCount'  => DeductionsComponent::count(),

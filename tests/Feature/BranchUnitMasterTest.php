@@ -117,28 +117,4 @@ class BranchUnitMasterTest extends TestCase
 
         $response->assertSessionHasErrors('phone');
     }
-
-    public function test_applicable_holidays_includes_global_and_own_branch(): void
-    {
-        $branchA = Branch::create([
-            'name' => 'Branch A', 'code' => 'BRA', 'address' => 'x',
-            'state' => 'Maharashtra', 'district' => 'Pune', 'city' => 'Pune', 'pincode' => '411001',
-            'is_active' => true,
-        ]);
-        $branchB = Branch::create([
-            'name' => 'Branch B', 'code' => 'BRB', 'address' => 'x',
-            'state' => 'Maharashtra', 'district' => 'Pune', 'city' => 'Pune', 'pincode' => '411001',
-            'is_active' => true,
-        ]);
-
-        \App\Models\Holiday::forceCreate(['name' => 'Global Holiday', 'date' => '2026-01-26', 'year' => 2026, 'type' => 'national', 'branch_id' => null, 'is_active' => true]);
-        \App\Models\Holiday::forceCreate(['name' => 'Branch A Holiday', 'date' => '2026-03-15', 'year' => 2026, 'type' => 'regional', 'branch_id' => $branchA->id, 'is_active' => true]);
-        \App\Models\Holiday::forceCreate(['name' => 'Branch B Holiday', 'date' => '2026-04-20', 'year' => 2026, 'type' => 'regional', 'branch_id' => $branchB->id, 'is_active' => true]);
-
-        $applicable = $branchA->applicableHolidays()->pluck('name')->all();
-
-        $this->assertContains('Global Holiday', $applicable);
-        $this->assertContains('Branch A Holiday', $applicable);
-        $this->assertNotContains('Branch B Holiday', $applicable);
-    }
 }

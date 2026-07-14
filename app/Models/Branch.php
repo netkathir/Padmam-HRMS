@@ -37,20 +37,6 @@ class Branch extends Model
     public function manager()     { return $this->belongsTo(Employee::class, 'manager_id'); }
     public function departments() { return $this->hasMany(Department::class); }
     public function employees()   { return $this->hasMany(Employee::class); }
-    public function holidays()    { return $this->hasMany(Holiday::class); }
-
-    /**
-     * This branch's effective Holiday Calendar (FSD 6.2) — every holiday
-     * that applies here: global ones (holidays.branch_id IS NULL, per the
-     * existing "NULL = all branches" convention) plus this branch's own.
-     * Not a new "calendar" entity — the existing Holiday model's nullable
-     * branch_id already implements exactly this, this is just a named,
-     * convenient way to fetch it for one specific branch.
-     */
-    public function applicableHolidays()
-    {
-        return Holiday::where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $this->id));
-    }
 
     // Branch Administration relations — additive, still the same Branch model.
     public function branchHead()  { return $this->belongsTo(User::class, 'branch_head_user_id'); }

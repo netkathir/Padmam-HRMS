@@ -427,13 +427,17 @@ class LeaveController extends Controller
         $start = \Carbon\Carbon::parse($from);
         $end   = \Carbon\Carbon::parse($to);
 
-        $holidayDates = Holiday::where('is_active', true)
-            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
-            ->where(fn($q) => $q->whereNull('branch_id')->orWhere('branch_id', $employee->branch_id))
+        $holidayDates = [];
+        Holiday::where('is_active', true)
+            ->where('start_date', '<=', $end->toDateString())
+            ->where('end_date', '>=', $start->toDateString())
             ->get()
             ->filter(fn($h) => $h->appliesToEmployeeType($employee->primary_employee_type, $employee->labour_type))
-            ->map(fn($h) => $h->date->toDateString())
-            ->all();
+            ->each(function ($h) use (&$holidayDates) {
+                for ($d = $h->start_date->copy(); $d->lte($h->end_date); $d->addDay()) {
+                    $holidayDates[] = $d->toDateString();
+                }
+            });
 
         $days = 0;
         while ($start->lte($end)) {

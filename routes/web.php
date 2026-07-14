@@ -101,14 +101,39 @@ Route::middleware('auth')->group(function () {
     Route::post('/employees/{employee}/exit',      [EmployeeController::class, 'processExit'])->name('employees.exit.store')->middleware('permission:employees.full');
 
     // Attendance (Contract Attendance shares the same module, per the sidebar)
+    // Static routes MUST come before the {attendance} wildcard show route below.
     Route::get('/attendance',                    [AttendanceController::class, 'index'])->name('attendance.index')->middleware('permission:attendance.read');
     Route::get('/attendance/mark',               [AttendanceController::class, 'markForm'])->name('attendance.mark')->middleware('permission:attendance.read');
     Route::post('/attendance/mark',              [AttendanceController::class, 'mark'])->name('attendance.mark.post')->middleware('permission:attendance.create');
     Route::get('/attendance/manual',             [AttendanceController::class, 'manualForm'])->name('attendance.manual')->middleware('permission:attendance.read');
     Route::post('/attendance/manual',            [AttendanceController::class, 'manual'])->name('attendance.manual.post')->middleware('permission:attendance.create');
     Route::get('/attendance/pending',            [AttendanceController::class, 'pending'])->name('attendance.pending')->middleware('permission:attendance.read');
-    Route::post('/attendance/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendance.approve')->middleware('permission:attendance.full');
     Route::get('/attendance/report',             [AttendanceController::class, 'report'])->name('attendance.report')->middleware('permission:attendance.read');
+
+    // 11.2 Biometric Excel Upload
+    Route::get('/attendance/upload',                     [AttendanceController::class, 'uploadForm'])->name('attendance.upload.form')->middleware('permission:attendance.read');
+    Route::post('/attendance/upload',                    [AttendanceController::class, 'upload'])->name('attendance.upload.post')->middleware('permission:attendance.create');
+    Route::get('/attendance/upload/{upload}/mapping',    [AttendanceController::class, 'mappingForm'])->name('attendance.upload.mapping')->middleware('permission:attendance.read');
+    Route::post('/attendance/upload/{upload}/mapping',   [AttendanceController::class, 'confirmMapping'])->name('attendance.upload.confirm')->middleware('permission:attendance.create');
+    Route::get('/attendance/upload/{upload}/summary',    [AttendanceController::class, 'uploadSummary'])->name('attendance.upload.summary')->middleware('permission:attendance.read');
+    Route::get('/attendance/upload/{upload}/errors',     [AttendanceController::class, 'downloadUploadErrors'])->name('attendance.upload.errors')->middleware('permission:attendance.read');
+
+    // 11.3 Attendance Processing
+    Route::get('/attendance/process',            [AttendanceController::class, 'processForm'])->name('attendance.process.form')->middleware('permission:attendance.read');
+    Route::post('/attendance/process',           [AttendanceController::class, 'process'])->name('attendance.process.post')->middleware('permission:attendance.create');
+
+    // 11.4 Register actions
+    Route::post('/attendance/recalculate-selected', [AttendanceController::class, 'recalculateSelected'])->name('attendance.recalculate-selected')->middleware('permission:attendance.full');
+    Route::get('/attendance/export',             [AttendanceController::class, 'export'])->name('attendance.export')->middleware('permission:attendance.read');
+    Route::get('/attendance/export-pdf',         [AttendanceController::class, 'exportPdf'])->name('attendance.export.pdf')->middleware('permission:attendance.read');
+
+    // 11.5 Attendance Correction
+    Route::get('/attendance/correction',          [AttendanceController::class, 'correctionForm'])->name('attendance.correction.form')->middleware('permission:attendance.read');
+    Route::post('/attendance/correction',         [AttendanceController::class, 'correction'])->name('attendance.correction.post')->middleware('permission:attendance.create');
+
+    Route::post('/attendance/{attendance}/approve',    [AttendanceController::class, 'approve'])->name('attendance.approve')->middleware('permission:attendance.full');
+    Route::post('/attendance/{attendance}/ot-approve', [AttendanceController::class, 'approveOvertime'])->name('attendance.ot.approve')->middleware('permission:attendance.full');
+    Route::get('/attendance/{attendance}',        [AttendanceController::class, 'show'])->name('attendance.show')->middleware('permission:attendance.read');
 
     Route::get('/contract-attendance',           [ContractAttendanceController::class, 'index'])->name('contract-attendance.index')->middleware('permission:attendance.read');
     Route::get('/contract-attendance/mark',      [ContractAttendanceController::class, 'markForm'])->name('contract-attendance.mark')->middleware('permission:attendance.read');

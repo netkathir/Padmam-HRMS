@@ -37,7 +37,7 @@
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span>Results for <strong>{{ \Carbon\Carbon::parse(request('month', now()->format('Y-m')))->format('F Y') }}</strong></span>
-        <a href="#" class="btn btn-sm btn-outline-success disabled"><i class="bi bi-file-earmark-excel"></i> Export</a>
+        <a href="{{ request()->fullUrlWithQuery(['export' => 1]) }}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Export</a>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">

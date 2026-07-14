@@ -128,25 +128,34 @@ class EmployeeController extends Controller
 
     /**
      * Default Employee Code generator used when no Employee Number Rule is
-     * configured — each branch keeps its own independent sequence (e.g.
-     * Branch A and Branch B can both reach "EMP0001"), continuing whatever
-     * prefix/padding that branch's own codes already use. A row lock on the
-     * branch's latest employee serializes concurrent creations within the
-     * same branch; the retry loop is a defensive fallback against the rare
-     * duplicate-key race the lock doesn't cover — the composite unique
-     * index on (branch_id, employee_code) is the actual guarantee.
+     * configured — each branch keeps its own independent sequence, prefixed
+     * with the first two characters of that branch's own Branch Code (e.g.
+     * Branch Code "CH001" -> "CH0001", "CH0002"...; a different branch with
+     * Branch Code "MD005" independently reaches "MD0001", "MD0002"...).
+     * Only codes already carrying that branch's prefix are considered "the
+     * last one" — older codes from before this prefix existed (or a
+     * differently-prefixed branch) are ignored, so the branch's sequence
+     * restarts cleanly at 0001 the first time this runs for it. A row lock
+     * on the branch's latest matching employee serializes concurrent
+     * creations within the same branch; the retry loop is a defensive
+     * fallback against the rare duplicate-key race the lock doesn't cover —
+     * the composite unique index on (branch_id, employee_code) is the
+     * actual guarantee.
      */
     private function generateDefaultBranchEmployeeCode(?int $branchId): string
     {
+        $prefix = $this->branchCodePrefix($branchId);
+
         for ($attempt = 1; $attempt <= 5; $attempt++) {
             try {
-                return DB::transaction(function () use ($branchId) {
+                return DB::transaction(function () use ($branchId, $prefix) {
                     $lastCode = Employee::where('branch_id', $branchId)
+                        ->where('employee_code', 'like', $prefix . '%')
                         ->orderByDesc('id')
                         ->lockForUpdate()
                         ->value('employee_code');
 
-                    return SequentialCodeGenerator::next($lastCode, 'EMP0001');
+                    return SequentialCodeGenerator::next($lastCode, $prefix . '0001');
                 });
             } catch (QueryException $e) {
                 $isDuplicate = (string) $e->getCode() === '23000';
@@ -157,6 +166,14 @@ class EmployeeController extends Controller
         }
 
         throw new \RuntimeException('Unable to generate a unique Employee Code after several attempts.');
+    }
+
+    /** First two characters of the branch's own Branch Code, uppercased. */
+    private function branchCodePrefix(?int $branchId): string
+    {
+        $branchCode = $branchId ? Branch::find($branchId)?->code : null;
+
+        return $branchCode ? strtoupper(substr($branchCode, 0, 2)) : 'EMP';
     }
 
     /**

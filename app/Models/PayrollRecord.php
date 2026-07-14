@@ -17,6 +17,8 @@ class PayrollRecord extends Model
         'pf_employer', 'esi_employer',
         'net_salary', 'status', 'generated_by', 'generated_at',
         'applied_rules', 'calculated_lop_days', 'lop_override_reason',
+        'unpaid_leave_days', 'half_day_lop_days', 'late_early_lop_days',
+        'lop_applied', 'lop_confirmed_at', 'lop_confirmed_by',
     ];
 
     protected function casts(): array {
@@ -26,6 +28,11 @@ class PayrollRecord extends Model
             'leave_days'        => 'decimal:2',
             'lop_days'          => 'decimal:2',
             'calculated_lop_days' => 'decimal:2',
+            'unpaid_leave_days'   => 'decimal:2',
+            'half_day_lop_days'   => 'decimal:2',
+            'late_early_lop_days' => 'decimal:2',
+            'lop_applied'         => 'boolean',
+            'lop_confirmed_at'    => 'datetime',
             'ot_hours'          => 'decimal:2',
             'basic_salary'      => 'decimal:2',
             'hra'               => 'decimal:2',
@@ -53,6 +60,7 @@ class PayrollRecord extends Model
     public function employee()    { return $this->belongsTo(Employee::class); }
     public function generator()   { return $this->belongsTo(User::class, 'generated_by'); }
     public function approver()    { return $this->belongsTo(User::class, 'approved_by'); }
+    public function lopConfirmedBy() { return $this->belongsTo(User::class, 'lop_confirmed_by'); }
     public function allowances()  { return $this->hasMany(PayrollAllowance::class, 'payroll_id'); }
     public function deductions()  { return $this->hasMany(PayrollDeduction::class, 'payroll_id'); }
     public function payments()    { return $this->hasMany(PayrollPayment::class, 'payroll_id'); }

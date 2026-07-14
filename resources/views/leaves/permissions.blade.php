@@ -48,9 +48,15 @@
                         </td>
                         <td>
                             @if($perm->status === 'pending' && auth()->user()->can('leaves.full'))
-                            <form action="{{ route('leaves.approve', $perm) }}" method="POST" class="d-inline">
-                                @csrf @method('PATCH')
+                            <form action="{{ route('leaves.permissions.approve', $perm) }}" method="POST" class="d-inline">
+                                @csrf
+                                <input type="hidden" name="action" value="approve">
                                 <button class="btn btn-sm btn-outline-success" title="Approve"><i class="bi bi-check-lg"></i></button>
+                            </form>
+                            <form action="{{ route('leaves.permissions.approve', $perm) }}" method="POST" class="d-inline">
+                                @csrf
+                                <input type="hidden" name="action" value="reject">
+                                <button class="btn btn-sm btn-outline-danger" title="Reject"><i class="bi bi-x-lg"></i></button>
                             </form>
                             @else
                             <span class="text-muted">—</span>

@@ -14,7 +14,8 @@
         <div class="card">
             <div class="card-header"><h6 class="mb-0">Payroll Parameters</h6></div>
             <div class="card-body">
-                <form action="{{ route('payroll.generate.post') }}" method="POST">
+                <form action="{{ route('payroll.generate.post') }}" method="POST"
+                    onsubmit="return confirm('This will calculate payroll for the selected period, including LOP (Loss of Pay) derived from attendance and leave records. Proceed?');">
                     @csrf
                     <div class="mb-3">
                         <label class="form-label">Month <span class="text-danger">*</span></label>

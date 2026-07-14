@@ -14,4 +14,9 @@ class PermissionRequest extends Model
     protected function casts(): array { return ['date' => 'date', 'approved_at' => 'datetime']; }
     public function employee() { return $this->belongsTo(Employee::class); }
     public function approver() { return $this->belongsTo(User::class, 'approved_by'); }
+
+    public function getDurationHoursAttribute(): float
+    {
+        return round($this->duration_minutes / 60, 2);
+    }
 }

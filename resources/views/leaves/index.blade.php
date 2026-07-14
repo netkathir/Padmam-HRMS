@@ -12,6 +12,21 @@
 @endsection
 
 @section('content')
+    @if(($suggestions ?? collect())->isNotEmpty())
+        <div class="alert alert-info">
+            <i class="bi bi-lightbulb"></i>
+            <strong>{{ $suggestions->count() }}</strong> attendance-marked leave day(s) have no matching leave request:
+            <ul class="mb-0 mt-1">
+                @foreach($suggestions->take(10) as $s)
+                    <li>
+                        {{ $s->employee->full_name ?? '—' }} ({{ $s->employee->employee_code ?? '' }}) —
+                        {{ \Carbon\Carbon::parse($s->date)->format('d M Y') }}
+                        <a href="{{ route('leaves.create') }}?employee_id={{ $s->employee_id }}" class="ms-1">Create leave request</a>
+                    </li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
     <div class="card">
         <div class="card-body">
             <form method="GET" class="row g-2 mb-3">

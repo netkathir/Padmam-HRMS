@@ -120,11 +120,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/leaves/create',                 [LeaveController::class, 'create'])->name('leaves.create')->middleware('permission:leaves.read');
     Route::post('/leaves',                       [LeaveController::class, 'store'])->name('leaves.store')->middleware('permission:leaves.create');
     Route::get('/leaves/balance',                [LeaveController::class, 'balance'])->name('leaves.balance')->middleware('permission:leaves.read');
+    Route::post('/leaves/balance/{balance}/adjust', [LeaveController::class, 'adjustBalance'])->name('leaves.balance.adjust')->middleware('permission:leaves.full');
     Route::get('/leaves/permissions',            [LeaveController::class, 'permissions'])->name('leaves.permissions')->middleware('permission:leaves.read');
     Route::post('/leaves/permissions',           [LeaveController::class, 'storePermission'])->name('leaves.permissions.store')->middleware('permission:leaves.create');
+    Route::post('/leaves/permissions/{permission}/approve', [LeaveController::class, 'approvePermission'])->name('leaves.permissions.approve')->middleware('permission:leaves.full');
     Route::get('/leaves/{leave}',                [LeaveController::class, 'show'])->name('leaves.show')->middleware('permission:leaves.read');
     Route::post('/leaves/{leave}/approve',       [LeaveController::class, 'approve'])->name('leaves.approve')->middleware('permission:leaves.full');
-    Route::post('/leaves/{leave}/cancel',        [LeaveController::class, 'cancel'])->name('leaves.cancel')->middleware('permission:leaves.full');
+    // leaves.create (not .full) so a self-service employee can reach the
+    // controller to cancel their own request; ownership is enforced inside
+    // LeaveController::cancel() itself (leaves.full still sees/cancels any).
+    Route::post('/leaves/{leave}/cancel',        [LeaveController::class, 'cancel'])->name('leaves.cancel')->middleware('permission:leaves.create');
 
     // Payroll (Contract Payroll shares the same module, per the sidebar)
     Route::get('/payroll',                       [PayrollController::class, 'index'])->name('payroll.index')->middleware('permission:payroll.read');
@@ -135,6 +140,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/payroll/{payroll}/payment',    [PayrollController::class, 'storePayment'])->name('payroll.payment.store')->middleware('permission:payroll.full');
     Route::get('/payroll/lop-review',            [PayrollController::class, 'lopReview'])->name('payroll.lop-review')->middleware('permission:payroll.read');
     Route::post('/payroll/{payroll}/lop',        [PayrollController::class, 'updateLop'])->name('payroll.lop.update')->middleware('permission:payroll.full');
+    Route::post('/payroll/lop-review/confirm',   [PayrollController::class, 'confirmLop'])->name('payroll.lop.confirm')->middleware('permission:payroll.full');
 
     Route::get('/contract-payroll',              [ContractPayrollController::class, 'index'])->name('contract-payroll.index')->middleware('permission:payroll.read');
     Route::get('/contract-payroll/calculate',    [ContractPayrollController::class, 'calculateForm'])->name('contract-payroll.calculate')->middleware('permission:payroll.read');

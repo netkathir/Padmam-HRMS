@@ -33,28 +33,27 @@
                     <dd class="col-sm-8">{{ $leave->leaveType->name ?? '—' }}</dd>
 
                     <dt class="col-sm-4">From Date</dt>
-                    <dd class="col-sm-8">{{ \Carbon\Carbon::parse($leave->from_date)->format('d M Y, l') }}</dd>
+                    <dd class="col-sm-8">{{ $leave->start_date?->format('d M Y, l') }}</dd>
 
                     <dt class="col-sm-4">To Date</dt>
-                    <dd class="col-sm-8">{{ \Carbon\Carbon::parse($leave->to_date)->format('d M Y, l') }}</dd>
+                    <dd class="col-sm-8">{{ $leave->end_date?->format('d M Y, l') }}</dd>
 
                     <dt class="col-sm-4">Total Days</dt>
-                    <dd class="col-sm-8"><span class="badge bg-primary-subtle text-primary fs-6">{{ $leave->total_days ?? '—' }}</span></dd>
+                    <dd class="col-sm-8"><span class="badge bg-primary-subtle text-primary fs-6">{{ $leave->total_days ?? '—' }}</span>
+                        @if($leave->is_half_day)
+                            <span class="badge bg-secondary-subtle text-secondary">Half Day ({{ ucfirst($leave->half_day_period) }})</span>
+                        @endif
+                    </dd>
 
                     <dt class="col-sm-4">Reason</dt>
                     <dd class="col-sm-8">{{ $leave->reason }}</dd>
-
-                    @if($leave->contact_during_leave)
-                    <dt class="col-sm-4">Contact</dt>
-                    <dd class="col-sm-8">{{ $leave->contact_during_leave }}</dd>
-                    @endif
 
                     <dt class="col-sm-4">Applied On</dt>
                     <dd class="col-sm-8">{{ $leave->created_at->format('d M Y H:i') }}</dd>
 
                     @if($leave->approved_by)
                     <dt class="col-sm-4">{{ $leave->status == 'approved' ? 'Approved' : 'Rejected' }} By</dt>
-                    <dd class="col-sm-8">{{ $leave->approvedBy->name ?? '—' }} on {{ $leave->updated_at->format('d M Y H:i') }}</dd>
+                    <dd class="col-sm-8">{{ $leave->approver->name ?? '—' }} on {{ $leave->updated_at->format('d M Y H:i') }}</dd>
                     @endif
 
                     @if($leave->rejection_reason)
@@ -90,7 +89,7 @@
         <div class="card">
             <div class="card-body">
                 <form action="{{ route('leaves.cancel', $leave) }}" method="POST" onsubmit="return confirm('Cancel this leave request?')">
-                    @csrf @method('PATCH')
+                    @csrf
                     <button class="btn btn-outline-secondary w-100"><i class="bi bi-x-circle"></i> Cancel Request</button>
                 </form>
             </div>

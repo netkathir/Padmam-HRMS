@@ -7,32 +7,38 @@
     <div class="col-md-9">
         <div class="card">
             <div class="card-body">
-                <form action="{{ route('users.store') }}" method="POST" enctype="multipart/form-data">
+                <form action="{{ route('users.store') }}" method="POST" enctype="multipart/form-data" id="addUserForm">
                     @csrf
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label">User Name <span class="text-danger">*</span></label>
+                            <label class="form-label">Full Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}" required>
                             @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Login ID <span class="text-danger">*</span></label>
-                            <input type="text" name="username" class="form-control @error('username') is-invalid @enderror" value="{{ old('username') }}" required>
+
+                        {{-- Login ID is hidden from this form but still required/unique on the
+                             backend — it's auto-derived from Email on submit so the account can
+                             still be created without asking the admin to pick one manually. --}}
+                        <div class="col-md-6 d-none">
+                            <label class="form-label">Login ID</label>
+                            <input type="text" name="username" id="username" class="form-control @error('username') is-invalid @enderror" value="{{ old('username') }}">
                             @error('username')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
+
                         <div class="col-md-6">
-                            <label class="form-label">Email Address</label>
-                            <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}">
+                            <label class="form-label">Email Address <span class="text-danger">*</span></label>
+                            <input type="email" name="email" id="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" required>
                             @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="col-md-6">
+
+                        <div class="col-md-6 d-none">
                             <label class="form-label">Mobile Number</label>
                             <input type="text" name="mobile" class="form-control @error('mobile') is-invalid @enderror" value="{{ old('mobile') }}" placeholder="e.g. +91 98765 43210">
                             @error('mobile')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         @if ($isSuperAdmin || $isBranchScoped)
-                            <div class="col-md-4">
+                            <div class="col-md-4 d-none">
                                 <label class="form-label">User Type</label>
                                 <select name="user_type" id="userType" class="form-select @error('user_type') is-invalid @enderror" {{ count($userTypeOptions) === 1 ? 'disabled' : '' }}>
                                     @foreach ($userTypeOptions as $value => $label)
@@ -76,27 +82,26 @@
                             @error('role_ids.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">Branch Access <span class="text-danger">*</span> <small class="text-muted">(one or more branches)</small></label>
+                        {{-- Branch Access is hidden from this form but still required (min:1) on
+                             the backend — it's auto-synced to match the "Branch" field above so
+                             new users get single-branch access matching what's shown there. --}}
+                        <div class="col-md-6 d-none">
+                            <label class="form-label">Branch Access</label>
                             @if ($lockedBranchId)
-                                <div class="border rounded p-2 bg-light">
-                                    {{ $branches->firstWhere('id', $lockedBranchId)->name ?? '—' }}
-                                    <small class="text-muted d-block">This account is restricted to a single branch.</small>
-                                </div>
                                 <input type="hidden" name="branch_ids[]" value="{{ $lockedBranchId }}">
                             @else
-                                <div class="border rounded p-2 @error('branch_ids') is-invalid @enderror" style="max-height: 160px; overflow-y: auto;">
+                                <input type="hidden" name="branch_ids[]" id="branchAccessHidden" value="{{ old('branch_ids.0', optional($branches->first())->id) }}">
+                                <div class="border rounded p-2" style="max-height: 160px; overflow-y: auto;">
                                     @foreach($allBranches as $branch)
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="branch_ids[]" value="{{ $branch->id }}" id="branchAccess{{ $branch->id }}"
-                                            {{ in_array($branch->id, old('branch_ids', [])) ? 'checked' : '' }}>
+                                        <input class="form-check-input" type="checkbox" disabled value="{{ $branch->id }}" id="branchAccess{{ $branch->id }}">
                                         <label class="form-check-label" for="branchAccess{{ $branch->id }}">{{ $branch->name }}</label>
                                     </div>
                                     @endforeach
                                 </div>
-                                @error('branch_ids')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                                @error('branch_ids.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                             @endif
+                            @error('branch_ids')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                            @error('branch_ids.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                         </div>
 
                         <div class="col-md-6">
@@ -109,7 +114,7 @@
                             <input type="password" name="password_confirmation" class="form-control" required>
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-md-6 d-none">
                             <label class="form-label">Employee Mapping</label>
                             <input type="search" id="employeeSearch" class="form-control form-control-sm mb-1" placeholder="Search employee by name or code…">
                             <select name="employee_id" id="employeeSelect" class="form-select">
@@ -123,12 +128,12 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-6 d-none">
                             <label class="form-label">Avatar</label>
                             <input type="file" name="avatar" class="form-control" accept="image/*">
                         </div>
 
-                        <div class="col-md-4">
+                        <div class="col-md-4 d-none">
                             <label class="form-label">Account Expiry Date</label>
                             <input type="date" name="account_expiry_date" class="form-control @error('account_expiry_date') is-invalid @enderror" value="{{ old('account_expiry_date') }}">
                             @error('account_expiry_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -144,12 +149,12 @@
                         </div>
                         <div class="col-md-4 d-flex align-items-end">
                             <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" name="force_password_change" value="1" id="forcePwd" {{ old('force_password_change') ? 'checked' : '' }}>
+                                <input class="form-check-input" type="checkbox" name="force_password_change" value="1" id="forcePwd" {{ old('force_password_change', true) ? 'checked' : '' }}>
                                 <label class="form-check-label" for="forcePwd">Force password change on first login</label>
                             </div>
                         </div>
 
-                        <div class="col-12">
+                        <div class="col-12 d-none">
                             <label class="form-label">Remarks</label>
                             <textarea name="remarks" class="form-control" rows="2">{{ old('remarks') }}</textarea>
                         </div>
@@ -171,6 +176,10 @@
     var branchSelect = document.getElementById('branchSelect');
     var employeeSelect = document.getElementById('employeeSelect');
     var employeeSearch = document.getElementById('employeeSearch');
+    var emailInput = document.getElementById('email');
+    var usernameInput = document.getElementById('username');
+    var branchAccessHidden = document.getElementById('branchAccessHidden');
+    var form = document.getElementById('addUserForm');
 
     function filterEmployees() {
         var branchId = branchSelect ? branchSelect.value : '';
@@ -189,6 +198,34 @@
         if (branchSelect) branchSelect.addEventListener('change', filterEmployees);
         if (employeeSearch) employeeSearch.addEventListener('input', filterEmployees);
         filterEmployees();
+    }
+
+    // Login ID is hidden on this form; keep it in sync with Email so the
+    // required/unique `username` column still gets a sane value on submit.
+    function syncUsernameFromEmail() {
+        if (emailInput && usernameInput) {
+            usernameInput.value = emailInput.value.trim();
+        }
+    }
+    if (emailInput) emailInput.addEventListener('input', syncUsernameFromEmail);
+    syncUsernameFromEmail();
+
+    // Branch Access is hidden on this form; keep it in sync with the
+    // "currently active" Branch so the required `branch_ids` array still
+    // gets submitted (single-branch access matching what's shown above).
+    function syncBranchAccess() {
+        if (branchSelect && branchAccessHidden) {
+            branchAccessHidden.value = branchSelect.value;
+        }
+    }
+    if (branchSelect) branchSelect.addEventListener('change', syncBranchAccess);
+    syncBranchAccess();
+
+    if (form) {
+        form.addEventListener('submit', function () {
+            syncUsernameFromEmail();
+            syncBranchAccess();
+        });
     }
 })();
 </script>

@@ -519,20 +519,44 @@ class EmployeeController extends Controller
             abort(403, 'You do not have the "View Sensitive Data" permission for Employees in Branch Administration.');
         }
 
+        // Fixes a pre-existing bug: these field names didn't match
+        // EmployeeSalaryStructure's real fillable columns (was validating
+        // slab_id/basic/other_allowances — the model has salary_slab_id/
+        // basic_salary/da/ta/medical_allowance/special_allowance instead),
+        // so every salary structure saved through this form had those
+        // fields silently stuck at their defaults, directly corrupting
+        // payroll math that reads basic_salary/da/ta straight off this row.
         $data = $request->validate([
-            'slab_id'          => ['required', 'exists:salary_slabs,id'],
-            'ctc'              => ['required', 'numeric', 'min:0'],
-            'basic'            => ['required', 'numeric', 'min:0'],
-            'hra'              => ['required', 'numeric', 'min:0'],
-            'other_allowances' => ['required', 'numeric', 'min:0'],
-            'effective_from'   => ['required', 'date'],
-            'pf_applicable'    => ['boolean'],
-            'esi_applicable'   => ['boolean'],
+            'salary_slab_id'    => ['nullable', 'exists:salary_slabs,id'],
+            'ctc'               => ['required', 'numeric', 'min:0'],
+            'basic_salary'      => ['required', 'numeric', 'min:0'],
+            'hra'               => ['nullable', 'numeric', 'min:0'],
+            'da'                => ['nullable', 'numeric', 'min:0'],
+            'ta'                => ['nullable', 'numeric', 'min:0'],
+            'medical_allowance' => ['nullable', 'numeric', 'min:0'],
+            'special_allowance' => ['nullable', 'numeric', 'min:0'],
+            'effective_from'    => ['required', 'date'],
+            'pf_applicable'     => ['boolean'],
+            'esi_applicable'    => ['boolean'],
         ]);
-        $data['employee_id'] = $employee->id;
-        $data['created_by']  = auth()->id();
 
-        $employee->salaryHistory()->update(['is_current' => false]);
+        // pf_applicable/esi_applicable describe the EMPLOYEE's own
+        // applicability flags (Employee.is_pf_applicable/is_esi_applicable
+        // from Module 6), not a column on EmployeeSalaryStructure — updating
+        // the employee directly here, separate from the salary row itself.
+        $employee->update([
+            'is_pf_applicable'  => $request->boolean('pf_applicable'),
+            'is_esi_applicable' => $request->boolean('esi_applicable'),
+        ]);
+        unset($data['pf_applicable'], $data['esi_applicable']);
+
+        $data['employee_id']  = $employee->id;
+        $data['created_by']   = auth()->id();
+        $data['gross_salary'] = $data['basic_salary']
+            + (float) ($data['hra'] ?? 0) + (float) ($data['da'] ?? 0) + (float) ($data['ta'] ?? 0)
+            + (float) ($data['medical_allowance'] ?? 0) + (float) ($data['special_allowance'] ?? 0);
+
+        $employee->salaryHistory()->update(['is_current' => false, 'effective_to' => now()->toDateString()]);
         $employee->salaryHistory()->create(array_merge($data, ['is_current' => true]));
 
         return back()->with('success', 'Salary structure saved.');

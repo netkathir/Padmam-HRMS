@@ -161,11 +161,23 @@ Route::middleware('auth')->group(function () {
     Route::get('/payroll/generate',              [PayrollController::class, 'generateForm'])->name('payroll.generate')->middleware('permission:payroll.read');
     Route::post('/payroll/generate',             [PayrollController::class, 'generate'])->name('payroll.generate.post')->middleware('permission:payroll.full');
     Route::get('/payroll/{payroll}/payslip',     [PayrollController::class, 'payslip'])->name('payroll.payslip')->middleware('permission:payroll.read');
+    Route::get('/payroll/{payroll}/payslip/pdf', [PayrollController::class, 'payslipPdf'])->name('payroll.payslip.pdf')->middleware('permission:payroll.read');
+    Route::post('/payroll/{payroll}/payslip/email', [PayrollController::class, 'emailPayslip'])->name('payroll.payslip.email')->middleware('permission:payroll.read');
+    Route::get('/payroll/payslip/bulk',          [PayrollController::class, 'payslipBulk'])->name('payroll.payslip.bulk')->middleware('permission:payroll.read');
     Route::get('/payroll/{payroll}/payment',     [PayrollController::class, 'paymentForm'])->name('payroll.payment')->middleware('permission:payroll.read');
     Route::post('/payroll/{payroll}/payment',    [PayrollController::class, 'storePayment'])->name('payroll.payment.store')->middleware('permission:payroll.full');
+    Route::post('/payroll/{payroll}/adjustment', [PayrollController::class, 'manualAdjustment'])->name('payroll.adjustment.store')->middleware('permission:payroll.full');
+    Route::delete('/payroll/{payroll}/adjustment/{type}/{id}', [PayrollController::class, 'deleteManualAdjustment'])->name('payroll.adjustment.destroy')->middleware('permission:payroll.full');
     Route::get('/payroll/lop-review',            [PayrollController::class, 'lopReview'])->name('payroll.lop-review')->middleware('permission:payroll.read');
     Route::post('/payroll/{payroll}/lop',        [PayrollController::class, 'updateLop'])->name('payroll.lop.update')->middleware('permission:payroll.full');
     Route::post('/payroll/lop-review/confirm',   [PayrollController::class, 'confirmLop'])->name('payroll.lop.confirm')->middleware('permission:payroll.full');
+    Route::post('/payroll/lop-review/bulk',      [PayrollController::class, 'bulkLopAction'])->name('payroll.lop.bulk')->middleware('permission:payroll.full');
+    Route::post('/payroll/confirm',              [PayrollController::class, 'confirmPayroll'])->name('payroll.confirm')->middleware('permission:payroll.full');
+    Route::post('/payroll/close',                [PayrollController::class, 'closePayroll'])->name('payroll.close')->middleware('permission:payroll.full');
+    Route::post('/payroll/{payroll}/reopen',     [PayrollController::class, 'reopenPayroll'])->name('payroll.reopen')->middleware('permission:payroll.full');
+    Route::get('/payroll/export/register',       [PayrollController::class, 'exportRegister'])->name('payroll.export.register')->middleware('permission:payroll.read');
+    Route::get('/payroll/export/bank-transfer',  [PayrollController::class, 'exportBankTransfer'])->name('payroll.export.bank-transfer')->middleware('permission:payroll.full');
+    Route::get('/payroll/export/statutory',      [PayrollController::class, 'exportStatutory'])->name('payroll.export.statutory')->middleware('permission:payroll.read');
 
     Route::get('/contract-payroll',              [ContractPayrollController::class, 'index'])->name('contract-payroll.index')->middleware('permission:payroll.read');
     Route::get('/contract-payroll/calculate',    [ContractPayrollController::class, 'calculateForm'])->name('contract-payroll.calculate')->middleware('permission:payroll.read');

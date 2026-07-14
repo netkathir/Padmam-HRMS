@@ -71,18 +71,46 @@
         </form>
     </div>
 </div>
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="mb-3">LOP Confirmation Summary <small class="text-muted fw-normal">(FSD 13.3)</small></h6>
+        <div class="row g-2 text-center">
+            <div class="col"><div class="p-2 bg-light rounded"><div class="fw-bold">{{ $lopSummary['total_selected'] }}</div><small class="text-muted">Total Selected</small></div></div>
+            <div class="col"><div class="p-2 bg-light rounded"><div class="fw-bold">{{ $lopSummary['calculated_lop_count'] }}</div><small class="text-muted">With Calculated LOP</small></div></div>
+            <div class="col"><div class="p-2 bg-success-subtle rounded"><div class="fw-bold">{{ $lopSummary['lop_applied_count'] }}</div><small class="text-muted">LOP Applied</small></div></div>
+            <div class="col"><div class="p-2 bg-secondary-subtle rounded"><div class="fw-bold">{{ $lopSummary['lop_excluded_count'] }}</div><small class="text-muted">LOP Excluded</small></div></div>
+            <div class="col"><div class="p-2 bg-warning-subtle rounded"><div class="fw-bold">{{ $lopSummary['manual_adjustment_count'] }}</div><small class="text-muted">Manual Adjustments</small></div></div>
+            <div class="col"><div class="p-2 bg-danger-subtle rounded"><div class="fw-bold">{{ $lopSummary['unresolved_attendance_count'] }}</div><small class="text-muted">Unresolved Attendance</small></div></div>
+        </div>
+    </div>
+</div>
 <div class="card">
     <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
             <p class="text-muted small mb-0">Changing Approved LOP Days away from the Calculated value requires a reason. Employees with zero calculated LOP don't require any selection.</p>
-            <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#confirmLopModal">
-                <i class="bi bi-shield-check"></i> Confirm LOP for This Period
-            </button>
+            <div class="d-flex gap-2">
+                <form action="{{ route('payroll.lop.bulk') }}" method="POST" onsubmit="return confirm('Apply LOP to all eligible employees in this filtered list?');">
+                    @csrf
+                    <input type="hidden" name="action" value="apply_all">
+                    <input type="hidden" name="month" value="{{ $month }}"><input type="hidden" name="year" value="{{ $year }}">
+                    <button class="btn btn-sm btn-outline-success"><i class="bi bi-check-all"></i> Apply LOP to All</button>
+                </form>
+                <form action="{{ route('payroll.lop.bulk') }}" method="POST" id="bulkRemoveForm" onsubmit="return confirm('Remove LOP for the selected employees?');">
+                    @csrf
+                    <input type="hidden" name="action" value="remove_selected">
+                    <input type="hidden" name="month" value="{{ $month }}"><input type="hidden" name="year" value="{{ $year }}">
+                    <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-circle"></i> Remove LOP for Selected</button>
+                </form>
+                <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#confirmLopModal">
+                    <i class="bi bi-shield-check"></i> Confirm LOP for This Period
+                </button>
+            </div>
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle small">
                 <thead>
                     <tr>
+                        <th><input type="checkbox" onclick="document.querySelectorAll('.lop-select').forEach(c=>c.checked=this.checked)"></th>
                         <th>Employee Number</th>
                         <th>Employee Name</th>
                         <th class="text-end">Absent<br>Days</th>
@@ -103,6 +131,7 @@
                     @php $zeroLop = (float) $record->calculated_lop_days <= 0; @endphp
                     @php $formId = 'lop-form-' . $record->id; @endphp
                     <tr class="lop-row">
+                        <td><input type="checkbox" class="lop-select" name="payroll_ids[]" value="{{ $record->id }}" form="bulkRemoveForm"></td>
                         <td>
                             <form id="{{ $formId }}" action="{{ route('payroll.lop.update', $record) }}" method="POST" class="d-none">
                                 @csrf
@@ -134,7 +163,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="13" class="text-center text-muted py-4">No draft payroll records for this period.</td></tr>
+                    <tr><td colspan="14" class="text-center text-muted py-4">No draft payroll records for this period.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -181,11 +210,15 @@
 
     // FSD 12.4 — "Adjustment" is a live client-side delta (Approved - Calculated),
     // and "Final LOP Days" previews Apply-LOP ? Approved : 0, before saving.
-    document.querySelectorAll('.lop-row-form').forEach(function (form) {
-        const approvedInput = form.querySelector('.approved-lop');
-        const applyCheckbox = form.querySelector('.apply-lop');
-        const adjustmentCell = form.querySelector('.adjustment-cell');
-        const finalCell = form.querySelector('.final-lop-cell');
+    // Fixes a pre-existing bug: this previously queried '.lop-row-form', a
+    // class that was never actually present on any element (the row is
+    // '.lop-row', the form itself has no class) — the live preview never
+    // ran at all, silently.
+    document.querySelectorAll('.lop-row').forEach(function (row) {
+        const approvedInput = row.querySelector('.approved-lop');
+        const applyCheckbox = row.querySelector('.apply-lop');
+        const adjustmentCell = row.querySelector('.adjustment-cell');
+        const finalCell = row.querySelector('.final-lop-cell');
 
         function recalc() {
             const calculated = parseFloat(approvedInput.dataset.calculated) || 0;

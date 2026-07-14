@@ -20,25 +20,44 @@
                         <label class="form-label">Salary Slab</label>
                         <select name="salary_slab_id" class="form-select">
                             <option value="">— None —</option>
-                            @foreach($salarySlabs as $slab)
-                            <option value="{{ $slab->id }}" {{ old('salary_slab_id', $employee->salary_slab_id) == $slab->id ? 'selected' : '' }}>
-                                {{ $slab->name }} (₹{{ number_format($slab->min_salary) }} – ₹{{ number_format($slab->max_salary) }})
+                            @foreach($slabs as $slab)
+                            <option value="{{ $slab->id }}" {{ old('salary_slab_id', $salary->salary_slab_id ?? null) == $slab->id ? 'selected' : '' }}>
+                                {{ $slab->name }} (₹{{ number_format($slab->min_ctc) }} – ₹{{ number_format($slab->max_ctc) }})
                             </option>
                             @endforeach
                         </select>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">CTC (₹) <span class="text-danger">*</span></label>
+                        <input type="number" name="ctc" step="0.01" min="0" class="form-control @error('ctc') is-invalid @enderror" value="{{ old('ctc', $salary->ctc ?? '') }}" required>
+                        @error('ctc')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Basic Salary (₹) <span class="text-danger">*</span></label>
-                        <input type="number" name="basic_salary" step="0.01" min="0" class="form-control @error('basic_salary') is-invalid @enderror" value="{{ old('basic_salary', $employee->basic_salary) }}" required>
+                        <input type="number" name="basic_salary" step="0.01" min="0" class="form-control @error('basic_salary') is-invalid @enderror" value="{{ old('basic_salary', $salary->basic_salary ?? '') }}" required>
                         @error('basic_salary')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">HRA (₹)</label>
-                        <input type="number" name="hra" step="0.01" min="0" class="form-control" value="{{ old('hra', $employee->hra) }}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Other Allowances (₹)</label>
-                        <input type="number" name="other_allowances" step="0.01" min="0" class="form-control" value="{{ old('other_allowances', $employee->other_allowances) }}">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">HRA (₹)</label>
+                            <input type="number" name="hra" step="0.01" min="0" class="form-control" value="{{ old('hra', $salary->hra ?? 0) }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">DA (₹)</label>
+                            <input type="number" name="da" step="0.01" min="0" class="form-control" value="{{ old('da', $salary->da ?? 0) }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">TA (₹)</label>
+                            <input type="number" name="ta" step="0.01" min="0" class="form-control" value="{{ old('ta', $salary->ta ?? 0) }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Medical Allowance (₹)</label>
+                            <input type="number" name="medical_allowance" step="0.01" min="0" class="form-control" value="{{ old('medical_allowance', $salary->medical_allowance ?? 0) }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Special Allowance (₹)</label>
+                            <input type="number" name="special_allowance" step="0.01" min="0" class="form-control" value="{{ old('special_allowance', $salary->special_allowance ?? 0) }}">
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Effective From <span class="text-danger">*</span></label>
@@ -47,12 +66,12 @@
                     </div>
                     <div class="form-check mb-3">
                         <input type="hidden" name="pf_applicable" value="0">
-                        <input type="checkbox" name="pf_applicable" class="form-check-input" value="1" {{ old('pf_applicable', $employee->pf_applicable) ? 'checked' : '' }}>
+                        <input type="checkbox" name="pf_applicable" class="form-check-input" value="1" {{ old('pf_applicable', $employee->is_pf_applicable) ? 'checked' : '' }}>
                         <label class="form-check-label">PF Applicable</label>
                     </div>
                     <div class="form-check mb-3">
                         <input type="hidden" name="esi_applicable" value="0">
-                        <input type="checkbox" name="esi_applicable" class="form-check-input" value="1" {{ old('esi_applicable', $employee->esi_applicable) ? 'checked' : '' }}>
+                        <input type="checkbox" name="esi_applicable" class="form-check-input" value="1" {{ old('esi_applicable', $employee->is_esi_applicable) ? 'checked' : '' }}>
                         <label class="form-check-label">ESI Applicable</label>
                     </div>
                     <button type="submit" class="btn btn-primary w-100"><i class="bi bi-save"></i> Update Salary</button>
@@ -64,35 +83,48 @@
         <div class="card mb-3">
             <div class="card-header"><h6 class="mb-0">Current Salary Summary</h6></div>
             <div class="card-body">
+                @if($salary)
                 <dl class="row mb-0">
                     <dt class="col-sm-5">Basic Salary</dt>
-                    <dd class="col-sm-7">₹{{ number_format($employee->basic_salary ?? 0, 2) }}</dd>
+                    <dd class="col-sm-7">₹{{ number_format($salary->basic_salary, 2) }}</dd>
                     <dt class="col-sm-5">HRA</dt>
-                    <dd class="col-sm-7">₹{{ number_format($employee->hra ?? 0, 2) }}</dd>
-                    <dt class="col-sm-5">Other Allowances</dt>
-                    <dd class="col-sm-7">₹{{ number_format($employee->other_allowances ?? 0, 2) }}</dd>
-                    <dt class="col-sm-5 fw-bold border-top pt-2">Gross CTC</dt>
-                    <dd class="col-sm-7 fw-bold border-top pt-2">₹{{ number_format(($employee->basic_salary ?? 0) + ($employee->hra ?? 0) + ($employee->other_allowances ?? 0), 2) }}</dd>
+                    <dd class="col-sm-7">₹{{ number_format($salary->hra, 2) }}</dd>
+                    <dt class="col-sm-5">DA</dt>
+                    <dd class="col-sm-7">₹{{ number_format($salary->da, 2) }}</dd>
+                    <dt class="col-sm-5">TA</dt>
+                    <dd class="col-sm-7">₹{{ number_format($salary->ta, 2) }}</dd>
+                    <dt class="col-sm-5">Medical Allowance</dt>
+                    <dd class="col-sm-7">₹{{ number_format($salary->medical_allowance, 2) }}</dd>
+                    <dt class="col-sm-5">Special Allowance</dt>
+                    <dd class="col-sm-7">₹{{ number_format($salary->special_allowance, 2) }}</dd>
+                    <dt class="col-sm-5 fw-bold border-top pt-2">Gross Salary</dt>
+                    <dd class="col-sm-7 fw-bold border-top pt-2">₹{{ number_format($salary->gross_salary, 2) }}</dd>
+                    <dt class="col-sm-5">CTC</dt>
+                    <dd class="col-sm-7">₹{{ number_format($salary->ctc, 2) }}</dd>
                     <dt class="col-sm-5">PF</dt>
-                    <dd class="col-sm-7">{{ $employee->pf_applicable ? 'Applicable' : 'Not Applicable' }}</dd>
+                    <dd class="col-sm-7">{{ $employee->is_pf_applicable ? 'Applicable' : 'Not Applicable' }}</dd>
                     <dt class="col-sm-5">ESI</dt>
-                    <dd class="col-sm-7">{{ $employee->esi_applicable ? 'Applicable' : 'Not Applicable' }}</dd>
+                    <dd class="col-sm-7">{{ $employee->is_esi_applicable ? 'Applicable' : 'Not Applicable' }}</dd>
                 </dl>
+                @else
+                <p class="text-muted mb-0">No salary structure recorded yet.</p>
+                @endif
             </div>
         </div>
-        @if(!empty($salaryHistory))
+        @if($history->isNotEmpty())
         <div class="card">
             <div class="card-header"><h6 class="mb-0">Salary History</h6></div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-sm mb-0">
-                        <thead><tr><th>Effective From</th><th>Basic</th><th>Gross</th></tr></thead>
+                        <thead><tr><th>Effective From</th><th>Effective To</th><th>Basic</th><th>Gross</th></tr></thead>
                         <tbody>
-                            @foreach($salaryHistory as $hist)
+                            @foreach($history as $hist)
                             <tr>
-                                <td>{{ \Carbon\Carbon::parse($hist->effective_from)->format('d M Y') }}</td>
+                                <td>{{ $hist->effective_from?->format('d M Y') }}</td>
+                                <td>{{ $hist->effective_to?->format('d M Y') ?? ($hist->is_current ? 'Current' : '—') }}</td>
                                 <td>₹{{ number_format($hist->basic_salary, 0) }}</td>
-                                <td>₹{{ number_format($hist->gross, 0) }}</td>
+                                <td>₹{{ number_format($hist->gross_salary, 0) }}</td>
                             </tr>
                             @endforeach
                         </tbody>

@@ -91,6 +91,10 @@ Route::middleware('auth')->group(function () {
         ->middlewareFor(['update', 'destroy'], 'permission:employees.full');
     Route::get('/employees/{employee}/documents',  [EmployeeController::class, 'documents'])->name('employees.documents')->middleware('permission:employees.read');
     Route::post('/employees/{employee}/documents', [EmployeeController::class, 'uploadDocument'])->name('employees.documents.upload')->middleware('permission:employees.create');
+    Route::delete('/employees/{employee}/documents/{document}', [EmployeeController::class, 'deleteDocument'])->name('employees.documents.destroy')->middleware('permission:employees.full');
+    Route::post('/employees/{employee}/bank-details',              [EmployeeController::class, 'storeBankDetail'])->name('employees.bank-details.store')->middleware('permission:employees.create');
+    Route::put('/employees/{employee}/bank-details/{bankDetail}',  [EmployeeController::class, 'updateBankDetail'])->name('employees.bank-details.update')->middleware('permission:employees.full');
+    Route::delete('/employees/{employee}/bank-details/{bankDetail}', [EmployeeController::class, 'destroyBankDetail'])->name('employees.bank-details.destroy')->middleware('permission:employees.full');
     Route::get('/employees/{employee}/salary',     [EmployeeController::class, 'salary'])->name('employees.salary')->middleware('permission:employees.read');
     Route::post('/employees/{employee}/salary',    [EmployeeController::class, 'storeSalary'])->name('employees.salary.store')->middleware('permission:employees.full');
     Route::get('/employees/{employee}/exit',       [EmployeeController::class, 'exit'])->name('employees.exit')->middleware('permission:employees.read');

@@ -12,15 +12,19 @@ class Employee extends Model
     protected $table = 'employees';
 
     protected $fillable = [
-        'employee_code', 'branch_id', 'department_id', 'designation_id',
-        'employee_type_id', 'primary_employee_type', 'labour_type', 'contractor_id', 'shift_id', 'reporting_to', 'salary_slab_id',
-        'first_name', 'last_name', 'date_of_birth', 'gender', 'marital_status',
-        'blood_group', 'nationality', 'religion',
+        'employee_code', 'biometric_id', 'branch_id', 'department_id', 'designation_id',
+        'employee_type_id', 'primary_employee_type', 'labour_type', 'contractor_id',
+        'contractor_employee_number', 'work_order_number', 'labour_category', 'contractor_rate', 'contractor_remarks',
+        'shift_id', 'weekly_off_rule_id', 'attendance_rule_id', 'payroll_rule_id',
+        'reporting_to', 'salary_slab_id',
+        'first_name', 'middle_name', 'last_name', 'display_name', 'date_of_birth', 'gender', 'marital_status',
+        'blood_group', 'nationality', 'religion', 'father_spouse_name',
         'personal_email', 'official_email', 'phone', 'alternate_phone',
-        'emergency_contact_name', 'emergency_contact_phone',
-        'address_line1', 'address_line2', 'city', 'state', 'pincode',
-        'date_of_joining', 'date_of_confirmation', 'probation_end_date', 'status',
-        'aadhaar_number', 'pan_number', 'uan_number', 'esi_number',
+        'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship',
+        'address_line1', 'address_line2', 'city', 'district', 'state', 'pincode',
+        'permanent_address_line1', 'permanent_address_line2', 'permanent_city', 'permanent_district', 'permanent_state', 'permanent_pincode',
+        'date_of_joining', 'date_of_confirmation', 'probation_end_date', 'contract_start_date', 'contract_end_date', 'status',
+        'aadhaar_number', 'pan_number', 'uan_number', 'pf_number', 'esi_number',
         'passport_number', 'passport_expiry',
         'profile_photo', 'is_pf_applicable', 'is_esi_applicable', 'is_tds_applicable',
         'created_by',
@@ -33,10 +37,13 @@ class Employee extends Model
             'date_of_joining'        => 'date',
             'date_of_confirmation'   => 'date',
             'probation_end_date'     => 'date',
+            'contract_start_date'    => 'date',
+            'contract_end_date'      => 'date',
             'passport_expiry'        => 'date',
             'is_pf_applicable'       => 'boolean',
             'is_esi_applicable'      => 'boolean',
             'is_tds_applicable'      => 'boolean',
+            'contractor_rate'        => 'decimal:2',
         ];
     }
 
@@ -46,11 +53,24 @@ class Employee extends Model
     public function scopeOfBranch($query, int $branchId) { return $query->where('branch_id', $branchId); }
     public function scopeStaff($query) { return $query->where('primary_employee_type', 'staff'); }
     public function scopeCompanyLabour($query) { return $query->where('primary_employee_type', 'labour')->where('labour_type', 'company_labour'); }
+    public function scopeContractLabour($query) { return $query->where('primary_employee_type', 'labour')->where('labour_type', 'contract_labour'); }
 
     // ── Computed ───────────────────────────────────────────────────
     public function getFullNameAttribute(): string
     {
-        return $this->first_name . ' ' . $this->last_name;
+        return trim(collect([$this->first_name, $this->middle_name, $this->last_name])->filter()->implode(' '));
+    }
+
+    /** FSD 10.3.1 — "Display Name ... Defaults from employee name." */
+    public function getDisplayNameOrDefaultAttribute(): string
+    {
+        return $this->display_name ?: $this->full_name;
+    }
+
+    /** FSD 10.3.1 — "Age ... Calculated from date of birth." */
+    public function getAgeAttribute(): ?int
+    {
+        return $this->date_of_birth ? $this->date_of_birth->age : null;
     }
 
     public function getProfilePhotoUrlAttribute(): string
@@ -58,6 +78,18 @@ class Employee extends Model
         return $this->profile_photo
             ? asset('storage/' . $this->profile_photo)
             : asset('images/default-avatar.png');
+    }
+
+    /** FSD 10.8 — "system shall warn before contract expiry." */
+    public function isContractExpiringSoon(): bool
+    {
+        return $this->contract_end_date
+            && $this->contract_end_date->between(now(), now()->addDays(30));
+    }
+
+    public function isContractExpired(): bool
+    {
+        return $this->contract_end_date && $this->contract_end_date->isPast();
     }
 
     // ── Relationships ──────────────────────────────────────────────
@@ -69,6 +101,11 @@ class Employee extends Model
     public function shift()        { return $this->belongsTo(Shift::class); }
     public function salarySlab()   { return $this->belongsTo(SalarySlab::class); }
     public function user()         { return $this->hasOne(User::class); }
+
+    /** FSD 10.3.3 — per-employee Rule Engine overrides (nullable; null = automatic resolution, unchanged). */
+    public function weeklyOffRuleOverride()  { return $this->belongsTo(BusinessRule::class, 'weekly_off_rule_id'); }
+    public function attendanceRuleOverride() { return $this->belongsTo(BusinessRule::class, 'attendance_rule_id'); }
+    public function payrollRuleOverride()    { return $this->belongsTo(BusinessRule::class, 'payroll_rule_id'); }
 
     public function reportingTo()
     {

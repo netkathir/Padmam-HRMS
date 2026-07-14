@@ -7,13 +7,21 @@
 @section('content')
     <div class="card">
         <div class="card-body">
-            <form action="{{ route('employees.store') }}" method="POST">
+            <form action="{{ route('employees.store') }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 <div class="row g-3">
                     <div class="col-12">
                         <h6 class="fw-bold border-bottom pb-2">Personal Information</h6>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Photo</label>
+                        <input type="file" name="profile_photo" accept=".jpg,.jpeg,.png"
+                            class="form-control @error('profile_photo') is-invalid @enderror">
+                        @error('profile_photo')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label">First Name <span class="text-danger">*</span></label>
                         <input type="text" name="first_name"
                             class="form-control @error('first_name') is-invalid @enderror" value="{{ old('first_name') }}"
@@ -22,15 +30,28 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                    <div class="col-md-3">
+                        <label class="form-label">Middle Name</label>
+                        <input type="text" name="middle_name"
+                            class="form-control @error('middle_name') is-invalid @enderror" value="{{ old('middle_name') }}">
+                        @error('middle_name')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Last Name</label>
                         <input type="text" name="last_name" class="form-control @error('last_name') is-invalid @enderror"
-                            value="{{ old('last_name') }}" required>
+                            value="{{ old('last_name') }}">
                         @error('last_name')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Display Name</label>
+                        <input type="text" name="display_name" class="form-control"
+                            value="{{ old('display_name') }}" placeholder="Defaults to full name">
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label">Employee Code</label>
                         <input type="text" name="employee_code"
                             class="form-control @error('employee_code') is-invalid @enderror"
@@ -40,9 +61,17 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Biometric ID <span class="text-danger">*</span></label>
+                        <input type="text" name="biometric_id"
+                            class="form-control @error('biometric_id') is-invalid @enderror" value="{{ old('biometric_id') }}" required>
+                        @error('biometric_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label">Employee Category <span class="text-danger">*</span></label>
-                        <select name="employee_category" class="form-select @error('employee_category') is-invalid @enderror" required>
+                        <select name="employee_category" id="employee_category" class="form-select @error('employee_category') is-invalid @enderror" required>
                             <option value="">Select</option>
                             <option value="staff" {{ old('employee_category') == 'staff' ? 'selected' : '' }}>Staff</option>
                             <option value="company_labour" {{ old('employee_category') == 'company_labour' ? 'selected' : '' }}>Company Labour</option>
@@ -91,6 +120,21 @@
                         <label class="form-label">Blood Group</label>
                         <input type="text" name="blood_group" class="form-control" value="{{ old('blood_group') }}">
                     </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Father / Spouse Name</label>
+                        <input type="text" name="father_spouse_name" class="form-control @error('father_spouse_name') is-invalid @enderror" value="{{ old('father_spouse_name') }}">
+                        @error('father_spouse_name')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Nationality</label>
+                        <input type="text" name="nationality" class="form-control" value="{{ old('nationality', 'Indian') }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Religion</label>
+                        <input type="text" name="religion" class="form-control" value="{{ old('religion') }}">
+                    </div>
 
                     <div class="col-12 mt-3">
                         <h6 class="fw-bold border-bottom pb-2">Contact Information</h6>
@@ -109,7 +153,7 @@
                         <input type="email" name="personal_email" class="form-control"
                             value="{{ old('personal_email') }}">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-2">
                         <label class="form-label">Phone <span class="text-danger">*</span></label>
                         <input type="text" name="phone" class="form-control @error('phone') is-invalid @enderror"
                             value="{{ old('phone') }}" required>
@@ -117,21 +161,102 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="col-12">
-                        <label class="form-label">Address</label>
-                        <textarea name="address_line1" class="form-control" rows="2">{{ old('address_line1') }}</textarea>
+                    <div class="col-md-2">
+                        <label class="form-label">Alternate Phone</label>
+                        <input type="text" name="alternate_phone" class="form-control @error('alternate_phone') is-invalid @enderror" value="{{ old('alternate_phone') }}">
+                        @error('alternate_phone')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
                     <div class="col-md-4">
+                        <label class="form-label">Emergency Contact Name</label>
+                        <input type="text" name="emergency_contact_name" class="form-control" value="{{ old('emergency_contact_name') }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Emergency Contact Phone</label>
+                        <input type="text" name="emergency_contact_phone" class="form-control @error('emergency_contact_phone') is-invalid @enderror" value="{{ old('emergency_contact_phone') }}">
+                        @error('emergency_contact_phone')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Emergency Contact Relationship</label>
+                        <input type="text" name="emergency_contact_relationship" class="form-control" value="{{ old('emergency_contact_relationship') }}">
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Current Address <span class="text-danger">*</span></label>
+                        <textarea name="address_line1" class="form-control @error('address_line1') is-invalid @enderror" rows="2" required>{{ old('address_line1') }}</textarea>
+                        @error('address_line1')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label">City</label>
                         <input type="text" name="city" class="form-control" value="{{ old('city') }}">
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">State</label>
-                        <input type="text" name="state" class="form-control" value="{{ old('state') }}">
+                    <div class="col-md-3">
+                        <label class="form-label">District <span class="text-danger">*</span></label>
+                        <input type="text" name="district" class="form-control @error('district') is-invalid @enderror" value="{{ old('district') }}" required>
+                        @error('district')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Pincode</label>
-                        <input type="text" name="pincode" class="form-control" value="{{ old('pincode') }}">
+                    <div class="col-md-3">
+                        <label class="form-label">State <span class="text-danger">*</span></label>
+                        <select name="state" class="form-select @error('state') is-invalid @enderror" required>
+                            <option value="">Select State</option>
+                            @foreach ($states as $st)
+                                <option value="{{ $st }}" {{ old('state') == $st ? 'selected' : '' }}>{{ $st }}</option>
+                            @endforeach
+                        </select>
+                        @error('state')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Pincode <span class="text-danger">*</span></label>
+                        <input type="text" name="pincode" class="form-control @error('pincode') is-invalid @enderror" value="{{ old('pincode') }}" required maxlength="6">
+                        @error('pincode')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input type="checkbox" name="same_as_current_address" id="same_as_current_address" value="1" class="form-check-input" {{ old('same_as_current_address') ? 'checked' : '' }}>
+                            <label class="form-check-label" for="same_as_current_address">Permanent address same as current address</label>
+                        </div>
+                    </div>
+                    <div id="permanent-address-fields" class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Permanent Address <span class="text-danger">*</span></label>
+                            <textarea name="permanent_address_line1" class="form-control @error('permanent_address_line1') is-invalid @enderror" rows="2">{{ old('permanent_address_line1') }}</textarea>
+                            @error('permanent_address_line1')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">City</label>
+                            <input type="text" name="permanent_city" class="form-control" value="{{ old('permanent_city') }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">District</label>
+                            <input type="text" name="permanent_district" class="form-control" value="{{ old('permanent_district') }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">State</label>
+                            <select name="permanent_state" class="form-select">
+                                <option value="">Select State</option>
+                                @foreach ($states as $st)
+                                    <option value="{{ $st }}" {{ old('permanent_state') == $st ? 'selected' : '' }}>{{ $st }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Pincode</label>
+                            <input type="text" name="permanent_pincode" class="form-control" value="{{ old('permanent_pincode') }}" maxlength="6">
+                        </div>
                     </div>
 
                     <div class="col-12 mt-3">
@@ -237,42 +362,178 @@
                             @endforeach
                         </select>
                     </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Probation End Date</label>
+                        <input type="date" name="probation_end_date" class="form-control @error('probation_end_date') is-invalid @enderror" value="{{ old('probation_end_date') }}">
+                        @error('probation_end_date')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Confirmation Date</label>
+                        <input type="date" name="date_of_confirmation" class="form-control @error('date_of_confirmation') is-invalid @enderror" value="{{ old('date_of_confirmation') }}">
+                        @error('date_of_confirmation')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    @if($canOverrideRules)
+                    <div class="col-12 mt-3">
+                        <h6 class="fw-bold border-bottom pb-2">Rule Engine Overrides <small class="fw-normal text-muted">(optional — leave blank to use automatic branch/type resolution)</small></h6>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Weekly Off Rule</label>
+                        <select name="weekly_off_rule_id" class="form-select">
+                            <option value="">Automatic</option>
+                            @foreach ($ruleOptions['weekly_off'] ?? [] as $r)
+                                <option value="{{ $r->id }}" {{ old('weekly_off_rule_id') == $r->id ? 'selected' : '' }}>{{ $r->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Attendance Rule</label>
+                        <select name="attendance_rule_id" class="form-select">
+                            <option value="">Automatic</option>
+                            @foreach ($ruleOptions['attendance'] ?? [] as $r)
+                                <option value="{{ $r->id }}" {{ old('attendance_rule_id') == $r->id ? 'selected' : '' }}>{{ $r->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Payroll Rule</label>
+                        <select name="payroll_rule_id" class="form-select">
+                            <option value="">Automatic</option>
+                            @foreach ($ruleOptions['payroll'] ?? [] as $r)
+                                <option value="{{ $r->id }}" {{ old('payroll_rule_id') == $r->id ? 'selected' : '' }}>{{ $r->name }} ({{ $r->category }})</option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">Overrides one specific payroll category (LOP/PF/ESI/TDS/Overtime) — pick the rule for the category you need to override.</div>
+                    </div>
+                    @endif
+
+                    <div id="contract-labour-section" class="row g-3">
+                        <div class="col-12 mt-3">
+                            <h6 class="fw-bold border-bottom pb-2">Contract Labour Information</h6>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Contractor</label>
+                            <select name="contractor_id" class="form-select @error('contractor_id') is-invalid @enderror">
+                                <option value="">Select</option>
+                                @foreach ($contractors as $c)
+                                    <option value="{{ $c->id }}" {{ old('contractor_id') == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('contractor_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Contractor Employee Number</label>
+                            <input type="text" name="contractor_employee_number" class="form-control" value="{{ old('contractor_employee_number') }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Work Order Number</label>
+                            <input type="text" name="work_order_number" class="form-control" value="{{ old('work_order_number') }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Contract Start Date</label>
+                            <input type="date" name="contract_start_date" class="form-control @error('contract_start_date') is-invalid @enderror" value="{{ old('contract_start_date') }}">
+                            @error('contract_start_date')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Contract End Date</label>
+                            <input type="date" name="contract_end_date" class="form-control @error('contract_end_date') is-invalid @enderror" value="{{ old('contract_end_date') }}">
+                            @error('contract_end_date')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Labour Category</label>
+                            <input type="text" name="labour_category" class="form-control" value="{{ old('labour_category') }}">
+                        </div>
+                        @if($canSetContractorRate)
+                        <div class="col-md-3">
+                            <label class="form-label">Contractor Rate</label>
+                            <input type="number" step="0.01" name="contractor_rate" class="form-control" value="{{ old('contractor_rate') }}">
+                        </div>
+                        @endif
+                        <div class="col-12">
+                            <label class="form-label">Contractor Remarks</label>
+                            <textarea name="contractor_remarks" class="form-control" rows="2">{{ old('contractor_remarks') }}</textarea>
+                        </div>
+                    </div>
 
                     <div class="col-12 mt-3">
                         <h6 class="fw-bold border-bottom pb-2">Government IDs</h6>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Aadhaar Number</label>
-                        <input type="text" name="aadhaar_number" class="form-control"
-                            value="{{ old('aadhaar_number') }}">
+                        <input type="text" name="aadhaar_number" class="form-control @error('aadhaar_number') is-invalid @enderror"
+                            value="{{ old('aadhaar_number') }}" maxlength="12">
+                        @error('aadhaar_number')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">PAN Number</label>
-                        <input type="text" name="pan_number" class="form-control" value="{{ old('pan_number') }}">
+                        <input type="text" name="pan_number" class="form-control @error('pan_number') is-invalid @enderror" value="{{ old('pan_number') }}" maxlength="10" style="text-transform:uppercase">
+                        @error('pan_number')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">UAN Number</label>
-                        <input type="text" name="uan_number" class="form-control" value="{{ old('uan_number') }}">
+                        <input type="text" name="uan_number" class="form-control @error('uan_number') is-invalid @enderror" value="{{ old('uan_number') }}" maxlength="12">
+                        @error('uan_number')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">PF Number</label>
+                        <input type="text" name="pf_number" class="form-control @error('pf_number') is-invalid @enderror" value="{{ old('pf_number') }}">
+                        @error('pf_number')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">ESI Number</label>
+                        <input type="text" name="esi_number" class="form-control @error('esi_number') is-invalid @enderror" value="{{ old('esi_number') }}" maxlength="10">
+                        @error('esi_number')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Passport Number</label>
+                        <input type="text" name="passport_number" class="form-control" value="{{ old('passport_number') }}">
                     </div>
 
                     <div class="col-12 mt-3">
                         <h6 class="fw-bold border-bottom pb-2">Payroll Settings</h6>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="form-check">
                             <input type="checkbox" name="is_pf_applicable" class="form-check-input" value="1"
                                 {{ old('is_pf_applicable', '1') == '1' ? 'checked' : '' }}>
                             <label class="form-check-label">PF Applicable</label>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="form-check">
                             <input type="checkbox" name="is_esi_applicable" class="form-check-input" value="1"
                                 {{ old('is_esi_applicable', '1') == '1' ? 'checked' : '' }}>
                             <label class="form-check-label">ESI Applicable</label>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <div class="form-check">
+                            <input type="checkbox" name="is_tds_applicable" class="form-check-input" value="1"
+                                {{ old('is_tds_applicable') == '1' ? 'checked' : '' }}>
+                            <label class="form-check-label">TDS Applicable</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
                         <div class="form-check">
                             <input type="checkbox" name="create_user" class="form-check-input" value="1">
                             <label class="form-check-label">Create Login User</label>
@@ -287,3 +548,32 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    (function () {
+        const categorySelect = document.getElementById('employee_category');
+        const contractSection = document.getElementById('contract-labour-section');
+        const sameAsCurrent = document.getElementById('same_as_current_address');
+        const permanentFields = document.getElementById('permanent-address-fields');
+
+        function toggleContractSection() {
+            const isContractLabour = categorySelect.value === 'contract_labour';
+            contractSection.style.display = isContractLabour ? '' : 'none';
+        }
+
+        function togglePermanentFields() {
+            permanentFields.style.display = sameAsCurrent.checked ? 'none' : '';
+        }
+
+        if (categorySelect && contractSection) {
+            categorySelect.addEventListener('change', toggleContractSection);
+            toggleContractSection();
+        }
+        if (sameAsCurrent && permanentFields) {
+            sameAsCurrent.addEventListener('change', togglePermanentFields);
+            togglePermanentFields();
+        }
+    })();
+</script>
+@endpush

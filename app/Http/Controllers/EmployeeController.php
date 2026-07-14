@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Bank;
+use App\Models\BusinessRule;
+use App\Models\Contractor;
 use App\Models\Employee;
+use App\Models\EmployeeBankDetail;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Designation;
 use App\Models\EmployeeType;
-use App\Models\Contractor;
+use App\Models\Setting;
 use App\Models\Shift;
 use App\Models\User;
 use App\Services\EmployeeNumberGenerator;
@@ -15,10 +19,14 @@ use App\Support\BranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class EmployeeController extends Controller
 {
+    private const LABOUR_TYPE_MAP = ['staff' => null, 'company_labour' => 'company_labour', 'contract_labour' => 'contract_labour'];
+
     public function index(Request $request)
     {
         $query = Employee::with(['branch', 'department', 'designation', 'employeeType'])
@@ -79,24 +87,169 @@ class EmployeeController extends Controller
     {
         $category = $data['employee_category'];
         $primaryType = $category === 'staff' ? 'staff' : 'labour';
-        $labourType = $category === 'staff' ? null : $category;
+        $labourType = self::LABOUR_TYPE_MAP[$category];
         $data['primary_employee_type'] = $primaryType;
         $data['labour_type'] = $labourType;
 
         $generator = app(EmployeeNumberGenerator::class);
-        // Contractor-wise numbering: this form doesn't capture contractor_id
-        // at creation time (contractor assignment happens afterwards, via
-        // the existing Contractor labour-assignment screen), so
-        // contractor-specific rules simply won't match here — expected, not
-        // a bug, given how contractor assignment already works in this app.
-        $rule = $generator->resolveRule($primaryType, $labourType, $data['branch_id'] ?? null, null);
+        // Contractor-wise numbering: resolved using the contractor now
+        // captured directly on this form for Contract Labour (FSD 10.8).
+        $rule = $generator->resolveRule($primaryType, $labourType, $data['branch_id'] ?? null, $data['contractor_id'] ?? null);
 
         if ($rule) {
             $detail = $rule->employeeNumberRule;
             $canManuallyOverride = $detail->allow_manual_override && auth()->user()->can('rule_engine.full');
             if (! $canManuallyOverride || empty($data['employee_code'])) {
-                $data['employee_code'] = $generator->generate($rule, $data['branch_id'] ?? null, null);
+                $data['employee_code'] = $generator->generate($rule, $data['branch_id'] ?? null, $data['contractor_id'] ?? null);
             }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Module 6 FSD 10.2 — "Biometric ID shall be unique according to
+     * configured scope" (global or per-branch — Setting group `employee`,
+     * key `biometric_id_scope`, same Settings-driven pattern as Module 4's
+     * Sunday-pay config).
+     */
+    private function assertBiometricIdUnique(?string $biometricId, ?int $branchId, ?int $excludeId): void
+    {
+        if (! $biometricId) {
+            return;
+        }
+
+        $scope = Setting::get('employee', 'biometric_id_scope', 'global');
+        $query = Employee::where('biometric_id', $biometricId);
+        if ($scope === 'branch' && $branchId) {
+            $query->where('branch_id', $branchId);
+        }
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+
+        if ($query->exists()) {
+            throw ValidationException::withMessages([
+                'biometric_id' => $scope === 'branch'
+                    ? 'This Biometric ID is already used by another employee in this branch.'
+                    : 'This Biometric ID is already in use.',
+            ]);
+        }
+    }
+
+    /**
+     * FSD 10.3.3 — "Reporting manager shall not be the same employee."
+     */
+    private function assertReportingToIsNotSelf(?int $reportingTo, ?int $employeeId): void
+    {
+        if ($reportingTo !== null && $employeeId !== null && $reportingTo === $employeeId) {
+            throw ValidationException::withMessages([
+                'reporting_to' => 'An employee cannot report to themselves.',
+            ]);
+        }
+    }
+
+    /**
+     * FSD 10.3.3 — "Department, designation, and shift shall belong to the
+     * selected branch or be globally applicable." Mirrors
+     * assertDepartmentBelongsToBranch()/assertDesignationBelongsToBranch() —
+     * a Shift with no branch_branches rows is globally applicable (same
+     * NULL/empty-means-global convention used throughout this app); one
+     * with branch restrictions must include the employee's branch.
+     */
+    private function assertShiftBelongsToBranch(?int $shiftId, ?int $branchId): void
+    {
+        if ($shiftId === null || $branchId === null) {
+            return;
+        }
+
+        $shift = Shift::with('branches')->find($shiftId);
+        if ($shift && $shift->branches->isNotEmpty() && ! $shift->branches->contains('id', $branchId)) {
+            throw ValidationException::withMessages([
+                'shift_id' => 'The selected shift is not applicable to the selected branch.',
+            ]);
+        }
+    }
+
+    /**
+     * FSD 10.8 — Contract Labour: contractor mandatory, must be active, must
+     * be mapped to the employee's branch, and contract dates (if the
+     * contractor has an agreement period configured) must fall within it.
+     */
+    private function assertContractorForLabour(array $data): void
+    {
+        if ($data['employee_category'] !== 'contract_labour') {
+            return;
+        }
+
+        if (empty($data['contractor_id'])) {
+            throw ValidationException::withMessages(['contractor_id' => 'Contractor is mandatory for Contract Labour.']);
+        }
+
+        $contractor = Contractor::with('branches')->find($data['contractor_id']);
+        if (! $contractor) {
+            return;
+        }
+
+        if (! $contractor->is_active) {
+            throw ValidationException::withMessages(['contractor_id' => 'The selected contractor is inactive.']);
+        }
+
+        $branchId = $data['branch_id'] ?? null;
+        $mappedBranchIds = $contractor->branches->pluck('id')->push($contractor->branch_id)->filter();
+        if ($branchId && $mappedBranchIds->isNotEmpty() && ! $mappedBranchIds->contains($branchId)) {
+            throw ValidationException::withMessages(['contractor_id' => 'The selected contractor is not mapped to the selected branch.']);
+        }
+
+        if (! empty($data['contract_start_date'])) {
+            if ($contractor->agreement_start_date && $data['contract_start_date'] < $contractor->agreement_start_date->toDateString()) {
+                throw ValidationException::withMessages(['contract_start_date' => 'Contract start date is before the contractor\'s agreement start date.']);
+            }
+            $contractEnd = $data['contract_end_date'] ?? null;
+            if ($contractEnd && $contractor->agreement_end_date && $contractEnd > $contractor->agreement_end_date->toDateString()) {
+                throw ValidationException::withMessages(['contract_end_date' => 'Contract end date is after the contractor\'s agreement end date.']);
+            }
+        }
+    }
+
+    /**
+     * FSD 10.3.2 — "Same as Current Address" copies current address fields
+     * into the permanent-address columns.
+     */
+    private function applySameAsCurrentAddress(Request $request, array $data): array
+    {
+        if ($request->boolean('same_as_current_address')) {
+            $data['permanent_address_line1'] = $data['address_line1'] ?? null;
+            $data['permanent_address_line2'] = $data['address_line2'] ?? null;
+            $data['permanent_city']          = $data['city'] ?? null;
+            $data['permanent_district']      = $data['district'] ?? null;
+            $data['permanent_state']         = $data['state'] ?? null;
+            $data['permanent_pincode']       = $data['pincode'] ?? null;
+        }
+
+        return $data;
+    }
+
+    /**
+     * FSD 10.3.3 — "Employee-specific overrides shall require proper
+     * permission." Only a user with rule_engine.full may set a per-employee
+     * Rule Engine override; silently stripped otherwise so a crafted request
+     * can't smuggle one in.
+     */
+    private function stripUnauthorizedRuleOverrides(array $data): array
+    {
+        if (! auth()->user()->can('rule_engine.full')) {
+            unset($data['weekly_off_rule_id'], $data['attendance_rule_id'], $data['payroll_rule_id']);
+        }
+
+        return $data;
+    }
+
+    /** FSD 10.8 — "Contractor Rate ... Permission-controlled." */
+    private function stripUnauthorizedContractorRate(array $data): array
+    {
+        if (! auth()->user()->can('employees.full')) {
+            unset($data['contractor_rate']);
         }
 
         return $data;
@@ -109,6 +262,13 @@ class EmployeeController extends Controller
         $data = BranchScope::stampBranchId($data);
         BranchScope::assertBranchIsActive($data['branch_id']);
 
+        $this->assertContractorForLabour($data);
+        $this->assertShiftBelongsToBranch($data['shift_id'] ?? null, $data['branch_id']);
+        $this->assertBiometricIdUnique($data['biometric_id'] ?? null, $data['branch_id'], null);
+        $data = $this->applySameAsCurrentAddress($request, $data);
+        $data = $this->stripUnauthorizedRuleOverrides($data);
+        $data = $this->stripUnauthorizedContractorRate($data);
+
         $data = $this->applyEmployeeNumberRule($data);
         unset($data['employee_category']);
 
@@ -119,6 +279,14 @@ class EmployeeController extends Controller
         $this->assertDepartmentBelongsToBranch($data['department_id'], $data['branch_id']);
         $this->assertDesignationBelongsToBranch($data['designation_id'] ?? null, $data['branch_id']);
         $this->assertDepartmentIsActive($data['department_id'] ?? null);
+
+        if ($request->hasFile('profile_photo')) {
+            $data['profile_photo'] = $request->file('profile_photo')->store('employee-photos', 'public');
+        }
+
+        if (empty($data['display_name'])) {
+            $data['display_name'] = trim(collect([$data['first_name'] ?? null, $data['middle_name'] ?? null, $data['last_name'] ?? null])->filter()->implode(' '));
+        }
 
         $employee = DB::transaction(function () use ($data, $request) {
             $emp = Employee::create($data);
@@ -146,8 +314,13 @@ class EmployeeController extends Controller
     {
         BranchScope::assertBranchAccess($employee->branch_id);
         $employee->load(['branch', 'department', 'designation', 'employeeType', 'contractor',
-            'shift', 'reportingTo', 'user', 'bankDetails', 'currentSalary', 'exitRecord']);
-        return view('employees.show', compact('employee'));
+            'shift', 'reportingTo', 'user', 'bankDetails.bank', 'currentSalary', 'exitRecord',
+            'weeklyOffRuleOverride', 'attendanceRuleOverride', 'payrollRuleOverride']);
+
+        $banks = Bank::where('is_active', true)->orderBy('name')->get();
+        $canViewFullBankDetails = auth()->user()->can('employees.full');
+
+        return view('employees.show', compact('employee', 'banks', 'canViewFullBankDetails'));
     }
 
     public function edit(Employee $employee)
@@ -174,10 +347,24 @@ class EmployeeController extends Controller
         $this->assertDepartmentBelongsToBranch($data['department_id'], $data['branch_id']);
         $this->assertDesignationBelongsToBranch($data['designation_id'] ?? null, $data['branch_id']);
         $this->assertDepartmentIsActive($data['department_id'], $employee);
+        $this->assertContractorForLabour($data);
+        $this->assertShiftBelongsToBranch($data['shift_id'] ?? null, $data['branch_id']);
+        $this->assertBiometricIdUnique($data['biometric_id'] ?? null, $data['branch_id'], $employee->id);
+        $this->assertReportingToIsNotSelf($data['reporting_to'] ?? null, $employee->id);
+        $data = $this->applySameAsCurrentAddress($request, $data);
+        $data = $this->stripUnauthorizedRuleOverrides($data);
+        $data = $this->stripUnauthorizedContractorRate($data);
+
+        if ($request->hasFile('profile_photo')) {
+            if ($employee->profile_photo) {
+                Storage::disk('public')->delete($employee->profile_photo);
+            }
+            $data['profile_photo'] = $request->file('profile_photo')->store('employee-photos', 'public');
+        }
 
         $category = $data['employee_category'];
         $data['primary_employee_type'] = $category === 'staff' ? 'staff' : 'labour';
-        $data['labour_type'] = $category === 'staff' ? null : $category;
+        $data['labour_type'] = self::LABOUR_TYPE_MAP[$category];
         unset($data['employee_category']);
 
         $employee->update($data);
@@ -196,26 +383,118 @@ class EmployeeController extends Controller
     {
         BranchScope::assertBranchAccess($employee->branch_id);
         $documents = $employee->documents()->latest()->get();
-        return view('employees.documents', compact('employee', 'documents'));
+        $mandatoryTypes = json_decode(Setting::get('employee', 'mandatory_document_types', '[]'), true) ?: [];
+        $missingMandatory = array_diff($mandatoryTypes, $documents->pluck('document_type')->all());
+        return view('employees.documents', compact('employee', 'documents', 'missingMandatory'));
     }
 
     public function uploadDocument(Request $request, Employee $employee)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
         $request->validate([
-            'document_type'   => ['required', 'string'],
-            'document_number' => ['nullable', 'string'],
+            'document_type'   => ['required', 'in:aadhaar,pan,passport,offer_letter,resume,relieving_letter,experience_letter,education_certificate,photo,photo_id,bank_proof,other'],
+            'document_number' => ['nullable', 'string', 'max:100'],
+            'expiry_date'     => ['nullable', 'date'],
             'file'            => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
         ]);
 
-        $path = $request->file('file')->store('employee-documents/' . $employee->id, 'public');
+        $file = $request->file('file');
+        $path = $file->store('employee-documents/' . $employee->id, 'public');
+
+        // Fixes a previously-broken insert: document_name/file_size/file_type/
+        // uploaded_by are NOT NULL columns the controller never populated,
+        // and document_number/expiry_date/is_verified now exist on the table
+        // (2026_07_17_000004 migration) matching what this always tried to save.
         $employee->documents()->create([
             'document_type'   => $request->document_type,
+            'document_name'   => $file->getClientOriginalName(),
             'document_number' => $request->document_number,
             'file_path'       => $path,
+            'file_size'       => $file->getSize(),
+            'file_type'       => $file->getClientMimeType(),
+            'expiry_date'     => $request->expiry_date,
+            'uploaded_by'     => auth()->id(),
         ]);
 
         return back()->with('success', 'Document uploaded.');
+    }
+
+    public function deleteDocument(Employee $employee, \App\Models\EmployeeDocument $document)
+    {
+        BranchScope::assertBranchAccess($employee->branch_id);
+        abort_if($document->employee_id !== $employee->id, 404);
+
+        Storage::disk('public')->delete($document->file_path);
+        $document->delete();
+
+        return back()->with('success', 'Document removed.');
+    }
+
+    // ── Bank Details (FSD 10.3.5) ────────────────────────────────────────
+
+    private function bankDetailRules(): array
+    {
+        return [
+            'payment_mode'         => ['required', 'in:bank_transfer,cash,cheque'],
+            'bank_id'              => ['nullable', 'exists:banks,id'],
+            'bank_name'            => ['required_if:payment_mode,bank_transfer', 'nullable', 'string', 'max:100'],
+            'account_holder_name'  => ['required_if:payment_mode,bank_transfer', 'nullable', 'string', 'max:100'],
+            'account_number'       => ['required_if:payment_mode,bank_transfer', 'nullable', 'string', 'max:50'],
+            'account_number_confirmation' => ['required_if:payment_mode,bank_transfer', 'nullable', 'same:account_number'],
+            'ifsc_code'            => ['required_if:payment_mode,bank_transfer', 'nullable', 'string', 'regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'],
+            'branch_name'          => ['nullable', 'string', 'max:100'],
+            'account_type'         => ['nullable', 'in:savings,current,salary'],
+            'is_primary'           => ['boolean'],
+        ];
+    }
+
+    public function storeBankDetail(Request $request, Employee $employee)
+    {
+        BranchScope::assertBranchAccess($employee->branch_id);
+        $data = $request->validate($this->bankDetailRules(), [
+            'ifsc_code.regex' => 'The IFSC code format is invalid (e.g. HDFC0001234).',
+            'account_number_confirmation.same' => 'Account Number and Confirm Account Number must match.',
+        ]);
+        unset($data['account_number_confirmation']);
+        $data['employee_id'] = $employee->id;
+
+        if ($request->boolean('is_primary')) {
+            $employee->bankDetails()->update(['is_primary' => false]);
+        }
+
+        $employee->bankDetails()->create($data);
+
+        return back()->with('success', 'Bank details added.');
+    }
+
+    public function updateBankDetail(Request $request, Employee $employee, EmployeeBankDetail $bankDetail)
+    {
+        BranchScope::assertBranchAccess($employee->branch_id);
+        abort_if($bankDetail->employee_id !== $employee->id, 404);
+
+        $data = $request->validate($this->bankDetailRules(), [
+            'ifsc_code.regex' => 'The IFSC code format is invalid (e.g. HDFC0001234).',
+            'account_number_confirmation.same' => 'Account Number and Confirm Account Number must match.',
+        ]);
+        unset($data['account_number_confirmation']);
+
+        if ($request->boolean('is_primary')) {
+            $employee->bankDetails()->where('id', '!=', $bankDetail->id)->update(['is_primary' => false]);
+        }
+
+        $bankDetail->update($data);
+
+        return back()->with('success', 'Bank details updated.');
+    }
+
+    public function destroyBankDetail(Employee $employee, EmployeeBankDetail $bankDetail)
+    {
+        BranchScope::assertBranchAccess($employee->branch_id);
+        abort_if($bankDetail->employee_id !== $employee->id, 404);
+
+        $bankDetail->delete();
+
+        return back()->with('success', 'Bank details removed.');
     }
 
     public function salary(Employee $employee)
@@ -297,7 +576,7 @@ class EmployeeController extends Controller
         $department = Department::find($departmentId);
 
         if ($department && (int) $department->branch_id !== (int) $branchId) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'department_id' => 'The selected department does not belong to the selected branch.',
             ]);
         }
@@ -319,7 +598,7 @@ class EmployeeController extends Controller
         $designation = Designation::find($designationId);
 
         if ($designation && $designation->department_id !== null && (int) $designation->department?->branch_id !== (int) $branchId) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'designation_id' => 'The selected designation does not belong to the selected branch.',
             ]);
         }
@@ -355,6 +634,29 @@ class EmployeeController extends Controller
             'shifts'        => Shift::where('is_active', true)->get(),
             'managers'      => BranchScope::scopeQuery(Employee::active())->orderBy('first_name')->get(),
             'roles'         => \App\Models\Role::orderBy('name')->get(),
+            'banks'         => Bank::where('is_active', true)->orderBy('name')->get(),
+            'canOverrideRules' => auth()->user()->can('rule_engine.full'),
+            'canSetContractorRate' => auth()->user()->can('employees.full'),
+            'canViewFullBankDetails' => auth()->user()->can('employees.full'),
+            'ruleOptions'   => auth()->user()->can('rule_engine.full') ? $this->ruleOptions() : [],
+            'states'        => config('states', []),
+        ];
+    }
+
+    /**
+     * Active BusinessRule options for the per-employee override selects
+     * (FSD 10.3.3). `weekly_off`/`attendance` map 1:1 to their own select;
+     * every other payroll-related category is grouped under `payroll` since
+     * `payroll_rule_id` is a single reference field (see BusinessRule::resolveForEmployee()).
+     */
+    private function ruleOptions(): array
+    {
+        $rules = BusinessRule::where('status', 'active')->orderBy('name')->get();
+
+        return [
+            'weekly_off' => $rules->where('category', 'weekly_off')->values(),
+            'attendance' => $rules->where('category', 'attendance')->values(),
+            'payroll'    => $rules->whereIn('category', ['lop', 'pf', 'esi', 'tds', 'overtime'])->values(),
         ];
     }
 
@@ -378,37 +680,80 @@ class EmployeeController extends Controller
 
     private function rules(int $excludeId = 0): array
     {
+        $minAge = (int) Setting::get('employee', 'min_working_age', 18);
+        $nameRegex = 'regex:/^[a-zA-Z .\'-]+$/';
+
         return [
-            'first_name'       => ['required', 'string', 'max:100'],
-            'last_name'        => ['required', 'string', 'max:100'],
+            'first_name'       => ['required', 'string', 'max:100', $nameRegex],
+            'middle_name'      => ['nullable', 'string', 'max:100', $nameRegex],
+            'last_name'        => ['nullable', 'string', 'max:100', $nameRegex],
+            'display_name'     => ['nullable', 'string', 'max:200'],
             // Nullable here even though the column is NOT NULL — when a
             // Module 4 Employee Number Rule applies, store() auto-generates
             // it server-side; store() re-checks for emptiness in the no-rule
             // case so manual entry is still effectively required exactly as
             // before this feature existed.
             'employee_code'    => ['nullable', 'string', 'max:20', 'unique:employees,employee_code,' . $excludeId],
+            'biometric_id'     => ['required', 'string', 'max:50'],
             'employee_category' => ['required', 'in:staff,company_labour,contract_labour'],
             'branch_id'        => ['required', 'exists:branches,id'],
             'department_id'    => ['required', 'exists:departments,id'],
             'designation_id'   => ['required', 'exists:designations,id'],
             'employee_type_id' => ['required', 'exists:employee_types,id'],
             'date_of_joining'  => ['required', 'date'],
-            'date_of_birth'    => ['required', 'date'],
+            'date_of_confirmation' => ['nullable', 'date', 'after_or_equal:date_of_joining'],
+            'probation_end_date'   => ['nullable', 'date', 'after:date_of_joining'],
+            'contract_start_date'  => ['required_if:employee_category,contract_labour', 'nullable', 'date'],
+            'contract_end_date'    => ['nullable', 'date', 'after:contract_start_date'],
+            'date_of_birth'    => ['required', 'date', 'before:today', 'before_or_equal:' . now()->subYears($minAge)->toDateString()],
             'gender'           => ['required', 'in:male,female,other'],
+            'marital_status'   => ['nullable', 'in:single,married,divorced,widowed'],
+            'blood_group'      => ['nullable', 'string', 'max:5'],
+            'father_spouse_name' => ['nullable', 'string', 'max:150', $nameRegex],
+            'nationality'      => ['nullable', 'string', 'max:50'],
+            'religion'         => ['nullable', 'string', 'max:50'],
+            'personal_email'   => ['nullable', 'email', 'max:150'],
             'official_email'   => ['required', 'email', 'max:255', 'unique:employees,official_email,' . $excludeId],
-            'phone'            => ['required', 'string', 'max:20'],
-            'status'           => ['required', 'in:active,inactive,probation,terminated'],
+            'phone'            => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'alternate_phone'  => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'status'           => ['required', 'in:active,inactive,probation,terminated,resigned,retired'],
             'shift_id'         => ['nullable', 'exists:shifts,id'],
+            'weekly_off_rule_id'  => ['nullable', 'exists:rules,id'],
+            'attendance_rule_id'  => ['nullable', 'exists:rules,id'],
+            'payroll_rule_id'     => ['nullable', 'exists:rules,id'],
             'reporting_to'     => ['nullable', 'exists:employees,id'],
-            'address_line1'    => ['nullable', 'string', 'max:255'],
+            'address_line1'    => ['required', 'string', 'max:255'],
+            'address_line2'    => ['nullable', 'string', 'max:255'],
             'city'             => ['nullable', 'string', 'max:100'],
-            'state'            => ['nullable', 'string', 'max:100'],
-            'pincode'          => ['nullable', 'string', 'max:10'],
-            'aadhaar_number'   => ['nullable', 'string', 'max:20'],
-            'pan_number'       => ['nullable', 'string', 'max:20'],
+            'district'         => ['required', 'string', 'max:100'],
+            'state'            => ['required', 'string', Rule::in(config('states', []))],
+            'pincode'          => ['required', 'digits:6'],
+            'permanent_address_line1' => ['required_unless:same_as_current_address,1', 'nullable', 'string', 'max:255'],
+            'permanent_address_line2' => ['nullable', 'string', 'max:255'],
+            'permanent_city'          => ['nullable', 'string', 'max:100'],
+            'permanent_district'      => ['nullable', 'string', 'max:100'],
+            'permanent_state'         => ['nullable', 'string', 'max:100'],
+            'permanent_pincode'       => ['nullable', 'digits:6'],
+            'emergency_contact_name'  => ['nullable', 'string', 'max:100'],
+            'emergency_contact_phone' => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'emergency_contact_relationship' => ['nullable', 'string', 'max:50'],
+            'aadhaar_number'   => ['nullable', 'digits:12', Rule::unique('employees', 'aadhaar_number')->ignore($excludeId)],
+            'pan_number'       => ['nullable', 'regex:/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/', Rule::unique('employees', 'pan_number')->ignore($excludeId)],
+            'uan_number'       => ['nullable', 'digits:12', 'required_if:is_pf_applicable,1', Rule::unique('employees', 'uan_number')->ignore($excludeId)],
+            'pf_number'        => ['nullable', 'string', 'max:30', 'required_if:is_pf_applicable,1'],
+            'esi_number'       => ['nullable', 'digits:10', 'required_if:is_esi_applicable,1', Rule::unique('employees', 'esi_number')->ignore($excludeId)],
+            'passport_number'  => ['nullable', 'string', 'max:20'],
+            'passport_expiry'  => ['nullable', 'date'],
+            'profile_photo'    => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
             'is_pf_applicable' => ['boolean'],
             'is_esi_applicable'=> ['boolean'],
             'is_tds_applicable'=> ['boolean'],
+            'contractor_id'    => ['required_if:employee_category,contract_labour', 'nullable', 'exists:contractors,id'],
+            'contractor_employee_number' => ['nullable', 'string', 'max:50'],
+            'work_order_number'          => ['nullable', 'string', 'max:50'],
+            'labour_category'            => ['nullable', 'string', 'max:50'],
+            'contractor_rate'            => ['nullable', 'numeric', 'min:0'],
+            'contractor_remarks'         => ['nullable', 'string'],
         ];
     }
 }

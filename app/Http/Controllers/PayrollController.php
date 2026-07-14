@@ -131,7 +131,7 @@ class PayrollController extends Controller
             // Module 4 FSD 8.5 — Weekly Off Rule drives which days count as
             // working days; falls back to Branch::weekly_off_days, then to
             // the original hardcoded Sat/Sun exclusion.
-            $weeklyOffRule = BusinessRule::resolveFor('weekly_off', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
+            $weeklyOffRule = BusinessRule::resolveForEmployee($employee, 'weekly_off', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
             $weeklyOffDays = $weeklyOffRule?->weeklyOffRule?->weekly_off_days ?? $employee->branch?->weekly_off_days ?? null;
             if ($weeklyOffRule) $appliedRules['weekly_off'] = $weeklyOffRule->id;
             $workingDays = $this->getWorkingDays($month, $year, $weeklyOffDays);
@@ -151,9 +151,9 @@ class PayrollController extends Controller
             // fallback chain SalarySlab itself introduced, extended one
             // level further. A deployment with no Rule Engine PF/ESI/TDS
             // rules configured behaves exactly as before this feature.
-            $pfRule  = BusinessRule::resolveFor('pf', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
-            $esiRule = BusinessRule::resolveFor('esi', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
-            $tdsRule = BusinessRule::resolveFor('tds', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
+            $pfRule  = BusinessRule::resolveForEmployee($employee, 'pf', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
+            $esiRule = BusinessRule::resolveForEmployee($employee, 'esi', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
+            $tdsRule = BusinessRule::resolveForEmployee($employee, 'tds', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
             $pfDetail  = $pfRule?->pfRule;
             $esiDetail = $esiRule?->esiRule;
             $tdsDetail = $tdsRule?->tdsRule;
@@ -264,7 +264,7 @@ class PayrollController extends Controller
      */
     private function calculateLop(Employee $employee, int $month, int $year, int $workingDays, ?int $branchId, ?string $primaryType, ?string $labourType, ?int $contractorId, string $periodDate): array
     {
-        $rule = BusinessRule::resolveFor('lop', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
+        $rule = BusinessRule::resolveForEmployee($employee, 'lop', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
         $detail = $rule?->lopRule;
 
         $attendanceQuery = fn() => Attendance::where('employee_id', $employee->id)
@@ -309,7 +309,7 @@ class PayrollController extends Controller
      */
     private function calculateOvertime(Employee $employee, EmployeeSalaryStructure $salary, int $month, int $year, int $workingDays, ?int $branchId, ?string $primaryType, ?string $labourType, ?int $contractorId, string $periodDate): array
     {
-        $rule = BusinessRule::resolveFor('overtime', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
+        $rule = BusinessRule::resolveForEmployee($employee, 'overtime', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
         $detail = $rule?->overtimeRule;
 
         if (! $detail || ! $detail->overtime_applicable) {

@@ -9,6 +9,12 @@
 @if(session('success'))
     <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 @endif
+@if(!empty($missingMandatory))
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Missing mandatory document(s):
+        {{ collect($missingMandatory)->map(fn($t) => ucfirst(str_replace('_',' ',$t)))->implode(', ') }}
+    </div>
+@endif
 <div class="row g-3">
     <div class="col-md-5">
         <div class="card">
@@ -20,8 +26,8 @@
                         <label class="form-label">Document Type <span class="text-danger">*</span></label>
                         <select name="document_type" class="form-select @error('document_type') is-invalid @enderror" required>
                             <option value="">Select type…</option>
-                            @foreach(['Aadhar Card','PAN Card','Passport','Driving Licence','Bank Passbook','Offer Letter','Experience Letter','Education Certificate','Other'] as $type)
-                            <option value="{{ $type }}" {{ old('document_type') == $type ? 'selected' : '' }}>{{ $type }}</option>
+                            @foreach(['aadhaar' => 'Aadhaar Card', 'pan' => 'PAN Card', 'passport' => 'Passport', 'photo' => 'Photo', 'photo_id' => 'Photo ID Proof', 'bank_proof' => 'Bank Proof', 'offer_letter' => 'Offer Letter', 'resume' => 'Resume', 'relieving_letter' => 'Relieving Letter', 'experience_letter' => 'Experience Letter', 'education_certificate' => 'Education Certificate', 'other' => 'Other'] as $value => $label)
+                            <option value="{{ $value }}" {{ old('document_type') == $value ? 'selected' : '' }}>{{ $label }}</option>
                             @endforeach
                         </select>
                         @error('document_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -55,12 +61,12 @@
                         <tbody>
                             @forelse($documents as $doc)
                             <tr>
-                                <td>{{ $doc->document_type }}</td>
+                                <td>{{ ucfirst(str_replace('_', ' ', $doc->document_type)) }}</td>
                                 <td>{{ $doc->document_number ?? '—' }}</td>
                                 <td>
                                     @if($doc->expiry_date)
                                         @php $exp = \Carbon\Carbon::parse($doc->expiry_date); @endphp
-                                        <span class="{{ $exp->isPast() ? 'text-danger' : ($exp->diffInDays() < 30 ? 'text-warning' : '') }}">
+                                        <span class="{{ $exp->isPast() ? 'text-danger' : ($exp->between(now(), now()->addDays(30)) ? 'text-warning' : '') }}">
                                             {{ $exp->format('d M Y') }}
                                         </span>
                                     @else —
@@ -69,6 +75,12 @@
                                 <td>{{ $doc->created_at->format('d M Y') }}</td>
                                 <td>
                                     <a href="{{ Storage::url($doc->file_path) }}" target="_blank" class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></a>
+                                    @can('employees.full')
+                                    <form action="{{ route('employees.documents.destroy', [$employee, $doc]) }}" method="POST" class="d-inline" onsubmit="return confirm('Remove this document?');">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                    @endcan
                                 </td>
                             </tr>
                             @empty

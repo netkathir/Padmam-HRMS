@@ -224,8 +224,8 @@ class AttendanceController extends Controller
 
         if (! $attendance->is_manual_entry) {
             $employee = $attendance->employee ?? Employee::find($attendance->employee_id);
-            $rule = $employee ? BusinessRule::resolveFor(
-                'attendance', $employee->branch_id, $employee->primary_employee_type,
+            $rule = $employee ? BusinessRule::resolveForEmployee(
+                $employee, 'attendance', $employee->branch_id, $employee->primary_employee_type,
                 $employee->labour_type, $employee->contractor_id, $attendance->date->toDateString()
             ) : null;
             $detail = $rule?->attendanceRule;
@@ -286,8 +286,8 @@ class AttendanceController extends Controller
             return;
         }
 
-        $rule = BusinessRule::resolveFor(
-            'attendance', $employee->branch_id, $employee->primary_employee_type,
+        $rule = BusinessRule::resolveForEmployee(
+            $employee, 'attendance', $employee->branch_id, $employee->primary_employee_type,
             $employee->labour_type, $employee->contractor_id, $attendance->date->toDateString()
         );
         $detail = $rule?->attendanceRule;

@@ -129,4 +129,43 @@ class BusinessRule extends Model
             ])
             ->first();
     }
+
+    /**
+     * FSD 10.3.3 — "Weekly Off Rule, Attendance Rule, Payroll Rule
+     * references" — per-employee overrides of the Module 4 resolution.
+     * `weekly_off_rule_id`/`attendance_rule_id` map 1:1 to their category;
+     * `payroll_rule_id` is a single reference field covering every other
+     * payroll category (lop/pf/esi/tds/overtime), so it only takes effect
+     * when its own category matches the one being resolved for. An
+     * employee with no override set (the common case) resolves exactly as
+     * `resolveFor()` always has — zero behavior change.
+     */
+    public static function resolveForEmployee(
+        Employee $employee,
+        string $category,
+        ?int $branchId,
+        ?string $primaryType,
+        ?string $labourType = null,
+        ?int $contractorId = null,
+        ?string $date = null
+    ): ?self {
+        $overrideId = match ($category) {
+            'weekly_off'  => $employee->weekly_off_rule_id,
+            'attendance'  => $employee->attendance_rule_id,
+            default       => $employee->payroll_rule_id,
+        };
+
+        if ($overrideId) {
+            $override = static::with(self::DETAIL_RELATIONS[$category] ?? [])
+                ->where('id', $overrideId)
+                ->where('category', $category)
+                ->where('status', 'active')
+                ->first();
+            if ($override) {
+                return $override;
+            }
+        }
+
+        return static::resolveFor($category, $branchId, $primaryType, $labourType, $contractorId, $date);
+    }
 }

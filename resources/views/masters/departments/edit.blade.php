@@ -27,16 +27,17 @@
                     @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Code</label>
-                    <input type="text" name="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code', $department->code) }}">
+                    <label class="form-label">Code <span class="text-danger">*</span></label>
+                    <input type="text" name="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code', $department->code) }}" required>
                     @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
                     <div class="form-check">
                         <input type="hidden" name="is_active" value="0">
                         <input type="checkbox" name="is_active" class="form-check-input" value="1" {{ old('is_active', $department->is_active) ? 'checked' : '' }}>
-                        <label class="form-check-label">Active</label>
+                        <label class="form-check-label">Active <span class="text-danger">*</span></label>
                     </div>
+                    @error('is_active')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
                     <label class="form-label">Description</label>

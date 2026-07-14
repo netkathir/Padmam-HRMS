@@ -49,7 +49,7 @@ class DepartmentController extends Controller
             'name'        => ['required', 'string', 'max:100', Rule::unique('departments', 'name')->where('branch_id', $branchId)],
             'code'        => ['required', 'string', 'max:20', 'unique:departments,code'],
             'description' => ['nullable', 'string'],
-            'is_active'   => ['boolean'],
+            'is_active'   => ['required', 'boolean'],
         ]);
 
         $data = BranchScope::stampBranchId($data);
@@ -82,7 +82,7 @@ class DepartmentController extends Controller
             'name'        => ['required', 'string', 'max:100', Rule::unique('departments', 'name')->where('branch_id', $branchId)->ignore($department->id)],
             'code'        => ['required', 'string', 'max:20', 'unique:departments,code,' . $department->id],
             'description' => ['nullable', 'string'],
-            'is_active'   => ['boolean'],
+            'is_active'   => ['required', 'boolean'],
         ]);
 
         $data = BranchScope::stampBranchId($data);

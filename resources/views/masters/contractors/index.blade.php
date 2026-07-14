@@ -9,6 +9,15 @@
         Masters</a>
 @endsection
 @section('content')
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    @endif
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show"><i class="bi bi-exclamation-triangle"></i> {{ session('error') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    @endif
+    @if($expiringSoonCount > 0)
+        <div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> {{ $expiringSoonCount }} contractor(s) have a licence or agreement expiring within 30 days.</div>
+    @endif
     <div class="card">
         <div class="card-body">
             <form method="GET" class="row g-2 mb-3">
@@ -35,6 +44,7 @@
                             <th>Phone</th>
                             <th>Email</th>
                             <th>License Expiry</th>
+                            <th>Agreement End</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -48,7 +58,20 @@
                                 <td>{{ $c->contact_person ?? '—' }}</td>
                                 <td>{{ $c->phone ?? '—' }}</td>
                                 <td>{{ $c->email ?? '—' }}</td>
-                                <td>{{ $c->license_expiry ? $c->license_expiry->format('d-m-Y') : '—' }}</td>
+                                <td>
+                                    @if($c->license_expiry)
+                                        <span class="{{ $c->isLicenseExpired() ? 'text-danger' : ($c->isLicenseExpiringSoon() ? 'text-warning fw-semibold' : '') }}">{{ $c->license_expiry->format('d-m-Y') }}</span>
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                                <td>
+                                    @if($c->agreement_end_date)
+                                        <span class="{{ $c->isAgreementExpired() ? 'text-danger' : ($c->isAgreementExpiringSoon() ? 'text-warning fw-semibold' : '') }}">{{ $c->agreement_end_date->format('d-m-Y') }}</span>
+                                    @else
+                                        —
+                                    @endif
+                                </td>
                                 <td><span
                                         class="badge bg-{{ $c->is_active ? 'success' : 'danger' }}-subtle text-{{ $c->is_active ? 'success' : 'danger' }}">{{ $c->is_active ? 'Active' : 'Inactive' }}</span>
                                 </td>
@@ -66,7 +89,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center text-muted py-4">No contractors found.</td>
+                                <td colspan="10" class="text-center text-muted py-4">No contractors found.</td>
                             </tr>
                         @endforelse
                     </tbody>

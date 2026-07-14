@@ -47,6 +47,11 @@ class ContractWorkerController extends Controller
     {
         BranchScope::assertBranchAccess($contractor->branch_id);
 
+        // FSD 9.1 — "Contract Labour shall not be assigned to an inactive contractor."
+        if (! $contractor->is_active) {
+            return back()->with('error', 'Cannot add contract labour to an inactive contractor.');
+        }
+
         $data = $request->validate([
             'name'            => ['required', 'string', 'max:100'],
             'gender'          => ['nullable', 'in:male,female,other'],
@@ -89,6 +94,13 @@ class ContractWorkerController extends Controller
             'joining_date'    => ['nullable', 'date'],
             'status'          => ['required', 'in:active,inactive,terminated'],
         ]);
+
+        // FSD 9.1 — reactivating/keeping a worker active under an inactive
+        // contractor is still "assigning Contract Labour to an inactive
+        // contractor"; marking them inactive/terminated is still allowed.
+        if ($data['status'] === 'active' && ! $contractor->is_active) {
+            return back()->with('error', 'Cannot set a worker active under an inactive contractor.');
+        }
 
         $contractWorker->update($data);
 

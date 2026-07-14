@@ -16,8 +16,10 @@ class Contractor extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'name', 'company_name', 'code', 'contact_person', 'phone', 'email',
-        'address', 'license_number', 'gst_number', 'license_expiry', 'is_active',
+        'name', 'company_name', 'code', 'contact_person', 'phone', 'alternate_phone', 'email',
+        'address', 'state', 'district', 'pincode',
+        'license_number', 'gst_number', 'pan_number', 'pf_registration_number', 'esi_registration_number',
+        'license_expiry', 'agreement_start_date', 'agreement_end_date', 'max_labour_count', 'is_active',
         // Branch-wise data scoping — additive; nullable so contractors predating
         // this column stay invisible to branch-scoped users until assigned.
         'branch_id',
@@ -25,10 +27,67 @@ class Contractor extends Model
 
     protected function casts(): array
     {
-        return ['license_expiry' => 'date', 'is_active' => 'boolean'];
+        return [
+            'license_expiry' => 'date',
+            'agreement_start_date' => 'date',
+            'agreement_end_date' => 'date',
+            'is_active' => 'boolean',
+        ];
     }
 
     public function branch()         { return $this->belongsTo(Branch::class); }
     public function employees()      { return $this->hasMany(Employee::class); }
     public function contractWorkers(){ return $this->hasMany(ContractWorker::class); }
+    public function documents()      { return $this->hasMany(ContractorDocument::class); }
+
+    /**
+     * FSD 9.1 — "Branch Applicability — one or more branches", additive
+     * multi-select alongside the existing single `branch_id` (which keeps
+     * driving BranchScope unchanged).
+     */
+    public function branches()
+    {
+        return $this->belongsToMany(Branch::class, 'contractor_branches');
+    }
+
+    /**
+     * Whether this contractor currently has any active Contract Labour,
+     * across BOTH mechanisms this codebase uses for contract labour:
+     * Employee.contractor_id and the separate ContractWorker model.
+     */
+    public function hasActiveContractLabour(): bool
+    {
+        return $this->employees()->active()->exists()
+            || $this->contractWorkers()->active()->exists();
+    }
+
+    /**
+     * FSD 9.1 — "system shall warn users before ... licence expiry" (30-day
+     * threshold). Uses Carbon's between() rather than diffInDays() < 30 —
+     * diffInDays() returns a signed (not absolute) value in this app's
+     * Carbon version, which would incorrectly flag any future date as
+     * "expiring soon" if compared with a naive < 30 check.
+     */
+    public function isLicenseExpiringSoon(): bool
+    {
+        return $this->license_expiry
+            && $this->license_expiry->between(now(), now()->addDays(30));
+    }
+
+    public function isLicenseExpired(): bool
+    {
+        return $this->license_expiry && $this->license_expiry->isPast();
+    }
+
+    /** FSD 9.1 — "system shall warn users before contractor agreement ... expiry" (30-day threshold). */
+    public function isAgreementExpiringSoon(): bool
+    {
+        return $this->agreement_end_date
+            && $this->agreement_end_date->between(now(), now()->addDays(30));
+    }
+
+    public function isAgreementExpired(): bool
+    {
+        return $this->agreement_end_date && $this->agreement_end_date->isPast();
+    }
 }

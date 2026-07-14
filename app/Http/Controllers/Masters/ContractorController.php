@@ -14,12 +14,15 @@ namespace App\Http\Controllers\Masters;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contractor;
+use App\Models\ContractorDocument;
 use App\Models\Employee;
 use App\Models\Attendance;
 use App\Models\Branch;
 use App\Models\PayrollRecord;
 use App\Support\BranchScope;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class ContractorController extends Controller
 {
@@ -35,36 +38,93 @@ class ContractorController extends Controller
         }
 
         $contractors = $query->paginate(20)->withQueryString();
-        return view('masters.contractors.index', compact('contractors'));
+
+        // FSD 9.1 — "system shall warn users before contractor agreement or
+        // licence expiry" — a lightweight summary banner, computed over the
+        // branch-scoped active set (not just the current page).
+        $expiringSoonCount = BranchScope::scopeQuery(Contractor::where('is_active', true))
+            ->where(function ($q) {
+                $soon = now()->addDays(30)->toDateString();
+                $q->whereBetween('license_expiry', [now()->toDateString(), $soon])
+                    ->orWhereBetween('agreement_end_date', [now()->toDateString(), $soon]);
+            })->count();
+
+        return view('masters.contractors.index', compact('contractors', 'expiringSoonCount'));
+    }
+
+    private function formOptions(): array
+    {
+        $isSuperAdmin = auth()->user()->isSuperAdmin();
+        return [
+            'branches' => $isSuperAdmin ? Branch::active()->orderBy('name')->get() : collect(),
+            'allBranches' => Branch::active()->orderBy('name')->get(),
+            'states' => config('states', []),
+        ];
     }
 
     public function create()
     {
-        $branches = auth()->user()->isSuperAdmin() ? Branch::active()->orderBy('name')->get() : collect();
-        return view('masters.contractors.create', compact('branches'));
+        return view('masters.contractors.create', $this->formOptions());
+    }
+
+    private function rules(?int $contractorId = null): array
+    {
+        return [
+            'name'           => ['required', 'string', 'max:100', Rule::unique('contractors', 'name')->ignore($contractorId)],
+            'company_name'   => ['nullable', 'string', 'max:150'],
+            'code'           => ['required', 'string', 'max:20', Rule::unique('contractors', 'code')->ignore($contractorId)],
+            'contact_person' => ['required', 'string', 'max:100'],
+            'phone'          => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'alternate_phone' => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'email'          => ['nullable', 'email', 'max:150'],
+            'address'        => ['required', 'string'],
+            'state'          => ['required', 'string', Rule::in(config('states', []))],
+            'district'       => ['required', 'string', 'max:100'],
+            'pincode'        => ['required', 'digits:6'],
+            'license_number' => ['nullable', 'string', 'max:100'],
+            'license_expiry' => ['required_with:license_number', 'nullable', 'date'],
+            'gst_number'     => ['nullable', 'string', 'regex:/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/'],
+            'pan_number'     => ['nullable', 'string', 'regex:/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/'],
+            'pf_registration_number'  => ['nullable', 'string', 'max:50'],
+            'esi_registration_number' => ['nullable', 'string', 'max:50'],
+            'agreement_start_date' => ['required', 'date'],
+            'agreement_end_date'   => ['nullable', 'date', 'after:agreement_start_date'],
+            'max_labour_count'     => ['nullable', 'integer', 'min:0'],
+            'branch_id'      => ['nullable', 'exists:branches,id'],
+            'branch_ids'     => ['required', 'array', 'min:1'],
+            'branch_ids.*'   => ['exists:branches,id'],
+            'is_active'      => ['boolean'],
+        ];
+    }
+
+    private function messages(): array
+    {
+        return [
+            'gst_number.regex' => 'The GST number format is invalid.',
+            'pan_number.regex' => 'The PAN number format is invalid (e.g. ABCDE1234F).',
+            'phone.regex' => 'The mobile number format is invalid.',
+            'alternate_phone.regex' => 'The alternate number format is invalid.',
+            'license_expiry.required_with' => 'Licence expiry date is required when a licence number is entered.',
+        ];
     }
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'name'           => ['required', 'string', 'max:100'],
-            'company_name'   => ['nullable', 'string', 'max:150'],
-            'code'           => ['required', 'string', 'max:20', 'unique:contractors,code'],
-            'contact_person' => ['nullable', 'string', 'max:100'],
-            'phone'          => ['nullable', 'string', 'max:20'],
-            'email'          => ['nullable', 'email', 'max:150'],
-            'address'        => ['nullable', 'string'],
-            'license_number' => ['nullable', 'string', 'max:100'],
-            'gst_number'     => ['nullable', 'string', 'max:20'],
-            'license_expiry' => ['nullable', 'date'],
-            'branch_id'      => ['nullable', 'exists:branches,id'],
-            'is_active'      => ['boolean'],
-        ]);
+        $data = $request->validate($this->rules(), $this->messages());
+        $branchIds = $data['branch_ids'];
+        unset($data['branch_ids']);
 
         $data = BranchScope::stampBranchId($data);
         BranchScope::assertBranchIsActive($data['branch_id'] ?? null);
 
-        Contractor::create($data);
+        // The primary/owning branch always counts as applicable, even if the
+        // user didn't explicitly tick it in the multi-select.
+        if (! empty($data['branch_id']) && ! in_array($data['branch_id'], $branchIds)) {
+            $branchIds[] = $data['branch_id'];
+        }
+
+        $contractor = Contractor::create($data);
+        $contractor->branches()->sync($branchIds);
 
         return redirect()->route('masters.contractors.index')
             ->with('success', 'Contractor created successfully.');
@@ -73,32 +133,26 @@ class ContractorController extends Controller
     public function edit(Contractor $contractor)
     {
         BranchScope::assertBranchAccess($contractor->branch_id);
-        $branches = auth()->user()->isSuperAdmin() ? Branch::active()->orderBy('name')->get() : collect();
-        return view('masters.contractors.edit', compact('contractor', 'branches'));
+        $contractor->load(['branches', 'documents']);
+        return view('masters.contractors.edit', array_merge(compact('contractor'), $this->formOptions()));
     }
 
     public function update(Request $request, Contractor $contractor)
     {
         BranchScope::assertBranchAccess($contractor->branch_id);
 
-        $data = $request->validate([
-            'name'           => ['required', 'string', 'max:100'],
-            'company_name'   => ['nullable', 'string', 'max:150'],
-            'code'           => ['required', 'string', 'max:20', 'unique:contractors,code,' . $contractor->id],
-            'contact_person' => ['nullable', 'string', 'max:100'],
-            'phone'          => ['nullable', 'string', 'max:20'],
-            'email'          => ['nullable', 'email', 'max:150'],
-            'address'        => ['nullable', 'string'],
-            'license_number' => ['nullable', 'string', 'max:100'],
-            'gst_number'     => ['nullable', 'string', 'max:20'],
-            'license_expiry' => ['nullable', 'date'],
-            'branch_id'      => ['nullable', 'exists:branches,id'],
-            'is_active'      => ['boolean'],
-        ]);
+        $data = $request->validate($this->rules($contractor->id), $this->messages());
+        $branchIds = $data['branch_ids'];
+        unset($data['branch_ids']);
 
         $data = BranchScope::stampBranchId($data);
 
+        if (! empty($data['branch_id']) && ! in_array($data['branch_id'], $branchIds)) {
+            $branchIds[] = $data['branch_id'];
+        }
+
         $contractor->update($data);
+        $contractor->branches()->sync($branchIds);
 
         return redirect()->route('masters.contractors.index')
             ->with('success', 'Contractor updated successfully.');
@@ -108,12 +162,53 @@ class ContractorController extends Controller
     {
         BranchScope::assertBranchAccess($contractor->branch_id);
 
-        if ($contractor->employees()->exists()) {
-            return back()->with('error', 'Cannot delete contractor with associated employees.');
+        // FSD 9.1 — "A contractor with active Contract Labour shall not be
+        // deleted." Checked across BOTH contract-labour mechanisms this app
+        // uses (Employee.contractor_id and the separate ContractWorker
+        // model) — previously only the Employee side was guarded.
+        if ($contractor->hasActiveContractLabour()) {
+            return back()->with('error', 'Cannot delete contractor with active contract labour assigned.');
         }
         $contractor->delete();
         return redirect()->route('masters.contractors.index')
             ->with('success', 'Contractor deleted successfully.');
+    }
+
+    // ── Documents ─────────────────────────────────────────────────────────
+
+    public function uploadDocument(Request $request, Contractor $contractor)
+    {
+        BranchScope::assertBranchAccess($contractor->branch_id);
+
+        $request->validate([
+            'document_type' => ['required', 'in:agreement,licence,other'],
+            'file'          => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        ]);
+
+        $path = $request->file('file')->store('contractor-documents/' . $contractor->id, 'public');
+
+        $contractor->documents()->create([
+            'document_type' => $request->document_type,
+            'original_name' => $request->file('file')->getClientOriginalName(),
+            'file_path'     => $path,
+            'uploaded_by'   => auth()->id(),
+        ]);
+
+        return back()->with('success', 'Document uploaded successfully.');
+    }
+
+    public function deleteDocument(Contractor $contractor, ContractorDocument $document)
+    {
+        BranchScope::assertBranchAccess($contractor->branch_id);
+
+        if ($document->contractor_id !== $contractor->id) {
+            abort(404);
+        }
+
+        Storage::disk('public')->delete($document->file_path);
+        $document->delete();
+
+        return back()->with('success', 'Document removed successfully.');
     }
 
     // ── Contract Labour Assignment (standalone page) ────────────────────
@@ -178,6 +273,11 @@ class ContractorController extends Controller
     public function assignLabour(Request $request, Contractor $contractor)
     {
         BranchScope::assertBranchAccess($contractor->branch_id);
+
+        // FSD 9.1 — "Contract Labour shall not be assigned to an inactive contractor."
+        if (! $contractor->is_active) {
+            return back()->with('error', 'Cannot assign labour to an inactive contractor.');
+        }
 
         $request->validate([
             'employee_id' => ['required', 'exists:employees,id'],

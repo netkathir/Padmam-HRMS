@@ -235,6 +235,8 @@ Route::middleware('auth')->group(function () {
         ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_contractors.read')
         ->middlewareFor(['store'], 'permission:masters_contractors.create')
         ->middlewareFor(['update', 'destroy'], 'permission:masters_contractors.full');
+    Route::post('masters/contractors/{contractor}/documents',                     [ContractorController::class, 'uploadDocument'])->name('masters.contractors.documents.store')->middleware('permission:masters_contractors.full');
+    Route::delete('masters/contractors/{contractor}/documents/{document}',        [ContractorController::class, 'deleteDocument'])->name('masters.contractors.documents.destroy')->middleware('permission:masters_contractors.full');
     Route::get('masters/contractors/{contractor}/labour',              [ContractorController::class, 'labour'])->name('masters.contractors.labour')->middleware('permission:masters_contractors.read');
     Route::post('masters/contractors/{contractor}/labour/assign',      [ContractorController::class, 'assignLabour'])->name('masters.contractors.labour.assign')->middleware('permission:masters_contractors.create');
     Route::delete('masters/contractors/{contractor}/labour/{employee}', [ContractorController::class, 'removeLabour'])->name('masters.contractors.labour.remove')->middleware('permission:masters_contractors.full');

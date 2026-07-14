@@ -9,15 +9,17 @@ class LeaveTypeSeeder extends Seeder
 {
     public function run(): void
     {
+        $allTypes = json_encode(['staff', 'company_labour', 'contract_labour']);
+
         DB::table('leave_types')->insert([
-            ['name' => 'Earned Leave',     'code' => 'EL',  'days_per_year' => 15, 'max_carry_forward' => 30, 'is_carry_forward' => 1, 'is_paid' => 1, 'is_half_day_allowed' => 1, 'gender_specific' => 'all'],
-            ['name' => 'Casual Leave',     'code' => 'CL',  'days_per_year' => 8,  'max_carry_forward' => 0,  'is_carry_forward' => 0, 'is_paid' => 1, 'is_half_day_allowed' => 1, 'gender_specific' => 'all'],
-            ['name' => 'Sick Leave',       'code' => 'SL',  'days_per_year' => 7,  'max_carry_forward' => 0,  'is_carry_forward' => 0, 'is_paid' => 1, 'is_half_day_allowed' => 1, 'gender_specific' => 'all'],
-            ['name' => 'Loss of Pay',      'code' => 'LOP', 'days_per_year' => 0,  'max_carry_forward' => 0,  'is_carry_forward' => 0, 'is_paid' => 0, 'is_half_day_allowed' => 1, 'gender_specific' => 'all'],
-            ['name' => 'Maternity Leave',  'code' => 'ML',  'days_per_year' => 26, 'max_carry_forward' => 0,  'is_carry_forward' => 0, 'is_paid' => 1, 'is_half_day_allowed' => 0, 'gender_specific' => 'female'],
-            ['name' => 'Paternity Leave',  'code' => 'PL',  'days_per_year' => 5,  'max_carry_forward' => 0,  'is_carry_forward' => 0, 'is_paid' => 1, 'is_half_day_allowed' => 0, 'gender_specific' => 'male'],
-            ['name' => 'Compensatory Off', 'code' => 'CO',  'days_per_year' => 0,  'max_carry_forward' => 0,  'is_carry_forward' => 0, 'is_paid' => 1, 'is_half_day_allowed' => 1, 'gender_specific' => 'all'],
-            ['name' => 'Optional Holiday', 'code' => 'OH',  'days_per_year' => 2,  'max_carry_forward' => 0,  'is_carry_forward' => 0, 'is_paid' => 1, 'is_half_day_allowed' => 0, 'gender_specific' => 'all'],
+            ['name' => 'Earned Leave',     'code' => 'EL',  'is_paid' => 1, 'applicable_employee_types' => $allTypes, 'is_active' => 1],
+            ['name' => 'Casual Leave',     'code' => 'CL',  'is_paid' => 1, 'applicable_employee_types' => $allTypes, 'is_active' => 1],
+            ['name' => 'Sick Leave',       'code' => 'SL',  'is_paid' => 1, 'applicable_employee_types' => $allTypes, 'is_active' => 1],
+            ['name' => 'Loss of Pay',      'code' => 'LOP', 'is_paid' => 0, 'applicable_employee_types' => $allTypes, 'is_active' => 1],
+            ['name' => 'Maternity Leave',  'code' => 'ML',  'is_paid' => 1, 'applicable_employee_types' => $allTypes, 'is_active' => 1],
+            ['name' => 'Paternity Leave',  'code' => 'PL',  'is_paid' => 1, 'applicable_employee_types' => $allTypes, 'is_active' => 1],
+            ['name' => 'Compensatory Off', 'code' => 'CO',  'is_paid' => 1, 'applicable_employee_types' => $allTypes, 'is_active' => 1],
+            ['name' => 'Optional Holiday', 'code' => 'OH',  'is_paid' => 1, 'applicable_employee_types' => $allTypes, 'is_active' => 1],
         ]);
     }
 }

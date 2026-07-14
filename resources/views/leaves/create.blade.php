@@ -35,7 +35,7 @@
                             <option value="">Select type…</option>
                             @foreach($leaveTypes as $type)
                             <option value="{{ $type->id }}" {{ old('leave_type_id') == $type->id ? 'selected' : '' }}>
-                                {{ $type->name }} ({{ $type->days_per_year }} days/yr)
+                                {{ $type->name }}
                             </option>
                             @endforeach
                         </select>

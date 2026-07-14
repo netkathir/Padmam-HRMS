@@ -141,9 +141,6 @@ class LeaveController extends Controller
         if ($isHalfDay && $data['start_date'] !== $data['end_date']) {
             return back()->with('error', 'A half-day request must have the same start and end date.')->withInput();
         }
-        if ($isHalfDay && ! $leaveType->is_half_day_allowed) {
-            return back()->with('error', 'Half-day requests are not allowed for this leave type.')->withInput();
-        }
 
         $totalDays = $isHalfDay ? 0.5 : $this->countLeaveDays($data['start_date'], $data['end_date'], $employee);
 
@@ -166,7 +163,7 @@ class LeaveController extends Controller
             return back()->with('error', 'You already have a leave request for this date range.')->withInput();
         }
 
-        DB::transaction(function () use ($data, $employee, $totalDays, $isHalfDay, $leaveType) {
+        DB::transaction(function () use ($data, $employee, $totalDays, $isHalfDay) {
             LeaveRequest::create([
                 'employee_id'     => $employee->id,
                 'leave_type_id'   => $data['leave_type_id'],
@@ -182,7 +179,7 @@ class LeaveController extends Controller
 
             LeaveBalance::firstOrCreate(
                 ['employee_id' => $employee->id, 'leave_type_id' => $data['leave_type_id'], 'year' => now()->year],
-                ['allocated_days' => $leaveType->days_per_year]
+                ['allocated_days' => 0]
             )->increment('pending_days', $totalDays);
         });
 

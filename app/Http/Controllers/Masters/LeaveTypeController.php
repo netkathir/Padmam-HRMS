@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Masters;
 use App\Http\Controllers\Controller;
 use App\Models\LeaveType;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class LeaveTypeController extends Controller
 {
@@ -28,24 +29,21 @@ class LeaveTypeController extends Controller
         return view('masters.leave-types.create');
     }
 
+    private function rules(?int $leaveTypeId = null): array
+    {
+        return [
+            'name'                         => ['required', 'string', 'max:100', Rule::unique('leave_types', 'name')->ignore($leaveTypeId)],
+            'code'                         => ['required', 'string', 'max:20', Rule::unique('leave_types', 'code')->ignore($leaveTypeId)],
+            'applicable_employee_types'    => ['required', 'array', 'min:1'],
+            'applicable_employee_types.*'  => ['in:' . implode(',', self::EMPLOYEE_TYPES)],
+            'is_paid'                      => ['required', 'boolean'],
+            'is_active'                    => ['required', 'boolean'],
+        ];
+    }
+
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'name'                => ['required', 'string', 'max:100'],
-            'code'                => ['required', 'string', 'max:20', 'unique:leave_types,code'],
-            'days_per_year'       => ['required', 'numeric', 'min:0', 'max:365'],
-            'max_carry_forward'   => ['nullable', 'numeric', 'min:0', 'max:365'],
-            'is_carry_forward'    => ['boolean'],
-            'is_paid'             => ['boolean'],
-            'is_half_day_allowed' => ['boolean'],
-            'gender_specific'     => ['required', 'in:all,male,female'],
-            'requires_document'   => ['boolean'],
-            'min_notice_days'     => ['nullable', 'integer', 'min:0'],
-            'max_consecutive_days' => ['nullable', 'integer', 'min:0'],
-            'applicable_employee_types'   => ['required', 'array', 'min:1'],
-            'applicable_employee_types.*' => ['in:' . implode(',', self::EMPLOYEE_TYPES)],
-            'is_active'           => ['boolean'],
-        ]);
+        $data = $request->validate($this->rules());
 
         LeaveType::create($data);
 
@@ -60,22 +58,7 @@ class LeaveTypeController extends Controller
 
     public function update(Request $request, LeaveType $leaveType)
     {
-        $data = $request->validate([
-            'name'                => ['required', 'string', 'max:100'],
-            'code'                => ['required', 'string', 'max:20', 'unique:leave_types,code,' . $leaveType->id],
-            'days_per_year'       => ['required', 'numeric', 'min:0', 'max:365'],
-            'max_carry_forward'   => ['nullable', 'numeric', 'min:0', 'max:365'],
-            'is_carry_forward'    => ['boolean'],
-            'is_paid'             => ['boolean'],
-            'is_half_day_allowed' => ['boolean'],
-            'gender_specific'     => ['required', 'in:all,male,female'],
-            'requires_document'   => ['boolean'],
-            'min_notice_days'     => ['nullable', 'integer', 'min:0'],
-            'max_consecutive_days' => ['nullable', 'integer', 'min:0'],
-            'applicable_employee_types'   => ['required', 'array', 'min:1'],
-            'applicable_employee_types.*' => ['in:' . implode(',', self::EMPLOYEE_TYPES)],
-            'is_active'           => ['boolean'],
-        ]);
+        $data = $request->validate($this->rules($leaveType->id));
 
         $leaveType->update($data);
 

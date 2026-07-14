@@ -14,9 +14,9 @@
                     @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Code <span class="text-danger">*</span></label>
-                    <input type="text" name="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code', $shift->code) }}" required>
-                    @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <label class="form-label">Code</label>
+                    <input type="text" class="form-control" value="{{ $shift->code }}" disabled>
+                    <div class="form-text">Auto-generated — not editable.</div>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Work Hours</label>
@@ -55,8 +55,9 @@
                     <div class="form-check">
                         <input type="hidden" name="is_active" value="0">
                         <input type="checkbox" name="is_active" class="form-check-input" value="1" {{ old('is_active', $shift->is_active) ? 'checked' : '' }}>
-                        <label class="form-check-label">Active</label>
+                        <label class="form-check-label">Active <span class="text-danger">*</span></label>
                     </div>
+                    @error('is_active')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Branch Applicability <span class="text-danger">*</span></label>

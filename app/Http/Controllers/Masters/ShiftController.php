@@ -5,7 +5,11 @@ namespace App\Http\Controllers\Masters;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Shift;
+use App\Support\SequentialCodeGenerator;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class ShiftController extends Controller
 {
@@ -33,8 +37,10 @@ class ShiftController extends Controller
     private function rules(?int $shiftId = null): array
     {
         return [
-            'name'                      => ['required', 'string', 'max:100'],
-            'code'                      => ['required', 'string', 'max:20', 'unique:shifts,code' . ($shiftId ? ",$shiftId" : '')],
+            // `code` is auto-generated server-side (see createWithGeneratedCode())
+            // and never accepted from the client, so it is intentionally not
+            // part of this validated field set.
+            'name'                      => ['required', 'string', 'max:100', Rule::unique('shifts', 'name')->ignore($shiftId)],
             'start_time'                => ['required', 'date_format:H:i'],
             'end_time'                  => ['required', 'date_format:H:i'],
             'break_minutes'             => ['nullable', 'integer', 'min:0', 'max:480'],
@@ -42,7 +48,7 @@ class ShiftController extends Controller
             'grace_early_exit_minutes'  => ['nullable', 'integer', 'min:0'],
             'work_hours'                => ['nullable', 'numeric', 'min:0', 'max:24'],
             'is_overnight'              => ['boolean'],
-            'is_active'                 => ['boolean'],
+            'is_active'                 => ['required', 'boolean'],
             'branch_ids'                => ['required', 'array', 'min:1'],
             'branch_ids.*'              => ['exists:branches,id'],
             'applicable_employee_types'   => ['required', 'array', 'min:1'],
@@ -51,7 +57,8 @@ class ShiftController extends Controller
     }
 
     /**
-     * FSD 7.2: "Grace periods shall not exceed the total shift duration."
+     * FSD 7.2: shift end time must form a valid (positive) duration, and
+     * combined grace periods shall not exceed that total shift duration.
      */
     private function assertGraceWithinDuration(array $data): void
     {
@@ -65,6 +72,10 @@ class ShiftController extends Controller
         }
         $duration = $end - $start;
 
+        if ($duration <= 0) {
+            abort(422, 'Shift End Time must result in a valid shift duration (enable Overnight Shift if it crosses midnight).');
+        }
+
         $grace = (int) ($data['grace_late_entry_minutes'] ?? 0) + (int) ($data['grace_early_exit_minutes'] ?? 0);
 
         if ($grace > $duration) {
@@ -72,12 +83,42 @@ class ShiftController extends Controller
         }
     }
 
+    /**
+     * Generates the next Shift Code (one higher than the latest existing
+     * code, preserving its prefix/padding) and creates the shift with it —
+     * mirrors BranchController::createWithGeneratedCode() exactly. A row
+     * lock on the latest shift serializes concurrent creations, and the
+     * retry loop is a defensive fallback against the rare duplicate-key
+     * race the lock doesn't cover — the unique index on `code` is the
+     * actual guarantee against ever storing a collision.
+     */
+    private function createWithGeneratedCode(array $data): Shift
+    {
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            try {
+                return DB::transaction(function () use ($data) {
+                    $lastCode = Shift::orderByDesc('id')->lockForUpdate()->value('code');
+                    $data['code'] = SequentialCodeGenerator::next($lastCode, 'SH0001');
+
+                    return Shift::create($data);
+                });
+            } catch (QueryException $e) {
+                $isDuplicate = (string) $e->getCode() === '23000';
+                if (! $isDuplicate || $attempt === 5) {
+                    throw $e;
+                }
+            }
+        }
+
+        throw new \RuntimeException('Unable to generate a unique Shift Code after several attempts.');
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
         $this->assertGraceWithinDuration($data);
 
-        $shift = Shift::create($data);
+        $shift = $this->createWithGeneratedCode($data);
         $shift->branches()->sync($data['branch_ids']);
 
         return redirect()->route('masters.shifts.index')

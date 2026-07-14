@@ -75,6 +75,15 @@ class BranchController extends Controller
         unset($data['code']);
         $data['created_by'] = auth()->id();
 
+        // Structured address entry (Create Branch only — `address` above
+        // remains the single field the Edit screen and its validation use).
+        $addressLines = $request->validate([
+            'address_line1' => ['nullable', 'string', 'max:200'],
+            'address_line2' => ['nullable', 'string', 'max:200'],
+        ]);
+        $data['address_line1'] = $addressLines['address_line1'] ?? null;
+        $data['address_line2'] = $addressLines['address_line2'] ?? null;
+
         $branch = $this->createWithGeneratedCode($data);
 
         AuditLog::write(auth()->id(), 'create', 'branches', $branch->id, null, $data, $branch->id);

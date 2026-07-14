@@ -35,16 +35,6 @@
                             <option value="0" {{ old('is_active') == '0' ? 'selected' : '' }}>Inactive</option>
                         </select>
                     </div>
-                    <div class="col-md-2 d-none">
-                        <label class="form-label">Unit Type</label>
-                        <input type="text" name="unit_type" list="unitTypeOptions" class="form-control" value="{{ old('unit_type') }}" placeholder="Branch, Factory…">
-                        <datalist id="unitTypeOptions">
-                            @foreach ($unitTypes as $type)
-                                <option value="{{ $type }}">
-                            @endforeach
-                        </datalist>
-                    </div>
-
                     <div class="col-12">
                         <div class="form-check form-switch">
                             @php $hasAddressOld = old('has_address', old('address') ? '1' : '0'); @endphp
@@ -55,13 +45,24 @@
                     </div>
 
                     <div id="addressSection" class="row g-3 {{ $hasAddressOld ? '' : 'd-none' }}">
-                        <div class="col-md-12">
-                            <label class="form-label">Address</label>
-                            <textarea name="address" class="form-control @error('address') is-invalid @enderror" rows="2">{{ old('address') }}</textarea>
+                        {{-- Address is stored server-side as a single `address` column/field
+                             (unchanged validation: required_if:has_address,1). These two line
+                             inputs are a UI convenience only — combined into the hidden
+                             `address` field just before submit — and are always optional. --}}
+                        <div class="col-md-6">
+                            <label class="form-label">Address Line 1</label>
+                            <input type="text" name="address_line1" id="address_line1" class="form-control @error('address') is-invalid @enderror"
+                                value="{{ old('address_line1') }}">
                             @error('address')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Address Line 2</label>
+                            <input type="text" name="address_line2" id="address_line2" class="form-control"
+                                value="{{ old('address_line2') }}">
+                        </div>
+                        <input type="hidden" name="address" id="address_combined" value="{{ old('address') }}">
 
                         <div class="col-md-3">
                             <label class="form-label">State <span class="text-danger">*</span></label>
@@ -101,7 +102,7 @@
                         </div>
                     </div>
 
-                    <div class="col-md-4 d-none">
+                    <div class="col-md-4">
                         <label class="form-label">Contact Person</label>
                         <input type="text" name="contact_person"
                             class="form-control @error('contact_person') is-invalid @enderror" value="{{ old('contact_person') }}">
@@ -109,7 +110,7 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="col-md-4 d-none">
+                    <div class="col-md-4">
                         <label class="form-label">Contact Number</label>
                         <input type="text" name="phone" class="form-control @error('phone') is-invalid @enderror"
                             value="{{ old('phone') }}">
@@ -117,7 +118,7 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="col-md-4 d-none">
+                    <div class="col-md-4">
                         <label class="form-label">Email Address</label>
                         <input type="email" name="email" class="form-control @error('email') is-invalid @enderror"
                             value="{{ old('email') }}">
@@ -141,7 +142,7 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="col-md-4 d-none">
+                    <div class="col-md-4">
                         <label class="form-label">Branch Start Date</label>
                         <input type="date" name="start_date" class="form-control @error('start_date') is-invalid @enderror"
                             value="{{ old('start_date') }}">
@@ -149,40 +150,16 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="col-md-4 d-none">
-                        <label class="form-label">Branch Closure Date</label>
-                        <input type="date" name="closure_date" class="form-control @error('closure_date') is-invalid @enderror"
-                            value="{{ old('closure_date') }}">
-                        @error('closure_date')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
 
-                    {{-- PF Establishment Number / ESI Employer Code will be managed
-                         later via the dedicated Branch Statutory Configuration
-                         module — hidden here but the backend support is retained. --}}
-                    <div class="col-md-4 d-none">
+                    <div class="col-md-4">
                         <label class="form-label">PF Establishment Number</label>
                         <input type="text" name="pf_establishment_number" class="form-control @error('pf_establishment_number') is-invalid @enderror" value="{{ old('pf_establishment_number') }}">
                         @error('pf_establishment_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
-                    <div class="col-md-4 d-none">
+                    <div class="col-md-4">
                         <label class="form-label">ESI Employer Code</label>
                         <input type="text" name="esi_employer_code" class="form-control @error('esi_employer_code') is-invalid @enderror" value="{{ old('esi_employer_code') }}">
                         @error('esi_employer_code')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-4 d-none">
-                        <label class="form-label">Weekly Off Days</label>
-                        <div class="d-flex flex-wrap gap-2 pt-1">
-                            @php $oldWeeklyOff = old('weekly_off_days', ['sunday']); @endphp
-                            @foreach ($weekdays as $day)
-                                <div class="form-check form-check-inline m-0">
-                                    <input class="form-check-input" type="checkbox" name="weekly_off_days[]" value="{{ $day }}" id="wo_{{ $day }}" {{ in_array($day, $oldWeeklyOff) ? 'checked' : '' }}>
-                                    <label class="form-check-label small" for="wo_{{ $day }}">{{ ucfirst(substr($day, 0, 3)) }}</label>
-                                </div>
-                            @endforeach
-                        </div>
-                        @error('weekly_off_days')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                     </div>
                 </div>
                 <div class="mt-4 d-flex gap-2">
@@ -215,6 +192,26 @@
     if (hasAddressCheckbox) {
         hasAddressCheckbox.addEventListener('change', toggleAddressSection);
         toggleAddressSection();
+    }
+
+    // Address Line 1/2 are UI-only inputs; the server still expects a single
+    // `address` field, so combine them into the hidden field before submit.
+    var form = document.getElementById('createBranchForm');
+    var addressLine1 = document.getElementById('address_line1');
+    var addressLine2 = document.getElementById('address_line2');
+    var addressCombined = document.getElementById('address_combined');
+
+    function combineAddressLines() {
+        if (!addressCombined) return;
+        var parts = [
+            addressLine1 ? addressLine1.value.trim() : '',
+            addressLine2 ? addressLine2.value.trim() : ''
+        ].filter(Boolean);
+        addressCombined.value = parts.join(', ');
+    }
+
+    if (form) {
+        form.addEventListener('submit', combineAddressLines);
     }
 })();
 </script>

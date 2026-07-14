@@ -18,6 +18,8 @@ class Branch extends Model
         'created_by', 'updated_by',
         // Branch/Unit Master FSD — additive fields, same table.
         'unit_type', 'closure_date', 'pf_establishment_number', 'esi_employer_code', 'weekly_off_days',
+        // Structured address entry on Create Branch, additive columns.
+        'address_line1', 'address_line2',
     ];
 
     protected function casts(): array

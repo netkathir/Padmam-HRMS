@@ -303,6 +303,7 @@
 @endpush
 
 @section('content')
+    <h5 class="mb-3">Quick Reports</h5>
     <div class="report-grid">
         {{-- Attendance Report — Blue --}}
         <a href="{{ route('reports.attendance') }}" class="report-card report-blue">
@@ -375,5 +376,35 @@
             <div class="report-title">LOP Report</div>
             <p class="report-desc">Loss of Pay report showing LOP days, deduction amount, and employee-wise summary</p>
         </a>
+    </div>
+
+    {{-- Module 10 (FSD 14.1-14.7) — the ~80 additional named reports, grouped by
+         FSD subsection and collapsed by default so this page doesn't become a
+         wall of links. Each entry links either to the generic report engine
+         (reports.view) or straight at an existing bespoke report (aliasRoute). --}}
+    <h5 class="mt-4 mb-3">All Reports</h5>
+    <div class="accordion" id="allReportsAccordion">
+        @foreach(\App\Support\Reports\ReportRegistry::sections() as $sectionKey => $sectionLabel)
+            @php $sectionReports = \App\Support\Reports\ReportRegistry::bySection($sectionKey); @endphp
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#section-{{ $sectionKey }}">
+                        {{ $sectionLabel }} <span class="badge bg-secondary-subtle text-secondary ms-2">{{ count($sectionReports) }}</span>
+                    </button>
+                </h2>
+                <div id="section-{{ $sectionKey }}" class="accordion-collapse collapse" data-bs-parent="#allReportsAccordion">
+                    <div class="accordion-body">
+                        <div class="list-group">
+                            @foreach($sectionReports as $def)
+                                <a href="{{ $def->isAlias() ? route($def->aliasRoute, $def->aliasParams) : route('reports.view', $def->key) }}" class="list-group-item list-group-item-action">
+                                    <div class="fw-semibold">{{ $def->title }}</div>
+                                    <small class="text-muted">{{ $def->description }}</small>
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endforeach
     </div>
 @endsection

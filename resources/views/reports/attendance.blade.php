@@ -245,7 +245,7 @@
                 </div>
                 <div class="col-md-3 d-flex gap-1">
                     <button class="btn btn-sm btn-primary flex-grow-1"><i class="bi bi-filter"></i> Filter</button>
-                    <a href="#" class="btn btn-sm btn-outline-success disabled"><i
+                    <a href="{{ route('reports.attendance', array_merge(request()->query(), ['export' => 1])) }}" class="btn btn-sm btn-outline-success"><i
                             class="bi bi-file-earmark-excel"></i></a>
                 </div>
             </form>

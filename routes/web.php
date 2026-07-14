@@ -8,6 +8,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\GenericReportController;
 use App\Http\Controllers\MasterController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SettingsController;
@@ -197,6 +198,12 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports/pf-esi',                [ReportController::class, 'pfEsi'])->name('reports.pf-esi');
         Route::get('/reports/overtime',              [ReportController::class, 'overtime'])->name('reports.overtime');
         Route::get('/reports/lop',                   [ReportController::class, 'lop'])->name('reports.lop');
+
+        // Module 10 (FSD 14.1-14.7) — generic report engine for the ~60
+        // additional named reports; the 9 routes above are untouched.
+        Route::get('/reports/view/{key}',              [GenericReportController::class, 'show'])->name('reports.view')->where('key', '[a-z0-9\-]+');
+        Route::get('/reports/view/{key}/export/excel', [GenericReportController::class, 'exportCsv'])->name('reports.view.export.excel')->where('key', '[a-z0-9\-]+');
+        Route::get('/reports/view/{key}/export/pdf',   [GenericReportController::class, 'exportPdf'])->name('reports.view.export.pdf')->where('key', '[a-z0-9\-]+');
     });
 
     // Masters — hub page is reachable if any sub-module is readable; each

@@ -92,6 +92,36 @@ class Employee extends Model
         return $this->contract_end_date && $this->contract_end_date->isPast();
     }
 
+    /**
+     * FSD 14.2 — "Sensitive fields shall be masked based on user permission."
+     * Thin wrappers over App\Support\Reports\ReportMasking so the masking
+     * rule itself lives in exactly one place.
+     */
+    public function getMaskedPanNumberAttribute(): string
+    {
+        return \App\Support\Reports\ReportMasking::mask($this->pan_number);
+    }
+
+    public function getMaskedUanNumberAttribute(): string
+    {
+        return \App\Support\Reports\ReportMasking::mask($this->uan_number);
+    }
+
+    public function getMaskedPfNumberAttribute(): string
+    {
+        return \App\Support\Reports\ReportMasking::mask($this->pf_number);
+    }
+
+    public function getMaskedEsiNumberAttribute(): string
+    {
+        return \App\Support\Reports\ReportMasking::mask($this->esi_number);
+    }
+
+    public function getMaskedAadhaarNumberAttribute(): string
+    {
+        return \App\Support\Reports\ReportMasking::mask($this->aadhaar_number);
+    }
+
     // ── Relationships ──────────────────────────────────────────────
     public function branch()       { return $this->belongsTo(Branch::class); }
     public function department()   { return $this->belongsTo(Department::class); }

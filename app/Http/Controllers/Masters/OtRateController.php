@@ -20,8 +20,8 @@ class OtRateController extends Controller
             $query->where('name', 'like', $s);
         }
 
-        $rates = $query->paginate(20)->withQueryString();
-        return view('masters.ot-rates.index', compact('rates'));
+        $otRates = $query->paginate(20)->withQueryString();
+        return view('masters.ot-rates.index', compact('otRates'));
     }
 
     public function create()

@@ -104,6 +104,7 @@ Route::middleware(['auth', 'force.password.change'])->group(function () {
     Route::delete('/employees/{employee}/bank-details/{bankDetail}', [EmployeeController::class, 'destroyBankDetail'])->name('employees.bank-details.destroy')->middleware('permission:employees.full');
     Route::get('/employees/{employee}/salary',     [EmployeeController::class, 'salary'])->name('employees.salary')->middleware('permission:employees.read');
     Route::post('/employees/{employee}/salary',    [EmployeeController::class, 'storeSalary'])->name('employees.salary.store')->middleware('permission:employees.full');
+    Route::get('/salary-slab-breakdown/{salarySlab}', [EmployeeController::class, 'salarySlabBreakdown'])->name('employees.salary-slab-breakdown')->middleware('permission:employees.read');
     Route::get('/employees/{employee}/exit',       [EmployeeController::class, 'exit'])->name('employees.exit')->middleware('permission:employees.read');
     Route::post('/employees/{employee}/exit',      [EmployeeController::class, 'processExit'])->name('employees.exit.store')->middleware('permission:employees.full');
     Route::post('/employees/{employee}/finalize',  [EmployeeController::class, 'finalize'])->name('employees.finalize')->middleware('permission:employees.full');

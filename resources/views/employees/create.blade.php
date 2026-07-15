@@ -154,44 +154,15 @@
                         </div>
 
                         <div class="col-12 mt-2"><h6 class="fw-bold border-bottom pb-2">Salary</h6></div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <label class="form-label">Salary Slab</label>
                             <select name="salary[salary_slab_id]" id="salary_slab_id" class="form-select" data-searchable>
                                 <option value="">— None —</option>
                                 @foreach($salarySlabs as $slab)
-                                <option value="{{ $slab->id }}" data-tds-percentage="{{ $slab->tds_percentage }}">
-                                    {{ $slab->name }} (₹{{ number_format($slab->min_ctc) }} – ₹{{ number_format($slab->max_ctc) }})
-                                </option>
+                                <option value="{{ $slab->id }}" {{ old('salary.salary_slab_id') == $slab->id ? 'selected' : '' }}>{{ $slab->name }}</option>
                                 @endforeach
                             </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">CTC (₹)</label>
-                            <input type="number" name="salary[ctc]" id="salary_ctc" step="0.01" min="0" class="form-control">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Basic Salary (₹)</label>
-                            <input type="number" name="salary[basic_salary]" id="salary_basic" step="0.01" min="0" class="form-control">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">HRA (₹)</label>
-                            <input type="number" name="salary[hra]" id="salary_hra" step="0.01" min="0" class="form-control" value="0">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">DA (₹)</label>
-                            <input type="number" name="salary[da]" id="salary_da" step="0.01" min="0" class="form-control" value="0">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">TA (₹)</label>
-                            <input type="number" name="salary[ta]" id="salary_ta" step="0.01" min="0" class="form-control" value="0">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Medical Allowance (₹)</label>
-                            <input type="number" name="salary[medical_allowance]" id="salary_medical" step="0.01" min="0" class="form-control" value="0">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Special Allowance (₹)</label>
-                            <input type="number" name="salary[special_allowance]" id="salary_special" step="0.01" min="0" class="form-control" value="0">
+                            <div class="form-text">The employee's entire salary structure is inherited from the selected slab — nothing below is manually entered.</div>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Effective From</label>
@@ -202,40 +173,72 @@
                             <input type="date" name="salary[effective_to]" class="form-control">
                             <div class="form-text">Leave blank for an open-ended (current) structure.</div>
                         </div>
+
+                        <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">TDS / PF / ESI Percentages <small class="fw-normal text-muted">(read-only — from the selected Salary Slab)</small></h6></div>
+                        <div class="col-md-2">
+                            <label class="form-label">TDS %</label>
+                            <input type="text" id="inherited_tds_percentage" class="form-control" value="" disabled>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">PF Employee %</label>
+                            <input type="text" id="inherited_pf_employee_percentage" class="form-control" value="" disabled>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">PF Employer %</label>
+                            <input type="text" id="inherited_pf_employer_percentage" class="form-control" value="" disabled>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">ESI Employee %</label>
+                            <input type="text" id="inherited_esi_employee_percentage" class="form-control" value="" disabled>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">ESI Employer %</label>
+                            <input type="text" id="inherited_esi_employer_percentage" class="form-control" value="" disabled>
+                        </div>
+
+                        <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">Salary Structure <small class="fw-normal text-muted">(read-only — from the selected Salary Slab)</small></h6></div>
+                        <div class="col-md-3">
+                            <label class="form-label">Basic Salary (₹)</label>
+                            <input type="text" id="inherited_basic_salary" class="form-control" value="" disabled>
+                        </div>
                         <div class="col-md-3">
                             <label class="form-label">Gross Salary (₹)</label>
-                            <input type="text" id="salary_gross_display" class="form-control" value="" disabled>
-                            <div class="form-text">Auto-calculated from Basic + Allowances + Earning Components.</div>
+                            <input type="text" id="inherited_gross_salary" class="form-control" value="" disabled>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">Status</label>
-                            <input type="text" class="form-control" value="Will become Current on Save" disabled>
+                            <label class="form-label">CTC (₹)</label>
+                            <input type="text" id="inherited_ctc" class="form-control" value="" disabled>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Employer Contribution (₹)</label>
+                            <input type="text" id="inherited_employer_contributions" class="form-control" value="" disabled>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Total Deductions (₹)</label>
+                            <input type="text" id="inherited_total_deductions" class="form-control" value="" disabled>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Net Salary (₹)</label>
+                            <input type="text" id="inherited_net_salary" class="form-control" value="" disabled>
                         </div>
 
-                        <div class="col-12">
-                            <h6 class="fw-bold border-bottom pb-2 mt-2">Statutory Applicability</h6>
-                            <p class="text-muted small mb-0">
-                                PF: <strong id="salary_pf_display">—</strong> ·
-                                ESI: <strong id="salary_esi_display">—</strong> ·
-                                TDS: <strong id="salary_tds_display">—</strong>
-                                — set on Tab 7 (Statutory Information); auto-suggested here from the selected Salary Slab and Basic/Gross vs. the Statutory Configuration wage ceilings.
-                            </p>
-                        </div>
-
-                        <div class="col-12 d-flex justify-content-between align-items-center mt-3">
-                            <h6 class="fw-bold border-bottom pb-2 mb-0 flex-grow-1">Salary Components</h6>
-                            <button type="button" id="addSalaryComponentRow" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-plus"></i> Add Component
-                            </button>
-                        </div>
-                        <div class="col-12">
-                            <div class="table-responsive">
-                                <table class="table table-sm" id="salaryComponentsTable">
-                                    <thead>
-                                        <tr><th>Salary Component</th><th>Component Type</th><th>Calculation Type</th><th>Calculation Base</th><th>Amount / Percentage</th><th>Calculated Amount</th><th></th></tr>
-                                    </thead>
-                                    <tbody id="salaryComponentsBody"></tbody>
-                                </table>
+                        <div class="col-12 mt-2">
+                            <h6 class="fw-bold border-bottom pb-2">Salary Components <small class="fw-normal text-muted">(read-only — from the selected Salary Slab)</small></h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <h6 class="small text-muted">Earnings Components</h6>
+                                    <table class="table table-sm">
+                                        <thead><tr><th>Component</th><th>Calc. Type</th><th>Calc. Base</th><th>Amount</th></tr></thead>
+                                        <tbody id="inherited_earning_components"><tr><td colspan="4" class="text-muted">Select a Salary Slab above</td></tr></tbody>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="small text-muted">Deduction Components</h6>
+                                    <table class="table table-sm">
+                                        <thead><tr><th>Component</th><th>Calc. Type</th><th>Calc. Base</th><th>Amount</th></tr></thead>
+                                        <tbody id="inherited_deduction_components"><tr><td colspan="4" class="text-muted">Select a Salary Slab above</td></tr></tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -276,14 +279,6 @@
     // optional second "encoding options" argument), so a multi-key array
     // literal breaks it — each payload is precomputed into its own variable
     // first and @json() is only ever given a single bare variable here.
-    $wizardEarningsComponents = $earningsComponents->map(fn ($c) => [
-        'id' => $c->id, 'name' => $c->name, 'type' => $c->type,
-        'calculation_base' => $c->calculation_base, 'percentage' => $c->percentage,
-    ]);
-    $wizardDeductionsComponents = $deductionsComponents->map(fn ($c) => [
-        'id' => $c->id, 'name' => $c->name, 'type' => $c->type,
-        'calculation_base' => $c->calculation_base, 'percentage' => $c->percentage,
-    ]);
     $wizardPfEsiConfig = $pfEsiConfig ? [
         'pf_wage_ceiling' => (float) $pfEsiConfig->pf_wage_ceiling,
         'esi_wage_ceiling' => (float) $pfEsiConfig->esi_wage_ceiling,
@@ -292,10 +287,11 @@
 @push('scripts')
 <script>
     window.__employeeWizard = {
-        earningsComponents: @json($wizardEarningsComponents),
-        deductionsComponents: @json($wizardDeductionsComponents),
-        existingComponents: [],
         pfEsiConfig: @json($wizardPfEsiConfig),
+        // Full base-path-aware URL template (the app may be deployed in a
+        // subdirectory, e.g. /Padmam-HRMS/public, so a root-relative
+        // '/salary-slab-breakdown/…' would resolve to the wrong host root).
+        salarySlabBreakdownUrl: @json(route('employees.salary-slab-breakdown', ['salarySlab' => 'SLAB_ID'])),
         documentTypes: {
             aadhaar: 'Aadhaar', pan: 'PAN', bank_proof: 'Bank Proof', appointment_letter: 'Appointment Letter',
             employment_agreement: 'Employment Agreement', education_certificate: 'Education Certificate',
@@ -620,161 +616,92 @@
             });
         }
 
-        // ── Tab 9: PF/ESI/TDS auto-default from PfEsiConfig ceilings + selected Salary Slab's TDS % ──
+        // ── Tab 9: Designation & Salary — the selected Salary Slab is the
+        // single source of truth; its whole breakdown is fetched read-only
+        // (never computed/entered here) and PF/ESI/TDS are only
+        // *suggested* into Tab 7's own checkboxes (FSD Rule 8). ──
         const pfEsiConfig = window.__employeeWizard.pfEsiConfig;
         const salarySlabSelect = document.getElementById('salary_slab_id');
-        const basicInput = document.getElementById('salary_basic');
-        // FSD Rule 8 — PF/ESI/TDS are owned by Tab 7 (Statutory Information);
-        // Tab 9 only *suggests* a value into those same checkboxes (from the
-        // wage ceilings / selected Salary Slab) and mirrors their state in a
-        // read-only summary — there is no separate, competing set of
-        // checkboxes here to fall out of sync with Tab 7.
         const pfCheckbox = document.getElementById('is_pf_applicable');
         const esiCheckbox = document.getElementById('is_esi_applicable');
         const tdsCheckbox = document.getElementById('is_tds_applicable');
-        const pfDisplay = document.getElementById('salary_pf_display');
-        const esiDisplay = document.getElementById('salary_esi_display');
-        const tdsDisplay = document.getElementById('salary_tds_display');
-        function refreshStatutoryDisplays() {
-            if (pfCheckbox && pfDisplay) pfDisplay.textContent = pfCheckbox.checked ? 'Applicable' : 'Not Applicable';
-            if (esiCheckbox && esiDisplay) esiDisplay.textContent = esiCheckbox.checked ? 'Applicable' : 'Not Applicable';
-            if (tdsCheckbox && tdsDisplay) tdsDisplay.textContent = tdsCheckbox.checked ? 'Applicable' : 'Not Applicable';
-        }
-        [pfCheckbox, esiCheckbox, tdsCheckbox].forEach(function (cb) {
-            if (cb) cb.addEventListener('change', refreshStatutoryDisplays);
-        });
-        refreshStatutoryDisplays();
 
-        function baseAllowanceTotal() {
-            const ids = ['salary_basic', 'salary_hra', 'salary_da', 'salary_ta', 'salary_medical', 'salary_special'];
-            return ids.reduce((sum, id) => sum + (parseFloat(document.getElementById(id)?.value) || 0), 0);
-        }
-        function earningComponentTotal() {
-            return Array.from(document.querySelectorAll('#salaryComponentsBody tr')).reduce(function (sum, tr) {
-                return sum + (tr.dataset.kind === 'earning' ? (parseFloat(tr.dataset.amount) || 0) : 0);
-            }, 0);
-        }
-        function grossSalary() {
-            return baseAllowanceTotal() + earningComponentTotal();
-        }
-        const grossDisplay = document.getElementById('salary_gross_display');
-        function refreshGrossSalaryDisplay() {
-            if (grossDisplay) grossDisplay.value = grossSalary().toFixed(2);
-        }
-        function refreshStatutoryDefaults() {
-            refreshGrossSalaryDisplay();
-            if (pfEsiConfig && basicInput && pfCheckbox) {
-                const basic = parseFloat(basicInput.value) || 0;
-                if (basic > 0) pfCheckbox.checked = basic <= pfEsiConfig.pf_wage_ceiling;
-            }
-            if (pfEsiConfig && esiCheckbox) {
-                const gross = grossSalary();
-                if (gross > 0) esiCheckbox.checked = gross <= pfEsiConfig.esi_wage_ceiling;
-            }
-            if (salarySlabSelect && tdsCheckbox) {
-                const opt = salarySlabSelect.options[salarySlabSelect.selectedIndex];
-                const tdsPct = opt ? parseFloat(opt.dataset.tdsPercentage) || 0 : 0;
-                if (salarySlabSelect.value) tdsCheckbox.checked = tdsPct > 0;
-            }
-            refreshStatutoryDisplays();
-        }
-        if (salarySlabSelect) salarySlabSelect.addEventListener('change', refreshStatutoryDefaults);
-        ['salary_basic', 'salary_hra', 'salary_da', 'salary_ta', 'salary_medical', 'salary_special'].forEach(function (id) {
-            const el = document.getElementById(id);
-            if (el) el.addEventListener('input', refreshStatutoryDefaults);
-        });
+        // Same field-based layout as the Salary Slab Master's own
+        // create/edit form (label + boxed input per value) — these stay
+        // `disabled` so they're never submitted and never editable here;
+        // the Salary Slab itself remains the only place these are entered.
+        const inheritedFields = {
+            tds_percentage: document.getElementById('inherited_tds_percentage'),
+            pf_employee_percentage: document.getElementById('inherited_pf_employee_percentage'),
+            pf_employer_percentage: document.getElementById('inherited_pf_employer_percentage'),
+            esi_employee_percentage: document.getElementById('inherited_esi_employee_percentage'),
+            esi_employer_percentage: document.getElementById('inherited_esi_employer_percentage'),
+            basic_salary: document.getElementById('inherited_basic_salary'),
+            gross_salary: document.getElementById('inherited_gross_salary'),
+            ctc: document.getElementById('inherited_ctc'),
+            employer_contributions: document.getElementById('inherited_employer_contributions'),
+            total_deductions: document.getElementById('inherited_total_deductions'),
+            net_salary: document.getElementById('inherited_net_salary'),
+        };
+        const earningComponentsBody = document.getElementById('inherited_earning_components');
+        const deductionComponentsBody = document.getElementById('inherited_deduction_components');
 
-        // ── Tab 9: Salary Components add-row — ONE combined, searchable
-        // "Salary Component" picker (Earnings + Deductions together);
-        // Component Type/Calculation Type/Calculation Base/Amount-Percentage/
-        // Calculated Amount are all auto-displayed from whichever component
-        // was picked, never separately chosen by the user. ──
-        const componentsBody = document.getElementById('salaryComponentsBody');
-        const addComponentBtn = document.getElementById('addSalaryComponentRow');
-        let componentRowIndex = 0;
-
-        function combinedComponentOptions() {
-            const earnings = window.__employeeWizard.earningsComponents
-                .map(c => `<option value="${c.id}" data-kind="earning" data-type="${c.type}" data-base="${c.calculation_base || ''}" data-rate="${c.percentage}">${c.name}</option>`).join('');
-            const deductions = window.__employeeWizard.deductionsComponents
-                .map(c => `<option value="${c.id}" data-kind="deduction" data-type="${c.type}" data-base="${c.calculation_base || ''}" data-rate="${c.percentage}">${c.name}</option>`).join('');
-            return '<option value="">Select…</option>'
-                + (earnings ? `<optgroup label="Earnings">${earnings}</optgroup>` : '')
-                + (deductions ? `<optgroup label="Deductions">${deductions}</optgroup>` : '');
+        function formatNumber(value) {
+            return (typeof value === 'number' ? value : parseFloat(value || 0)).toFixed(2);
         }
-        function computeAmount(rate, calcType, calcBase) {
-            const ctc = parseFloat(document.getElementById('salary_ctc')?.value) || 0;
-            const basic = parseFloat(basicInput?.value) || 0;
-            if (calcType === 'percentage') {
-                const base = (calcBase || '').toLowerCase().includes('ctc') ? ctc : basic;
-                return Math.round(base * rate / 100 * 100) / 100;
-            }
-            return rate;
+
+        function componentRows(components) {
+            if (!components || !components.length) return '<tr><td colspan="4" class="text-muted">None</td></tr>';
+            return components.map(function (c) {
+                return '<tr><td>' + c.name + '</td><td>' + (c.calculation_type ? c.calculation_type.charAt(0).toUpperCase() + c.calculation_type.slice(1) : '—')
+                    + '</td><td>' + (c.calculation_base || '—') + '</td><td>₹' + formatNumber(c.amount) + '</td></tr>';
+            }).join('');
         }
-        function addComponentRow(preset) {
-            const idx = componentRowIndex++;
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>
-                    <select name="salary[components][${idx}][component_id]" class="form-select form-select-sm component-select"></select>
-                    <input type="hidden" name="salary[components][${idx}][component_type]" class="component-type-hidden">
-                </td>
-                <td class="component-type-display text-muted">—</td>
-                <td class="component-calc-type text-muted">—</td>
-                <td class="component-calc-base text-muted">—</td>
-                <td class="component-rate text-muted">—</td>
-                <td class="component-calc-amount text-muted">—</td>
-                <td><button type="button" class="btn btn-sm btn-outline-danger remove-component-row"><i class="bi bi-x"></i></button></td>
-            `;
-            componentsBody.appendChild(tr);
 
-            const select = tr.querySelector('.component-select');
-            const typeHidden = tr.querySelector('.component-type-hidden');
-            const typeDisplay = tr.querySelector('.component-type-display');
-            const calcTypeCell = tr.querySelector('.component-calc-type');
-            const calcBaseCell = tr.querySelector('.component-calc-base');
-            const rateCell = tr.querySelector('.component-rate');
-            const calcAmountCell = tr.querySelector('.component-calc-amount');
-
-            select.innerHTML = combinedComponentOptions();
-
-            function refreshComponentPreview() {
-                const opt = select.options[select.selectedIndex];
-                if (!opt || !opt.value) {
-                    typeHidden.value = '';
-                    tr.dataset.kind = ''; tr.dataset.amount = '0';
-                    typeDisplay.textContent = '—'; calcTypeCell.textContent = '—'; calcBaseCell.textContent = '—'; rateCell.textContent = '—'; calcAmountCell.textContent = '—';
-                    refreshGrossSalaryDisplay();
-                    return;
-                }
-                const kind = opt.dataset.kind;
-                const calcType = opt.dataset.type;
-                const calcBase = opt.dataset.base;
-                const rate = parseFloat(opt.dataset.rate) || 0;
-                const amount = computeAmount(rate, calcType, calcBase);
-                typeHidden.value = kind;
-                tr.dataset.kind = kind;
-                tr.dataset.amount = amount;
-                typeDisplay.textContent = kind ? (kind.charAt(0).toUpperCase() + kind.slice(1)) : '—';
-                calcTypeCell.textContent = calcType ? (calcType.charAt(0).toUpperCase() + calcType.slice(1)) : '—';
-                calcBaseCell.textContent = calcType === 'percentage' ? (calcBase || '—') : '—';
-                rateCell.textContent = calcType === 'percentage' ? (rate + '%') : ('₹' + rate.toFixed(2));
-                calcAmountCell.textContent = '₹' + amount.toFixed(2);
-                refreshGrossSalaryDisplay();
-            }
-
-            select.addEventListener('change', refreshComponentPreview);
-            [document.getElementById('salary_ctc'), basicInput].forEach(function (el) {
-                if (el) el.addEventListener('input', refreshComponentPreview);
+        function renderSalarySlabBreakdown(data) {
+            Object.keys(inheritedFields).forEach(function (key) {
+                var field = inheritedFields[key];
+                if (field) field.value = data ? formatNumber(data[key]) : '';
             });
-            tr.querySelector('.remove-component-row').addEventListener('click', function () { tr.remove(); refreshGrossSalaryDisplay(); });
-
-            if (preset && preset.component_id) select.value = preset.component_id;
-            refreshComponentPreview();
-            makeSearchable(select);
+            var placeholder = '<tr><td colspan="4" class="text-muted">' + (data ? 'None' : 'Select a Salary Slab above') + '</td></tr>';
+            if (earningComponentsBody) earningComponentsBody.innerHTML = data ? componentRows(data.earning_components) : placeholder;
+            if (deductionComponentsBody) deductionComponentsBody.innerHTML = data ? componentRows(data.deduction_components) : placeholder;
         }
-        if (addComponentBtn) addComponentBtn.addEventListener('click', function () { addComponentRow(null); });
-        (window.__employeeWizard.existingComponents || []).forEach(function (c) { addComponentRow(c); });
+
+        function applyStatutorySuggestions(data) {
+            if (!pfEsiConfig || !data) return;
+            if (pfCheckbox && data.basic_salary > 0) pfCheckbox.checked = data.basic_salary <= pfEsiConfig.pf_wage_ceiling;
+            if (esiCheckbox && data.gross_salary > 0) esiCheckbox.checked = data.gross_salary <= pfEsiConfig.esi_wage_ceiling;
+            if (tdsCheckbox) tdsCheckbox.checked = data.tds > 0;
+        }
+
+        function fetchAndRenderSlabBreakdown(slabId) {
+            if (!slabId) { renderSalarySlabBreakdown(null); return; }
+            var url = window.__employeeWizard.salarySlabBreakdownUrl.replace('SLAB_ID', encodeURIComponent(slabId));
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) {
+                    if (!r.ok) { console.error('Salary Slab breakdown request failed with status ' + r.status + ' for slab ' + slabId); return null; }
+                    return r.json();
+                })
+                .then(function (data) {
+                    renderSalarySlabBreakdown(data);
+                    applyStatutorySuggestions(data);
+                })
+                .catch(function (err) {
+                    console.error('Salary Slab breakdown request errored for slab ' + slabId + ':', err);
+                    renderSalarySlabBreakdown(null);
+                });
+        }
+
+        if (salarySlabSelect) {
+            salarySlabSelect.addEventListener('change', function () { fetchAndRenderSlabBreakdown(salarySlabSelect.value); });
+        }
+        // The select may already have a value on load if old() repopulated
+        // it after a validation failure elsewhere in the form — fetch live
+        // so the fields aren't left stuck blank.
+        if (salarySlabSelect && salarySlabSelect.value) {
+            fetchAndRenderSlabBreakdown(salarySlabSelect.value);
+        }
 
         // ── Tab 10: Documents add-row ──
         const documentsBody = document.getElementById('documentsBody');
@@ -813,12 +740,6 @@
                 document.querySelectorAll('#documentsBody tr').forEach(function (tr) {
                     const fileInput = tr.querySelector('input[type="file"]');
                     if (!fileInput || fileInput.files.length === 0) tr.remove();
-                });
-                // Same reasoning for Salary Component rows added but left
-                // with no component actually selected.
-                document.querySelectorAll('#salaryComponentsBody tr').forEach(function (tr) {
-                    const select = tr.querySelector('.component-select');
-                    if (!select || !select.value) tr.remove();
                 });
             });
         }

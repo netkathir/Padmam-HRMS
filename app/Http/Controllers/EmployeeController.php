@@ -69,11 +69,9 @@ class EmployeeController extends Controller
         // for those tabs.
         $salarySlabs = \App\Models\SalarySlab::where('is_active', true)->get();
         $pfEsiConfig = \App\Models\PfEsiConfig::effectiveOn(now()->toDateString());
-        $earningsComponents   = \App\Models\EarningsComponent::where('is_active', true)->orderBy('sort_order')->get();
-        $deductionsComponents = \App\Models\DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get();
 
         return view('employees.create', $this->formData() + compact(
-            'activeTab', 'salarySlabs', 'pfEsiConfig', 'earningsComponents', 'deductionsComponents'
+            'activeTab', 'salarySlabs', 'pfEsiConfig'
         ));
     }
 
@@ -463,7 +461,7 @@ class EmployeeController extends Controller
             unset($bankData['account_number_confirmation']);
             $employee->bankDetails()->create($bankData);
         }
-        if ($request->filled('salary.ctc') && $request->filled('salary.basic_salary')) {
+        if ($request->filled('salary.salary_slab_id')) {
             $salaryData = $request->validate($this->prefixRules('salary', $this->salaryRules()))['salary'];
             $this->saveSalaryStructure($employee, $salaryData);
         }
@@ -526,12 +524,19 @@ class EmployeeController extends Controller
         $missingMandatoryDocs = array_diff($mandatoryDocTypes, $employee->documents->pluck('document_type')->all());
         $salarySlabs = \App\Models\SalarySlab::where('is_active', true)->get();
         $pfEsiConfig = \App\Models\PfEsiConfig::effectiveOn(now()->toDateString());
-        $earningsComponents   = \App\Models\EarningsComponent::where('is_active', true)->orderBy('sort_order')->get();
-        $deductionsComponents = \App\Models\DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get();
         $salaryHistory = $employee->salaryHistory()->with('slab')->get();
 
+        // Always read from the Salary Slab currently assigned to the
+        // employee's salary record — never from the historical snapshot's
+        // own stored figures — so the tab shows the slab's ACTUAL current
+        // configuration even if it was edited after this employee's salary
+        // was last saved.
+        $currentSalaryBreakdown = ($employee->currentSalary && $employee->currentSalary->slab)
+            ? $this->buildSalarySlabBreakdown($employee->currentSalary->slab)
+            : null;
+
         return view('employees.edit', array_merge(
-            compact('employee', 'activeTab', 'missingMandatoryDocs', 'salarySlabs', 'pfEsiConfig', 'earningsComponents', 'deductionsComponents', 'salaryHistory'),
+            compact('employee', 'activeTab', 'missingMandatoryDocs', 'salarySlabs', 'pfEsiConfig', 'salaryHistory', 'currentSalaryBreakdown'),
             $this->formData($employee)
         ));
     }
@@ -846,28 +851,63 @@ class EmployeeController extends Controller
         return back()->with('success', 'Bank details removed.');
     }
 
+    /** Superseded by the Designation & Salary tab in the Edit wizard (Salary Slab-driven) — kept as a redirect so no old link/bookmark 404s. */
     public function salary(Employee $employee)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
 
-        if (BranchScope::isBranchScopedUser() && ! \App\Support\BranchAdminPermissions::can(auth()->user(), 'employees', 'view_sensitive')) {
-            abort(403, 'You do not have the "View Sensitive Data" permission for Employees in Branch Administration.');
-        }
+        return redirect()->route('employees.edit', ['employee' => $employee, 'tab' => 9]);
+    }
 
-        $salary  = $employee->currentSalary?->load('components');
-        $history = $employee->salaryHistory()->with('slab')->get();
-        $slabs   = \App\Models\SalarySlab::where('is_active', true)->get();
-        // FSD Tab 9 — PF/ESI applicability auto-defaults from the statutory
-        // wage ceilings (Statutory Configuration) and Salary Components pick
-        // from the active Earnings/Deductions masters (auto-displaying each
-        // one's own Type/Calculation Type/Calculation Base, computed live).
-        $pfEsiConfig = \App\Models\PfEsiConfig::effectiveOn(now()->toDateString());
-        $earningsComponents   = \App\Models\EarningsComponent::where('is_active', true)->orderBy('sort_order')->get();
-        $deductionsComponents = \App\Models\DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get();
+    /**
+     * Employee Master — "Designation & Salary" live preview: returns the
+     * selected Salary Slab's full computed breakdown (never trusting a
+     * client-supplied figure) so the tab can show it read-only before the
+     * employee record is even saved yet.
+     */
+    public function salarySlabBreakdown(\App\Models\SalarySlab $salarySlab)
+    {
+        return response()->json($this->buildSalarySlabBreakdown($salarySlab));
+    }
 
-        return view('employees.salary', compact(
-            'employee', 'salary', 'history', 'slabs', 'pfEsiConfig', 'earningsComponents', 'deductionsComponents'
-        ));
+    /**
+     * Single builder for the read-only salary breakdown shown in the
+     * Designation & Salary tab — used both by the live AJAX endpoint above
+     * and by the Edit page's initial render, so the values shown when a
+     * page first loads are never a step behind a Salary Slab that was
+     * edited after an employee's salary was last saved (the Slab is always
+     * the single source of truth, never a snapshot recalculation).
+     */
+    private function buildSalarySlabBreakdown(\App\Models\SalarySlab $salarySlab): array
+    {
+        $salarySlab->load('components');
+
+        return [
+            'basic_salary'    => (float) $salarySlab->basic_salary,
+            'gross_salary'    => $salarySlab->gross_salary,
+            'total_deductions' => $salarySlab->total_deductions,
+            'net_salary'      => $salarySlab->net_salary,
+            'ctc'             => $salarySlab->ctc,
+            'employer_contributions' => $salarySlab->employer_contributions,
+            'pf_employee'  => $salarySlab->pf_employee,
+            'pf_employer'  => $salarySlab->pf_employer,
+            'esi_employee' => $salarySlab->esi_employee,
+            'esi_employer' => $salarySlab->esi_employer,
+            'tds'          => $salarySlab->tds,
+            'pf_employee_percentage'  => (float) $salarySlab->pf_employee_percentage,
+            'pf_employer_percentage'  => (float) $salarySlab->pf_employer_percentage,
+            'esi_employee_percentage' => (float) $salarySlab->esi_employee_percentage,
+            'esi_employer_percentage' => (float) $salarySlab->esi_employer_percentage,
+            'tds_percentage'          => (float) $salarySlab->tds_percentage,
+            'earning_components' => $salarySlab->earning_components->map(fn ($c) => [
+                'name' => $c->component_name, 'calculation_type' => $c->calculation_type,
+                'calculation_base' => $c->calculation_base, 'rate' => (float) $c->rate, 'amount' => (float) $c->calculated_amount,
+            ])->values(),
+            'deduction_components' => $salarySlab->deduction_components->map(fn ($c) => [
+                'name' => $c->component_name, 'calculation_type' => $c->calculation_type,
+                'calculation_base' => $c->calculation_base, 'rate' => (float) $c->rate, 'amount' => (float) $c->calculated_amount,
+            ])->values(),
+        ];
     }
 
     public function storeSalary(Request $request, Employee $employee)
@@ -885,32 +925,22 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Fixes a pre-existing bug: these field names didn't match
-     * EmployeeSalaryStructure's real fillable columns (was validating
-     * slab_id/basic/other_allowances — the model has salary_slab_id/
-     * basic_salary/da/ta/medical_allowance/special_allowance instead), so
-     * every salary structure saved through this form had those fields
-     * silently stuck at their defaults, directly corrupting payroll math
-     * that reads basic_salary/da/ta straight off this row.
+     * FSD — "The Salary Slab should become the single source of truth for
+     * employee salary calculations... no duplicate or manual salary
+     * calculations should exist in the Employee module." Selecting a
+     * Salary Slab is now the ONLY salary input; CTC/Basic/HRA/DA/TA/
+     * Medical/Special Allowance/Salary Components are no longer accepted
+     * from this form at all — they're always resolved fresh from the
+     * selected slab in saveSalaryStructure() below.
      *
      * PF/ESI/TDS applicability is NOT part of this rule set — those describe
      * the EMPLOYEE's own flags (Employee.is_pf_applicable/is_esi_applicable/
-     * is_tds_applicable), owned exclusively by Tab 7 (Statutory Information)
-     * and saved through the employee update itself; Tab 9's JS only
-     * *suggests* a value into Tab 7's own checkboxes (FSD Rule 8), so there
-     * is no separate, competing copy of these flags here to fall out of sync.
+     * is_tds_applicable), owned exclusively by Tab 7 (Statutory Information).
      */
     private function salaryRules(): array
     {
         return [
-            'salary_slab_id'    => ['nullable', 'exists:salary_slabs,id'],
-            'ctc'               => ['required', 'numeric', 'min:0'],
-            'basic_salary'      => ['required', 'numeric', 'min:0'],
-            'hra'               => ['nullable', 'numeric', 'min:0'],
-            'da'                => ['nullable', 'numeric', 'min:0'],
-            'ta'                => ['nullable', 'numeric', 'min:0'],
-            'medical_allowance' => ['nullable', 'numeric', 'min:0'],
-            'special_allowance' => ['nullable', 'numeric', 'min:0'],
+            'salary_slab_id'    => ['required', 'exists:salary_slabs,id'],
             'effective_from'    => ['required', 'date'],
             'effective_to'      => ['nullable', 'date', 'after:effective_from'],
             // Employee Master — "Designation & Salary" section. Department/
@@ -922,15 +952,6 @@ class EmployeeController extends Controller
             'designation_employee_category'  => ['required', 'in:company,contractor'],
             'designation_employee_type'      => ['required', 'in:staff,labor,contractor_staff,contractor_labor'],
             'designation_contractor_id'      => ['required_if:designation_employee_category,contractor', 'nullable', 'exists:contractors,id'],
-            // FSD Tab 9 — "Salary Components must automatically display
-            // Component Type, Calculation Type, Calculation Base, and
-            // Calculated Amount based on the selected Salary Component."
-            // Only WHICH component is client input; its type/calc-base/rate
-            // are always looked up fresh from the master below, never
-            // trusted from the request.
-            'components'                   => ['nullable', 'array'],
-            'components.*.component_type'  => ['required_with:components', 'in:earning,deduction'],
-            'components.*.component_id'    => ['required_with:components', 'integer'],
         ];
     }
 
@@ -955,7 +976,13 @@ class EmployeeController extends Controller
         }
     }
 
-    /** Shared by the standalone Tab 9 route and the unified Create submission. */
+    /**
+     * Shared by the standalone Tab 9 route and the unified Create submission.
+     * FSD — "The employee should inherit the complete salary structure from
+     * the selected Salary Slab." Every salary figure here is read fresh from
+     * the slab's own computed accessors; nothing is accepted from the
+     * request except WHICH slab and the effective dates.
+     */
     private function saveSalaryStructure(Employee $employee, array $data): void
     {
         $this->assertDesignationTypeMatchesCategory($data['designation_employee_category'], $data['designation_employee_type']);
@@ -975,79 +1002,44 @@ class EmployeeController extends Controller
         }
         $employee->update($employeeUpdates);
 
-        unset(
-            $data['department_id'], $data['designation_id'],
-            $data['designation_employee_category'], $data['designation_employee_type'], $data['designation_contractor_id']
-        );
+        $slab = \App\Models\SalarySlab::with('components')->findOrFail($data['salary_slab_id']);
 
-        $components = $data['components'] ?? [];
-        unset($data['components']);
-
-        $data['employee_id']  = $employee->id;
-        $data['created_by']   = auth()->id();
-
-        $resolvedComponents = $this->resolveSalaryComponents($components, (float) $data['ctc'], (float) $data['basic_salary']);
-        $componentEarnings  = collect($resolvedComponents)->where('component_type', 'earning')->sum('calculated_amount');
-        $componentDeductions = collect($resolvedComponents)->where('component_type', 'deduction')->sum('calculated_amount');
-
-        $data['gross_salary'] = $data['basic_salary']
-            + (float) ($data['hra'] ?? 0) + (float) ($data['da'] ?? 0) + (float) ($data['ta'] ?? 0)
-            + (float) ($data['medical_allowance'] ?? 0) + (float) ($data['special_allowance'] ?? 0)
-            + $componentEarnings;
-        $data['net_salary'] = $data['gross_salary'] - $componentDeductions;
+        $structureData = [
+            'employee_id'       => $employee->id,
+            'salary_slab_id'    => $slab->id,
+            'ctc'               => $slab->ctc,
+            'basic_salary'      => $slab->basic_salary,
+            'hra'               => 0,
+            'da'                => 0,
+            'ta'                => 0,
+            'medical_allowance' => 0,
+            'special_allowance' => 0,
+            'gross_salary'      => $slab->gross_salary,
+            'pf_employee'       => $slab->pf_employee,
+            'pf_employer'       => $slab->pf_employer,
+            'esi_employee'      => $slab->esi_employee,
+            'esi_employer'      => $slab->esi_employer,
+            'tds'               => $slab->tds,
+            'net_salary'        => $slab->net_salary,
+            'effective_from'    => $data['effective_from'],
+            'effective_to'      => $data['effective_to'] ?? null,
+            'created_by'        => auth()->id(),
+        ];
 
         $employee->salaryHistory()->update(['is_current' => false, 'effective_to' => now()->toDateString()]);
-        $structure = $employee->salaryHistory()->create(array_merge($data, ['is_current' => true]));
+        $structure = $employee->salaryHistory()->create(array_merge($structureData, ['is_current' => true]));
 
-        foreach ($resolvedComponents as $component) {
-            $structure->components()->create($component);
+        foreach ($slab->components as $component) {
+            $structure->components()->create([
+                'component_type'    => $component->component_type,
+                'component_id'      => $component->component_id,
+                'component_name'    => $component->component_name,
+                'calculation_type'  => $component->calculation_type,
+                'calculation_base'  => $component->calculation_base,
+                'rate'              => $component->rate,
+                'calculated_amount' => $component->calculated_amount,
+            ]);
         }
-    }
-
-    /**
-     * Looks up each selected component's real configuration from the
-     * Earnings/Deductions Component masters (never trusting client-supplied
-     * type/base/rate) and computes its amount for this salary structure —
-     * percentage-type components are applied against CTC or Basic per the
-     * component's own calculation_base, fixed-type components use the
-     * configured rate directly.
-     */
-    private function resolveSalaryComponents(array $components, float $ctc, float $basicSalary): array
-    {
-        $resolved = [];
-
-        foreach ($components as $component) {
-            $type = $component['component_type'] ?? null;
-            $id = $component['component_id'] ?? null;
-            if (! $type || ! $id) {
-                continue;
-            }
-
-            $source = $type === 'earning'
-                ? \App\Models\EarningsComponent::find($id)
-                : \App\Models\DeductionsComponent::find($id);
-
-            if (! $source) {
-                continue;
-            }
-
-            $base = str_contains(strtolower((string) $source->calculation_base), 'ctc') ? $ctc : $basicSalary;
-            $calculatedAmount = $source->type === 'percentage'
-                ? round($base * (float) $source->percentage / 100, 2)
-                : (float) $source->percentage;
-
-            $resolved[] = [
-                'component_type'    => $type,
-                'component_id'      => $source->id,
-                'component_name'    => $source->name,
-                'calculation_type'  => $source->type,
-                'calculation_base'  => $source->calculation_base,
-                'rate'              => $source->percentage,
-                'calculated_amount' => $calculatedAmount,
-            ];
-        }
-
-        return $resolved;
     }
 
     public function exit(Employee $employee)

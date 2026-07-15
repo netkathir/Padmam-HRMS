@@ -211,7 +211,7 @@ class PayrollController extends Controller
             $contractorId = $employee->contractor_id;
 
             $employeeTypeKey = $primaryType === 'staff' ? 'staff' : $labourType;
-            $slab = SalarySlab::findApplicable((float) $salary->ctc, $primaryType, $labourType, $branchId, $periodDate);
+            $slab = SalarySlab::findApplicable((float) $salary->ctc, $primaryType, $labourType, $periodDate);
 
             if (! $slab && $employeeTypeKey && in_array($employeeTypeKey, $slabbedEmployeeTypes, true)) {
                 $noSlabEmployees[] = $employee->full_name;

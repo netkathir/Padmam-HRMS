@@ -22,7 +22,7 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Name</th><th>From Salary (₹)</th><th>To Salary (₹)</th><th>TDS%</th><th>PF Emp/Empr%</th><th>ESI Emp/Empr%</th><th>Branch</th><th>Effective</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Name</th><th>From Salary (₹)</th><th>To Salary (₹)</th><th>TDS%</th><th>PF Emp/Empr%</th><th>ESI Emp/Empr%</th><th>Effective</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($slabs as $slab)
                     <tr>
@@ -33,7 +33,6 @@
                         <td>{{ $slab->tds_percentage ?? '—' }}</td>
                         <td>{{ $slab->pf_employee_percentage ?? '—' }} / {{ $slab->pf_employer_percentage ?? '—' }}</td>
                         <td>{{ $slab->esi_employee_percentage ?? '—' }} / {{ $slab->esi_employer_percentage ?? '—' }}</td>
-                        <td>{{ $slab->branch->name ?? 'All Branches' }}</td>
                         <td>{{ optional($slab->effective_from)->format('d M Y') ?? '—' }}@if($slab->effective_to) – {{ $slab->effective_to->format('d M Y') }}@endif</td>
                         <td><span class="badge bg-{{ $slab->is_active ? 'success' : 'danger' }}-subtle text-{{ $slab->is_active ? 'success' : 'danger' }}">{{ $slab->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
@@ -45,7 +44,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="11" class="text-center text-muted py-4">No salary slabs found.</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted py-4">No salary slabs found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

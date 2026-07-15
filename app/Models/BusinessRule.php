@@ -65,8 +65,7 @@ class BusinessRule extends Model
     /**
      * Whether this rule's applicability matches the given context. Empty/null
      * applicability arrays are wildcards (match everything for that axis) —
-     * same "NULL = applies to all" convention used throughout Module 3
-     * (Holiday.branch_id, SalarySlab.branch_id, etc.).
+     * same "NULL = applies to all" convention used throughout Module 3.
      */
     public function matchesApplicability(?int $branchId, ?string $primaryType, ?string $labourType, ?int $contractorId): bool
     {

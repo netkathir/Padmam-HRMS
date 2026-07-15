@@ -198,7 +198,6 @@ class StatutoryReportDefinitions
                 query: fn () => SalarySlab::query(),
                 columns: [
                     ['key' => 'name', 'label' => 'Slab Name', 'path' => 'name'],
-                    ['key' => 'branch', 'label' => 'Branch', 'path' => 'branch.name'],
                     ['key' => 'min_ctc', 'label' => 'Min CTC', 'path' => 'min_ctc', 'format' => 'currency'],
                     ['key' => 'max_ctc', 'label' => 'Max CTC', 'path' => 'max_ctc', 'format' => 'currency'],
                     ['key' => 'pf_employee_pct', 'label' => 'PF Employee %', 'path' => 'pf_employee_percentage'],
@@ -208,9 +207,6 @@ class StatutoryReportDefinitions
                     ['key' => 'tds_pct', 'label' => 'TDS %', 'path' => 'tds_percentage'],
                     ['key' => 'is_active', 'label' => 'Active', 'path' => 'is_active', 'format' => 'boolean'],
                 ],
-                filterMap: ['branch_id' => 'branch_id'],
-                branchScope: ['type' => 'direct'],
-                eagerLoads: ['branch'],
                 defaultSort: ['min_ctc', 'asc'],
             ),
 

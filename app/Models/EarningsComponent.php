@@ -20,5 +20,4 @@ class EarningsComponent extends Model
             'is_active' => 'boolean',
         ];
     }
-    public function salarySlabComponents() { return $this->hasMany(SalarySlabComponent::class, 'component_id')->where('component_type', 'earning'); }
 }

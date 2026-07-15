@@ -4,9 +4,6 @@ namespace App\Http\Controllers\Masters;
 
 use App\Http\Controllers\Controller;
 use App\Models\SalarySlab;
-use App\Models\EarningsComponent;
-use App\Models\DeductionsComponent;
-use App\Support\BranchScope;
 use Illuminate\Http\Request;
 
 class SalarySlabController extends Controller
@@ -15,7 +12,7 @@ class SalarySlabController extends Controller
 
     public function index(Request $request)
     {
-        $query = SalarySlab::with('branch')->orderBy('min_ctc');
+        $query = SalarySlab::orderBy('min_ctc');
 
         if ($request->filled('search')) {
             $s = '%' . $request->search . '%';
@@ -28,47 +25,36 @@ class SalarySlabController extends Controller
 
     public function create()
     {
-        $earnings      = EarningsComponent::where('is_active', true)->orderBy('sort_order')->get();
-        $deductions    = DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get();
-        $currentBranch = BranchScope::currentBranch();
-        return view('masters.salary-slabs.create', compact('earnings', 'deductions', 'currentBranch'));
+        return view('masters.salary-slabs.create');
     }
 
     private function rules(): array
     {
         return [
-            'name'     => ['required', 'string', 'max:100', 'unique:salary_slabs,name'],
             'min_ctc'  => ['required', 'numeric', 'min:0'],
-            'max_ctc'  => ['required', 'numeric', 'min:0', 'gt:min_ctc'],
-            'tds_percentage'           => ['nullable', 'numeric', 'between:0,100'],
-            'pf_employee_percentage'   => ['nullable', 'numeric', 'between:0,100'],
-            'pf_employer_percentage'   => ['nullable', 'numeric', 'between:0,100'],
-            'esi_employee_percentage'  => ['nullable', 'numeric', 'between:0,100'],
-            'esi_employer_percentage'  => ['nullable', 'numeric', 'between:0,100'],
+            'max_ctc'  => ['required', 'numeric', 'min:0', 'gte:min_ctc'],
+            'tds_percentage'           => ['required', 'numeric', 'between:0,100'],
+            'pf_employee_percentage'   => ['required', 'numeric', 'between:0,100'],
+            'pf_employer_percentage'   => ['required', 'numeric', 'between:0,100'],
+            'esi_employee_percentage'  => ['required', 'numeric', 'between:0,100'],
+            'esi_employer_percentage'  => ['required', 'numeric', 'between:0,100'],
             'applicable_employee_types'   => ['required', 'array', 'min:1'],
             'applicable_employee_types.*' => ['in:' . implode(',', self::EMPLOYEE_TYPES)],
-            'branch_id'      => ['nullable', 'exists:branches,id'],
             'effective_from' => ['required', 'date'],
-            'effective_to'   => ['nullable', 'date', 'after:effective_from'],
-            'is_active'      => ['boolean'],
-            'components' => ['nullable', 'array'],
-            'components.*.component_type' => ['required', 'in:earning,deduction'],
-            'components.*.component_id'   => ['required', 'integer'],
-            'components.*.value_type'     => ['required', 'in:fixed,percentage'],
-            'components.*.value'          => ['required', 'numeric', 'min:0'],
+            'effective_to'   => ['nullable', 'date', 'after_or_equal:effective_from'],
+            'is_active'      => ['required', 'boolean'],
         ];
     }
 
     /**
-     * FSD 7.5: "Salary ranges shall not overlap for the same branch and
-     * employee type" — checked across any other active slab sharing the
-     * branch (or a global NULL-branch slab), an overlapping employee type,
-     * and an overlapping effective-date window.
+     * FSD: salary ranges shall not overlap for the same employee type —
+     * checked across any other active slab sharing an overlapping employee
+     * type and an overlapping effective-date window. Salary Slab is a
+     * single company-wide configuration (no branch dimension).
      */
     private function assertNoOverlap(array $data, ?int $ignoreId = null): void
     {
         $candidates = SalarySlab::where('is_active', true)
-            ->where(fn($q) => $q->whereNull('branch_id')->orWhere('branch_id', $data['branch_id'] ?? null))
             ->when($ignoreId, fn($q) => $q->where('id', '!=', $ignoreId))
             ->get();
 
@@ -89,7 +75,7 @@ class SalarySlabController extends Controller
 
             $rangeOverlaps = $data['min_ctc'] <= $slab->max_ctc && $data['max_ctc'] >= $slab->min_ctc;
             if ($rangeOverlaps) {
-                abort(422, "This salary range overlaps with existing slab \"{$slab->name}\" for the same branch/employee type/effective period.");
+                abort(422, "This salary range overlaps with existing slab \"{$slab->name}\" for the same employee type/effective period.");
             }
         }
     }
@@ -97,17 +83,10 @@ class SalarySlabController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
-        $data = BranchScope::stampBranchId($data);
-        BranchScope::assertBranchIsActive($data['branch_id'] ?? null);
         $this->assertNoOverlap($data);
 
-        $slab = SalarySlab::create(collect($data)->except('components')->all());
-
-        if ($request->filled('components')) {
-            foreach ($data['components'] as $comp) {
-                $slab->components()->create($comp);
-            }
-        }
+        $data['name'] = SalarySlab::generateName($data['min_ctc'], $data['max_ctc']);
+        SalarySlab::create($data);
 
         return redirect()->route('masters.salary-slabs.index')
             ->with('success', 'Salary slab created successfully.');
@@ -115,29 +94,16 @@ class SalarySlabController extends Controller
 
     public function edit(SalarySlab $salarySlab)
     {
-        $salarySlab->load('components');
-        $earnings      = EarningsComponent::where('is_active', true)->orderBy('sort_order')->get();
-        $deductions    = DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get();
-        $currentBranch = $salarySlab->branch ?? BranchScope::currentBranch();
-        return view('masters.salary-slabs.edit', compact('salarySlab', 'earnings', 'deductions', 'currentBranch'));
+        return view('masters.salary-slabs.edit', compact('salarySlab'));
     }
 
     public function update(Request $request, SalarySlab $salarySlab)
     {
-        $rules = $this->rules();
-        $rules['name'] = ['required', 'string', 'max:100', 'unique:salary_slabs,name,' . $salarySlab->id];
-        $data = $request->validate($rules);
-        $data = BranchScope::stampBranchId($data);
+        $data = $request->validate($this->rules());
         $this->assertNoOverlap($data, $salarySlab->id);
 
-        $salarySlab->update(collect($data)->except('components')->all());
-
-        $salarySlab->components()->delete();
-        if ($request->filled('components')) {
-            foreach ($data['components'] as $comp) {
-                $salarySlab->components()->create($comp);
-            }
-        }
+        $data['name'] = SalarySlab::generateName($data['min_ctc'], $data['max_ctc']);
+        $salarySlab->update($data);
 
         return redirect()->route('masters.salary-slabs.index')
             ->with('success', 'Salary slab updated successfully.');
@@ -151,7 +117,6 @@ class SalarySlabController extends Controller
         if ($salarySlab->salaryStructures()->exists()) {
             return back()->with('error', 'Cannot delete salary slab used in finalized salary structures.');
         }
-        $salarySlab->components()->delete();
         $salarySlab->delete();
         return redirect()->route('masters.salary-slabs.index')
             ->with('success', 'Salary slab deleted successfully.');

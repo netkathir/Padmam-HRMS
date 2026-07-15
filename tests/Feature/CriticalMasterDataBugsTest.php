@@ -35,29 +35,19 @@ class CriticalMasterDataBugsTest extends TestCase
         $admin = $this->superAdmin();
 
         $response = $this->actingAs($admin)->post('http://localhost/masters/salary-slabs', [
-            'name' => 'Junior', 'min_ctc' => 300000, 'max_ctc' => 600000, 'is_active' => '1',
+            'min_ctc' => 300000, 'max_ctc' => 600000,
+            'tds_percentage' => 0, 'pf_employee_percentage' => 0, 'pf_employer_percentage' => 0,
+            'esi_employee_percentage' => 0, 'esi_employer_percentage' => 0,
+            'applicable_employee_types' => ['staff'],
+            'effective_from' => '2026-01-01',
+            'is_active' => '1',
         ]);
 
         $response->assertRedirect(route('masters.salary-slabs.index'));
-        $this->assertDatabaseHas('salary_slabs', ['name' => 'Junior', 'min_ctc' => 300000, 'max_ctc' => 600000]);
-    }
-
-    public function test_salary_slab_components_can_be_saved(): void
-    {
-        $admin = $this->superAdmin();
-        $earning = \App\Models\EarningsComponent::create(['name' => 'Basic', 'code' => 'BASIC', 'type' => 'fixed', 'is_active' => true]);
-
-        $response = $this->actingAs($admin)->post('http://localhost/masters/salary-slabs', [
-            'name' => 'Senior', 'min_ctc' => 600000, 'max_ctc' => 1200000, 'is_active' => '1',
-            'components' => [
-                ['component_type' => 'earning', 'component_id' => $earning->id, 'value_type' => 'percentage', 'value' => 40],
-            ],
+        $this->assertDatabaseHas('salary_slabs', [
+            'name' => SalarySlab::generateName(300000, 600000),
+            'min_ctc' => 300000, 'max_ctc' => 600000,
         ]);
-
-        $response->assertRedirect(route('masters.salary-slabs.index'));
-        $slab = SalarySlab::where('name', 'Senior')->firstOrFail();
-        $this->assertCount(1, $slab->components);
-        $this->assertEquals('percentage', $slab->components->first()->value_type);
     }
 
     public function test_pf_esi_config_can_be_created_with_real_column_names(): void

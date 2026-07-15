@@ -14,7 +14,7 @@ class SalarySlab extends Model
         'name', 'min_ctc', 'max_ctc',
         'tds_percentage', 'pf_employee_percentage', 'pf_employer_percentage',
         'esi_employee_percentage', 'esi_employer_percentage',
-        'applicable_employee_types', 'branch_id', 'effective_from', 'effective_to',
+        'applicable_employee_types', 'effective_from', 'effective_to',
         'is_active',
     ];
     protected function casts(): array
@@ -33,10 +33,8 @@ class SalarySlab extends Model
             'is_active' => 'boolean',
         ];
     }
-    public function components() { return $this->hasMany(SalarySlabComponent::class, 'salary_slab_id'); }
     public function salaryStructures() { return $this->hasMany(EmployeeSalaryStructure::class, 'salary_slab_id'); }
     public function employees() { return $this->hasMany(Employee::class, 'salary_slab_id'); }
-    public function branch() { return $this->belongsTo(Branch::class); }
 
     public function appliesToEmployeeType(?string $primaryType, ?string $labourType = null): bool
     {
@@ -49,21 +47,26 @@ class SalarySlab extends Model
         return $key !== null && in_array($key, $types, true);
     }
 
+    /** Slab Name is never manually entered — always derived from its salary range. */
+    public static function generateName(float $minCtc, float $maxCtc): string
+    {
+        return '₹' . number_format($minCtc, 0) . ' - ₹' . number_format($maxCtc, 0);
+    }
+
     /**
      * FSD 7.5: "The applicable slab shall be automatically selected during
      * payroll processing based on the employee's salary" — mirrors
      * PfEsiConfig::effectiveOn()'s "latest row effective on this date" style,
-     * additionally scoped by salary range, employee type, and branch
-     * (NULL branch_id on a slab = applies to all branches).
+     * additionally scoped by salary range and employee type. No longer
+     * branch-scoped — Salary Slab is a single company-wide configuration.
      */
-    public static function findApplicable(float $salary, ?string $primaryType, ?string $labourType, ?int $branchId, ?string $date = null): ?self
+    public static function findApplicable(float $salary, ?string $primaryType, ?string $labourType, ?string $date = null): ?self
     {
         $date = $date ?? now()->toDateString();
 
         return static::where('is_active', true)
             ->where('min_ctc', '<=', $salary)
             ->where('max_ctc', '>=', $salary)
-            ->where(fn($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId))
             ->where(fn($q) => $q->whereNull('effective_from')->orWhere('effective_from', '<=', $date))
             ->where(fn($q) => $q->whereNull('effective_to')->orWhere('effective_to', '>=', $date))
             ->get()

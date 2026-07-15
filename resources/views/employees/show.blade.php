@@ -6,9 +6,9 @@
 
 @section('page-actions')
     <a href="{{ route('employees.edit', $employee) }}" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i> Edit</a>
-    <a href="{{ route('employees.salary', $employee) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-cash"></i>
-        Salary</a>
-    <a href="{{ route('employees.documents', $employee) }}" class="btn btn-outline-info btn-sm"><i class="bi bi-file-text"></i>
+    <a href="{{ route('employees.edit', ['employee' => $employee, 'tab' => 9]) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-cash"></i>
+        Designation &amp; Salary</a>
+    <a href="{{ route('employees.edit', ['employee' => $employee, 'tab' => 10]) }}" class="btn btn-outline-info btn-sm"><i class="bi bi-file-text"></i>
         Documents</a>
     <a href="{{ route('employees.exit', $employee) }}" class="btn btn-outline-danger btn-sm"><i
             class="bi bi-box-arrow-right"></i> Exit</a>
@@ -37,9 +37,9 @@
             <div class="card mt-3">
                 <div class="card-header">Quick Links</div>
                 <div class="list-group list-group-flush">
-                    <a href="{{ route('employees.salary', $employee) }}" class="list-group-item list-group-item-action"><i
-                            class="bi bi-cash me-2"></i>Salary Structure</a>
-                    <a href="{{ route('employees.documents', $employee) }}"
+                    <a href="{{ route('employees.edit', ['employee' => $employee, 'tab' => 9]) }}" class="list-group-item list-group-item-action"><i
+                            class="bi bi-cash me-2"></i>Designation &amp; Salary</a>
+                    <a href="{{ route('employees.edit', ['employee' => $employee, 'tab' => 10]) }}"
                         class="list-group-item list-group-item-action"><i class="bi bi-file-text me-2"></i>Documents</a>
                     <a href="{{ route('employees.exit', $employee) }}" class="list-group-item list-group-item-action"><i
                             class="bi bi-box-arrow-right me-2"></i>Exit Management</a>
@@ -76,6 +76,11 @@
                         <div class="col-sm-6"><strong>Designation:</strong> {{ $employee->designation->name ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Employee Type:</strong> {{ $employee->employeeType->name ?? '—' }}
                         </div>
+                        <div class="col-sm-6"><strong>Employee Category:</strong> {{ $employee->designation_employee_category ? ucfirst($employee->designation_employee_category) : '—' }}</div>
+                        <div class="col-sm-6"><strong>Type:</strong> {{ $employee->designation_employee_type_label ?? '—' }}</div>
+                        @if ($employee->designationContractor)
+                        <div class="col-sm-6"><strong>Contractor Name:</strong> {{ $employee->designationContractor->name }}</div>
+                        @endif
                         <div class="col-sm-6"><strong>Date of Joining:</strong>
                             {{ $employee->date_of_joining?->format('d-m-Y') ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Shift:</strong> {{ $employee->shift->name ?? '—' }}</div>

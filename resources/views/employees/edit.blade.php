@@ -22,7 +22,7 @@
                 <li class="nav-item" id="nav-tab-6-item"><button type="button" class="nav-link" data-nav-tab="6">6. Contract Labour Information</button></li>
                 <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="7">7. Statutory Information</button></li>
                 <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="8">8. Bank Information</button></li>
-                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="9">9. Salary Structure</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="9">9. Designation &amp; Salary</button></li>
                 <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="10">10. Employee Documents</button></li>
             </ul>
 
@@ -142,7 +142,7 @@
                 </form>
             </div>
 
-            {{-- ── Tab 9: Salary Structure ─────────────────────────────── --}}
+            {{-- ── Tab 9: Designation & Salary ─────────────────────────────── --}}
             <div class="tab-pane" data-tab-pane="9">
                 <div class="row g-3 mb-3">
                     <div class="col-12">
@@ -192,6 +192,57 @@
                 <form action="{{ route('employees.salary.store', $employee) }}" method="POST" id="salaryForm">
                     @csrf
                     <div class="row g-3">
+                        <div class="col-12"><h6 class="fw-bold border-bottom pb-2">Designation</h6></div>
+                        <div class="col-md-3">
+                            <label class="form-label">Employee Category <span class="text-danger">*</span></label>
+                            @php $desigCategory = old('designation_employee_category', $employee->designation_employee_category); @endphp
+                            <select name="designation_employee_category" id="designation_employee_category" class="form-select @error('designation_employee_category') is-invalid @enderror" required>
+                                <option value="">Select</option>
+                                <option value="company" {{ $desigCategory == 'company' ? 'selected' : '' }}>Company</option>
+                                <option value="contractor" {{ $desigCategory == 'contractor' ? 'selected' : '' }}>Contractor</option>
+                            </select>
+                            @error('designation_employee_category')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Type <span class="text-danger">*</span></label>
+                            @php $desigType = old('designation_employee_type', $employee->designation_employee_type); @endphp
+                            <select name="designation_employee_type" id="designation_employee_type" class="form-select @error('designation_employee_type') is-invalid @enderror" data-selected="{{ $desigType }}" required>
+                                <option value="">Select Category first</option>
+                            </select>
+                            @error('designation_employee_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-3" id="designation-contractor-field">
+                            <label class="form-label">Contractor Name <span class="text-danger">*</span></label>
+                            <select name="designation_contractor_id" id="designation_contractor_id" class="form-select @error('designation_contractor_id') is-invalid @enderror" data-searchable>
+                                <option value="">Select</option>
+                                @foreach ($contractors as $c)
+                                    <option value="{{ $c->id }}" {{ old('designation_contractor_id', $employee->designation_contractor_id) == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('designation_contractor_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Department</label>
+                            <select name="department_id" class="form-select @error('department_id') is-invalid @enderror" data-searchable>
+                                <option value="">Select</option>
+                                @foreach ($departments as $d)
+                                    <option value="{{ $d->id }}" {{ old('department_id', $employee->department_id) == $d->id ? 'selected' : '' }}>{{ $d->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('department_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Designation</label>
+                            <select name="designation_id" class="form-select @error('designation_id') is-invalid @enderror" data-searchable>
+                                <option value="">Select</option>
+                                @foreach ($designations as $des)
+                                    <option value="{{ $des->id }}" {{ old('designation_id', $employee->designation_id) == $des->id ? 'selected' : '' }}>{{ $des->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('designation_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="col-12 mt-2"><h6 class="fw-bold border-bottom pb-2">Salary</h6></div>
                         <div class="col-md-4">
                             <label class="form-label">Salary Slab</label>
                             <select name="salary_slab_id" id="salary_slab_id" class="form-select" data-searchable>
@@ -617,6 +668,43 @@
                 btn.querySelector('i').className = showing ? 'bi bi-eye' : 'bi bi-eye-slash';
             });
         });
+
+        // ── Tab 9: Designation & Salary — Employee Category drives Type's
+        // options and whether Contractor Name is shown/required. ──
+        const desigCategorySelect = document.getElementById('designation_employee_category');
+        const desigTypeSelect = document.getElementById('designation_employee_type');
+        const desigContractorField = document.getElementById('designation-contractor-field');
+        const desigContractorSelect = document.getElementById('designation_contractor_id');
+        const DESIGNATION_TYPE_OPTIONS = {
+            company: [['staff', 'Staff'], ['labor', 'Labor']],
+            contractor: [['contractor_staff', 'Contractor Staff'], ['contractor_labor', 'Contractor Labor']],
+        };
+        function refreshDesignationType(restorePrevious) {
+            if (!desigCategorySelect || !desigTypeSelect) return;
+            const category = desigCategorySelect.value;
+            const previous = restorePrevious ? desigTypeSelect.dataset.selected : desigTypeSelect.value;
+            const options = DESIGNATION_TYPE_OPTIONS[category] || [];
+            desigTypeSelect.innerHTML = options.length
+                ? options.map(([v, label]) => `<option value="${v}">${label}</option>`).join('')
+                : '<option value="">Select Category first</option>';
+            if (previous && options.some(([v]) => v === previous)) {
+                desigTypeSelect.value = previous;
+            }
+        }
+        function refreshDesignationContractor() {
+            if (!desigCategorySelect || !desigContractorField) return;
+            const isContractor = desigCategorySelect.value === 'contractor';
+            desigContractorField.style.display = isContractor ? '' : 'none';
+            if (desigContractorSelect) desigContractorSelect.toggleAttribute('required', isContractor);
+        }
+        if (desigCategorySelect) {
+            refreshDesignationType(true);
+            refreshDesignationContractor();
+            desigCategorySelect.addEventListener('change', function () {
+                refreshDesignationType(false);
+                refreshDesignationContractor();
+            });
+        }
 
         // ── Tab 9: PF/ESI/TDS auto-default from PfEsiConfig ceilings + selected Salary Slab's TDS % ──
         const pfEsiConfig = window.__employeeWizard.pfEsiConfig;

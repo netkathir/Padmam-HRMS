@@ -38,6 +38,7 @@
             </a>
         </div>
         --}}
+        @if (config('features.employee_types_enabled', false))
         <div class="col-6 col-md-4 col-lg-3">
             <a href="{{ route('masters.employee-types.index') }}" class="card text-decoration-none h-100">
                 <div class="card-body text-center py-4">
@@ -47,6 +48,7 @@
                 </div>
             </a>
         </div>
+        @endif
         <div class="col-6 col-md-4 col-lg-3">
             <a href="{{ route('masters.contractors.index') }}" class="card text-decoration-none h-100">
                 <div class="card-body text-center py-4">

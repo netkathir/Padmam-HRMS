@@ -248,7 +248,11 @@ Route::middleware(['auth', 'force.password.change'])->group(function () {
         ->middlewareFor(['store'], 'permission:masters_designations.create')
         ->middlewareFor(['update', 'destroy'], 'permission:masters_designations.full');
 
+    // Employee Types is temporarily hidden from the UI/navigation
+    // (config/features.php: employee_types_enabled) — this blocks direct
+    // URL access too, without touching the controller, model, or schema.
     Route::resource('masters/employee-types', EmployeeTypeController::class, ['as' => 'masters'])->except('show')
+        ->middleware('feature:employee_types_enabled')
         ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_employee_types.read')
         ->middlewareFor(['store'], 'permission:masters_employee_types.create')
         ->middlewareFor(['update', 'destroy'], 'permission:masters_employee_types.full');

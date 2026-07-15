@@ -63,6 +63,7 @@
                             <th>Name</th>
                             <th>Department</th>
                             <th>Designation</th>
+                            <th>Category / Type</th>
                             <th>Branch</th>
                             <th>Type</th>
                             <th>Status</th>
@@ -81,6 +82,16 @@
                                 </td>
                                 <td>{{ $emp->department->name ?? '—' }}</td>
                                 <td>{{ $emp->designation->name ?? '—' }}</td>
+                                <td>
+                                    @if ($emp->designation_employee_category)
+                                        {{ ucfirst($emp->designation_employee_category) }} · {{ $emp->designation_employee_type_label ?? '—' }}
+                                        @if ($emp->designationContractor)
+                                            <div class="text-muted small">{{ $emp->designationContractor->name }}</div>
+                                        @endif
+                                    @else
+                                        —
+                                    @endif
+                                </td>
                                 <td>{{ $emp->branch->name ?? '—' }}</td>
                                 <td>{{ $emp->employeeType->name ?? '—' }}</td>
                                 <td>
@@ -99,7 +110,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center text-muted py-4">No employees found.</td>
+                                <td colspan="10" class="text-center text-muted py-4">No employees found.</td>
                             </tr>
                         @endforelse
                     </tbody>

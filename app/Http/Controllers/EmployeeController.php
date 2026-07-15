@@ -31,7 +31,7 @@ class EmployeeController extends Controller
 
     public function index(Request $request)
     {
-        $query = Employee::with(['branch', 'department', 'designation', 'employeeType'])
+        $query = Employee::with(['branch', 'department', 'designation', 'employeeType', 'designationContractor'])
             ->orderBy('first_name');
 
         $query = BranchScope::scopeQuery($query);
@@ -498,7 +498,7 @@ class EmployeeController extends Controller
     public function show(Employee $employee)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
-        $employee->load(['branch', 'department', 'designation', 'employeeType', 'contractor',
+        $employee->load(['branch', 'department', 'designation', 'employeeType', 'contractor', 'designationContractor',
             'shift', 'reportingTo', 'user', 'bankDetails.bank', 'currentSalary', 'exitRecord',
             'weeklyOffRuleOverride', 'attendanceRuleOverride', 'payrollRuleOverride']);
 
@@ -913,6 +913,15 @@ class EmployeeController extends Controller
             'special_allowance' => ['nullable', 'numeric', 'min:0'],
             'effective_from'    => ['required', 'date'],
             'effective_to'      => ['nullable', 'date', 'after:effective_from'],
+            // Employee Master — "Designation & Salary" section. Department/
+            // Designation are shared with Tab 5's own fields (same employee
+            // columns); Employee Category/Type/Contractor Name are this
+            // section's own classification, distinct from Tab 1's.
+            'department_id'                  => ['nullable', 'exists:departments,id'],
+            'designation_id'                 => ['nullable', 'exists:designations,id'],
+            'designation_employee_category'  => ['required', 'in:company,contractor'],
+            'designation_employee_type'      => ['required', 'in:staff,labor,contractor_staff,contractor_labor'],
+            'designation_contractor_id'      => ['required_if:designation_employee_category,contractor', 'nullable', 'exists:contractors,id'],
             // FSD Tab 9 — "Salary Components must automatically display
             // Component Type, Calculation Type, Calculation Base, and
             // Calculated Amount based on the selected Salary Component."
@@ -925,9 +934,52 @@ class EmployeeController extends Controller
         ];
     }
 
+    /**
+     * Employee Master — "Designation & Salary" Type options are scoped to
+     * the selected Employee Category (Company -> Staff/Labor, Contractor ->
+     * Contractor Staff/Contractor Labor); a mismatched combination (possible
+     * via a crafted request, since the client only hides the invalid
+     * options) is rejected server-side too.
+     */
+    private function assertDesignationTypeMatchesCategory(string $category, string $type): void
+    {
+        $validTypes = [
+            'company'    => ['staff', 'labor'],
+            'contractor' => ['contractor_staff', 'contractor_labor'],
+        ];
+
+        if (! in_array($type, $validTypes[$category] ?? [], true)) {
+            throw ValidationException::withMessages([
+                'designation_employee_type' => 'The selected Type does not match the selected Employee Category.',
+            ]);
+        }
+    }
+
     /** Shared by the standalone Tab 9 route and the unified Create submission. */
     private function saveSalaryStructure(Employee $employee, array $data): void
     {
+        $this->assertDesignationTypeMatchesCategory($data['designation_employee_category'], $data['designation_employee_type']);
+
+        $employeeUpdates = [
+            'designation_employee_category' => $data['designation_employee_category'],
+            'designation_employee_type'     => $data['designation_employee_type'],
+            'designation_contractor_id'     => $data['designation_employee_category'] === 'contractor'
+                ? ($data['designation_contractor_id'] ?? null)
+                : null,
+        ];
+        if (! empty($data['department_id'])) {
+            $employeeUpdates['department_id'] = $data['department_id'];
+        }
+        if (! empty($data['designation_id'])) {
+            $employeeUpdates['designation_id'] = $data['designation_id'];
+        }
+        $employee->update($employeeUpdates);
+
+        unset(
+            $data['department_id'], $data['designation_id'],
+            $data['designation_employee_category'], $data['designation_employee_type'], $data['designation_contractor_id']
+        );
+
         $components = $data['components'] ?? [];
         unset($data['components']);
 

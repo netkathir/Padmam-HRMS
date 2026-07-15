@@ -15,6 +15,7 @@ class Employee extends Model
         'employee_code', 'biometric_id', 'branch_id', 'department_id', 'designation_id',
         'employee_type_id', 'primary_employee_type', 'labour_type', 'contractor_id',
         'contractor_employee_number', 'work_order_number', 'labour_category', 'contractor_rate', 'contractor_remarks',
+        'designation_employee_category', 'designation_employee_type', 'designation_contractor_id',
         'shift_id', 'weekly_off_rule_id', 'attendance_rule_id', 'payroll_rule_id',
         'reporting_to', 'salary_slab_id',
         'first_name', 'middle_name', 'last_name', 'display_name', 'date_of_birth', 'gender', 'marital_status',
@@ -93,6 +94,18 @@ class Employee extends Model
         };
     }
 
+    /** Employee Master — "Designation & Salary" section's Type field, display form. */
+    public function getDesignationEmployeeTypeLabelAttribute(): ?string
+    {
+        return match ($this->designation_employee_type) {
+            'staff' => 'Staff',
+            'labor' => 'Labor',
+            'contractor_staff' => 'Contractor Staff',
+            'contractor_labor' => 'Contractor Labor',
+            default => null,
+        };
+    }
+
     public function getProfilePhotoUrlAttribute(): string
     {
         return $this->profile_photo
@@ -148,6 +161,9 @@ class Employee extends Model
     public function designation()  { return $this->belongsTo(Designation::class); }
     public function employeeType() { return $this->belongsTo(EmployeeType::class); }
     public function contractor()   { return $this->belongsTo(Contractor::class); }
+
+    /** Employee Master — "Designation & Salary" section's own Contractor Name field (distinct from Tab 6's contractor_id). */
+    public function designationContractor() { return $this->belongsTo(Contractor::class, 'designation_contractor_id'); }
     public function shift()        { return $this->belongsTo(Shift::class); }
     public function salarySlab()   { return $this->belongsTo(SalarySlab::class); }
     public function user()         { return $this->hasOne(User::class); }

@@ -567,7 +567,10 @@ $showBranchAdmin =
                             </a>
                         @endif
                         --}}
-                        @if ($can['masters_employee_types'])
+                        {{-- Employee Types is temporarily hidden (config/features.php:
+                             employee_types_enabled) — flip that flag back to true to
+                             restore this nav link; the module itself is untouched. --}}
+                        @if ($can['masters_employee_types'] && config('features.employee_types_enabled', false))
                             <a href="{{ route('masters.employee-types.index') }}"
                                 class="sb-link sb-sub-link {{ request()->routeIs('masters.employee-types.*') ? 'active' : '' }}">
                                 <i class="bi bi-person-gear"></i><span>Employee Types</span>

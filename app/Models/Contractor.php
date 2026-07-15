@@ -16,13 +16,10 @@ class Contractor extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'name', 'company_name', 'code', 'contact_person', 'phone', 'alternate_phone', 'email',
+        'name', 'code', 'contact_person', 'phone', 'alternate_phone', 'email',
         'address', 'state', 'district', 'pincode',
         'license_number', 'gst_number', 'pan_number', 'pf_registration_number', 'esi_registration_number',
         'license_expiry', 'agreement_start_date', 'agreement_end_date', 'max_labour_count', 'is_active',
-        // Branch-wise data scoping — additive; nullable so contractors predating
-        // this column stay invisible to branch-scoped users until assigned.
-        'branch_id',
     ];
 
     protected function casts(): array
@@ -35,20 +32,9 @@ class Contractor extends Model
         ];
     }
 
-    public function branch()         { return $this->belongsTo(Branch::class); }
     public function employees()      { return $this->hasMany(Employee::class); }
     public function contractWorkers(){ return $this->hasMany(ContractWorker::class); }
     public function documents()      { return $this->hasMany(ContractorDocument::class); }
-
-    /**
-     * FSD 9.1 — "Branch Applicability — one or more branches", additive
-     * multi-select alongside the existing single `branch_id` (which keeps
-     * driving BranchScope unchanged).
-     */
-    public function branches()
-    {
-        return $this->belongsToMany(Branch::class, 'contractor_branches');
-    }
 
     /**
      * Whether this contractor currently has any active Contract Labour,

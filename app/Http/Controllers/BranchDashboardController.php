@@ -59,7 +59,8 @@ class BranchDashboardController extends Controller
         $charts = $this->computeCharts($filters);
 
         $authorizedBranches = Branch::whereIn('id', $authorizedBranchIds)->orderBy('name')->get();
-        $contractors = Contractor::where('is_active', true)->where('branch_id', $branchId)->orderBy('name')->get();
+        // Contractor is a global master (no branch dimension).
+        $contractors = Contractor::where('is_active', true)->orderBy('name')->get();
 
         return view('dashboard.branch', [
             'filters' => $filters,
@@ -184,10 +185,11 @@ class BranchDashboardController extends Controller
             ->orderByDesc('value')
             ->get();
 
-        // Contractor-wise Strength.
+        // Contractor-wise Strength. Contractor is a global master (no branch
+        // dimension), so this is organization-wide, optionally narrowed to
+        // one contractor.
         $contractorWise = ContractWorker::active()
             ->join('contractors', 'contract_workers.contractor_id', '=', 'contractors.id')
-            ->where('contractors.branch_id', $filters['branch_id'])
             ->when($filters['contractor_id'], fn ($q) => $q->where('contractors.id', $filters['contractor_id']))
             ->selectRaw('contractors.name as label, COUNT(*) as value')
             ->groupBy('contractors.name')

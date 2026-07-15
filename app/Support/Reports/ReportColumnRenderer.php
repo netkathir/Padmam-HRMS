@@ -14,10 +14,9 @@ class ReportColumnRenderer
     {
         $value = data_get($record, $column['path']);
 
-        // A dot-path landing on a many-to-many/hasMany relation (e.g.
-        // Contractor::branches()) resolves to a Collection, not a scalar —
-        // render it as a comma-joined list of `name` rather than failing to
-        // cast to string.
+        // A dot-path landing on a many-to-many/hasMany relation resolves to
+        // a Collection, not a scalar — render it as a comma-joined list of
+        // `name` rather than failing to cast to string.
         if ($value instanceof \Illuminate\Support\Collection) {
             $value = $value->pluck('name')->filter()->implode(', ');
         }

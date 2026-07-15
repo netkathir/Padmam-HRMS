@@ -2,10 +2,9 @@
 /**
  * File: app/Http/Controllers/Masters/ContractorController.php
  * Purpose: CRUD and management for Contractors — labour assignment, contractor-wise attendance and payroll views.
- *          Branch-wise scoped throughout: a Contractor belongs to a branch
- *          (branch_id, additive column — see 2026_07_12_000001 migration), and
- *          the labour/attendance/payroll sub-views were already scoped via the
- *          linked Employee's branch_id.
+ *          Contractor is a single, global master (no branch scoping). The
+ *          labour/attendance/payroll sub-views remain scoped via the linked
+ *          Employee's own branch_id, independent of the contractor.
  * Author: System
  * Date: 2026-07-01
  */
@@ -17,10 +16,12 @@ use App\Models\Contractor;
 use App\Models\ContractorDocument;
 use App\Models\Employee;
 use App\Models\Attendance;
-use App\Models\Branch;
 use App\Models\PayrollRecord;
 use App\Support\BranchScope;
+use App\Support\SequentialCodeGenerator;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -28,7 +29,7 @@ class ContractorController extends Controller
 {
     public function index(Request $request)
     {
-        $query = BranchScope::scopeQuery(Contractor::query())->orderBy('name');
+        $query = Contractor::query()->orderBy('name');
 
         if ($request->filled('search')) {
             $s = '%' . $request->search . '%';
@@ -40,9 +41,8 @@ class ContractorController extends Controller
         $contractors = $query->paginate(20)->withQueryString();
 
         // FSD 9.1 — "system shall warn users before contractor agreement or
-        // licence expiry" — a lightweight summary banner, computed over the
-        // branch-scoped active set (not just the current page).
-        $expiringSoonCount = BranchScope::scopeQuery(Contractor::where('is_active', true))
+        // licence expiry" — a lightweight summary banner over the active set.
+        $expiringSoonCount = Contractor::where('is_active', true)
             ->where(function ($q) {
                 $soon = now()->addDays(30)->toDateString();
                 $q->whereBetween('license_expiry', [now()->toDateString(), $soon])
@@ -54,18 +54,7 @@ class ContractorController extends Controller
 
     private function formOptions(): array
     {
-        return [
-            // The owning branch (`branch_id`) is always the currently active
-            // one — store()/update() force it via BranchScope::stampBranchId()
-            // regardless of what's submitted, so it's shown read-only.
-            'currentBranch' => BranchScope::currentBranch(),
-            // `allBranches` remains the full list for the separate Branch
-            // Applicability multi-select (`branch_ids[]`) — a deliberate,
-            // multi-branch feature (a contractor's labour can work across
-            // several branches), unrelated to the single owning branch above.
-            'allBranches' => Branch::active()->orderBy('name')->get(),
-            'states' => config('states', []),
-        ];
+        return ['states' => config('states', [])];
     }
 
     public function create()
@@ -77,16 +66,22 @@ class ContractorController extends Controller
     {
         return [
             'name'           => ['required', 'string', 'max:100', Rule::unique('contractors', 'name')->ignore($contractorId)],
-            'company_name'   => ['nullable', 'string', 'max:150'],
-            'code'           => ['required', 'string', 'max:20', Rule::unique('contractors', 'code')->ignore($contractorId)],
+            // `code` is auto-generated on create (see createWithGeneratedCode())
+            // and never accepted from the client there; still required/unique/
+            // editable on update, preserving today's Edit behavior.
+            'code'           => $contractorId
+                ? ['required', 'string', 'max:20', Rule::unique('contractors', 'code')->ignore($contractorId)]
+                : ['nullable', 'string', 'max:20'],
             'contact_person' => ['required', 'string', 'max:100'],
             'phone'          => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
             'alternate_phone' => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
             'email'          => ['nullable', 'email', 'max:150'],
-            'address'        => ['required', 'string'],
-            'state'          => ['required', 'string', Rule::in(config('states', []))],
-            'district'       => ['required', 'string', 'max:100'],
-            'pincode'        => ['required', 'digits:6'],
+            // Address is optional; State/District/PIN Code are only required
+            // when an Address has actually been entered.
+            'address'        => ['nullable', 'string'],
+            'state'          => ['nullable', 'string', 'required_with:address', Rule::in(config('states', []))],
+            'district'       => ['nullable', 'string', 'max:100', 'required_with:address'],
+            'pincode'        => ['nullable', 'digits:6', 'required_with:address'],
             'license_number' => ['nullable', 'string', 'max:100'],
             'license_expiry' => ['required_with:license_number', 'nullable', 'date'],
             'gst_number'     => ['nullable', 'string', 'regex:/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/'],
@@ -94,12 +89,9 @@ class ContractorController extends Controller
             'pf_registration_number'  => ['nullable', 'string', 'max:50'],
             'esi_registration_number' => ['nullable', 'string', 'max:50'],
             'agreement_start_date' => ['required', 'date'],
-            'agreement_end_date'   => ['nullable', 'date', 'after:agreement_start_date'],
+            'agreement_end_date'   => ['nullable', 'date', 'after_or_equal:agreement_start_date'],
             'max_labour_count'     => ['nullable', 'integer', 'min:0'],
-            'branch_id'      => ['nullable', 'exists:branches,id'],
-            'branch_ids'     => ['required', 'array', 'min:1'],
-            'branch_ids.*'   => ['exists:branches,id'],
-            'is_active'      => ['boolean'],
+            'is_active'      => ['required', 'boolean'],
         ];
     }
 
@@ -111,26 +103,44 @@ class ContractorController extends Controller
             'phone.regex' => 'The mobile number format is invalid.',
             'alternate_phone.regex' => 'The alternate number format is invalid.',
             'license_expiry.required_with' => 'Licence expiry date is required when a licence number is entered.',
+            'state.required_with' => 'The state field is required when an address is entered.',
+            'district.required_with' => 'The district field is required when an address is entered.',
+            'pincode.required_with' => 'The PIN code field is required when an address is entered.',
         ];
+    }
+
+    /**
+     * Generates the next Contractor Code (one higher than the latest
+     * existing code, preserving its prefix/padding) and creates the
+     * contractor with it — mirrors BranchController::createWithGeneratedCode().
+     */
+    private function createWithGeneratedCode(array $data): Contractor
+    {
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            try {
+                return DB::transaction(function () use ($data) {
+                    $lastCode = Contractor::orderByDesc('id')->lockForUpdate()->value('code');
+                    $data['code'] = SequentialCodeGenerator::next($lastCode, 'CN0001');
+
+                    return Contractor::create($data);
+                });
+            } catch (QueryException $e) {
+                $isDuplicate = (string) $e->getCode() === '23000';
+                if (! $isDuplicate || $attempt === 5) {
+                    throw $e;
+                }
+            }
+        }
+
+        throw new \RuntimeException('Unable to generate a unique Contractor Code after several attempts.');
     }
 
     public function store(Request $request)
     {
         $data = $request->validate($this->rules(), $this->messages());
-        $branchIds = $data['branch_ids'];
-        unset($data['branch_ids']);
+        unset($data['code']);
 
-        $data = BranchScope::stampBranchId($data);
-        BranchScope::assertBranchIsActive($data['branch_id'] ?? null);
-
-        // The primary/owning branch always counts as applicable, even if the
-        // user didn't explicitly tick it in the multi-select.
-        if (! empty($data['branch_id']) && ! in_array($data['branch_id'], $branchIds)) {
-            $branchIds[] = $data['branch_id'];
-        }
-
-        $contractor = Contractor::create($data);
-        $contractor->branches()->sync($branchIds);
+        $contractor = $this->createWithGeneratedCode($data);
 
         return redirect()->route('masters.contractors.index')
             ->with('success', 'Contractor created successfully.');
@@ -138,29 +148,14 @@ class ContractorController extends Controller
 
     public function edit(Contractor $contractor)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-        $contractor->load(['branches', 'documents']);
-        $options = $this->formOptions();
-        $options['currentBranch'] = $contractor->branch ?? $options['currentBranch'];
-        return view('masters.contractors.edit', array_merge(compact('contractor'), $options));
+        $contractor->load('documents');
+        return view('masters.contractors.edit', array_merge(compact('contractor'), $this->formOptions()));
     }
 
     public function update(Request $request, Contractor $contractor)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-
         $data = $request->validate($this->rules($contractor->id), $this->messages());
-        $branchIds = $data['branch_ids'];
-        unset($data['branch_ids']);
-
-        $data = BranchScope::stampBranchId($data);
-
-        if (! empty($data['branch_id']) && ! in_array($data['branch_id'], $branchIds)) {
-            $branchIds[] = $data['branch_id'];
-        }
-
         $contractor->update($data);
-        $contractor->branches()->sync($branchIds);
 
         return redirect()->route('masters.contractors.index')
             ->with('success', 'Contractor updated successfully.');
@@ -168,12 +163,9 @@ class ContractorController extends Controller
 
     public function destroy(Contractor $contractor)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-
         // FSD 9.1 — "A contractor with active Contract Labour shall not be
         // deleted." Checked across BOTH contract-labour mechanisms this app
-        // uses (Employee.contractor_id and the separate ContractWorker
-        // model) — previously only the Employee side was guarded.
+        // uses (Employee.contractor_id and the separate ContractWorker model).
         if ($contractor->hasActiveContractLabour()) {
             return back()->with('error', 'Cannot delete contractor with active contract labour assigned.');
         }
@@ -186,8 +178,6 @@ class ContractorController extends Controller
 
     public function uploadDocument(Request $request, Contractor $contractor)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-
         $request->validate([
             'document_type' => ['required', 'in:agreement,licence,other'],
             'file'          => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
@@ -207,8 +197,6 @@ class ContractorController extends Controller
 
     public function deleteDocument(Contractor $contractor, ContractorDocument $document)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-
         if ($document->contractor_id !== $contractor->id) {
             abort(404);
         }
@@ -226,7 +214,7 @@ class ContractorController extends Controller
      */
     public function contractLabourIndex(Request $request)
     {
-        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
 
         $contractor          = null;
         $employees           = collect();
@@ -234,7 +222,6 @@ class ContractorController extends Controller
 
         if ($request->filled('contractor_id')) {
             $contractor = Contractor::findOrFail($request->contractor_id);
-            BranchScope::assertBranchAccess($contractor->branch_id);
 
             $employees = BranchScope::scopeQuery($contractor->employees())
                 ->with(['department', 'designation'])
@@ -255,12 +242,13 @@ class ContractorController extends Controller
     // ── Contractor Labour Management ─────────────────────────────────────
 
     /**
-     * Show all employees (labour) assigned to a specific contractor.
+     * Show all employees (labour) assigned to a specific contractor. Still
+     * scoped to the viewer's own branch via the Employee records themselves
+     * (BranchScope::scopeQuery) — independent of the (now branch-agnostic)
+     * Contractor entity.
      */
     public function labour(Contractor $contractor)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-
         $employees = BranchScope::scopeQuery($contractor->employees())
             ->with(['department', 'designation', 'shift'])
             ->orderBy('first_name')
@@ -280,8 +268,6 @@ class ContractorController extends Controller
      */
     public function assignLabour(Request $request, Contractor $contractor)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-
         // FSD 9.1 — "Contract Labour shall not be assigned to an inactive contractor."
         if (! $contractor->is_active) {
             return back()->with('error', 'Cannot assign labour to an inactive contractor.');
@@ -308,7 +294,6 @@ class ContractorController extends Controller
      */
     public function removeLabour(Contractor $contractor, Employee $employee)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
         BranchScope::assertBranchAccess($employee->branch_id);
 
         if ($employee->contractor_id !== $contractor->id) {
@@ -327,8 +312,6 @@ class ContractorController extends Controller
      */
     public function attendance(Request $request, Contractor $contractor)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-
         $date = $request->input('date', now()->toDateString());
 
         $employeeIds = BranchScope::scopeQuery($contractor->employees())->pluck('id');
@@ -357,8 +340,6 @@ class ContractorController extends Controller
      */
     public function payroll(Request $request, Contractor $contractor)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-
         $month = $request->input('month', now()->month);
         $year  = $request->input('year', now()->year);
 

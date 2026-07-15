@@ -349,7 +349,6 @@
                         <tr>
                             <th>#</th>
                             <th>Contractor</th>
-                            <th>Company</th>
                             <th>Total Workers</th>
                             <th>Workers w/ Payroll</th>
                             <th class="text-end">Total Gross</th>
@@ -372,7 +371,6 @@
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
                                 <td class="fw-semibold">{{ $c->name }}</td>
-                                <td><small class="text-muted">{{ $c->company_name ?? '—' }}</small></td>
                                 <td>
                                     <span class="badge bg-secondary-subtle text-secondary">
                                         {{ $c->employees_count }}
@@ -412,14 +410,14 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-4">No contractors found.</td>
+                                <td colspan="9" class="text-center text-muted py-4">No contractors found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                     @if ($contractors->count() > 0 && $payrollSummary->count() > 0)
                         <tfoot>
                             <tr class="table-light fw-semibold">
-                                <td colspan="5">Total</td>
+                                <td colspan="4">Total</td>
                                 <td class="text-end">₹{{ number_format($totalGross, 0) }}</td>
                                 <td class="text-end text-success">₹{{ number_format($totalNet, 0) }}</td>
                                 <td colspan="3"></td>

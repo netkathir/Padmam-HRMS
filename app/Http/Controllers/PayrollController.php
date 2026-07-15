@@ -91,7 +91,7 @@ class PayrollController extends Controller
         $branchId = $request->input('branch_id', $currentBranchId);
         $branches = $currentBranchId ? Branch::where('id', $currentBranchId)->get() : Branch::active()->orderBy('name')->get();
         $employeeTypes = EmployeeType::where('is_active', true)->get();
-        $contractors = BranchScope::scopeQueryIncludingGlobal(Contractor::where('is_active', true))->orderBy('name')->get();
+        $contractors = Contractor::where('is_active', true)->orderBy('name')->get();
 
         $preconditions = $this->checkPreconditions($month, $year, $branchId);
 
@@ -875,7 +875,7 @@ class PayrollController extends Controller
         $currentBranchId = BranchScope::currentBranchId();
         $branches      = $currentBranchId ? Branch::where('id', $currentBranchId)->get() : Branch::active()->orderBy('name')->get();
         $employeeTypes = EmployeeType::where('is_active', true)->get();
-        $contractors   = BranchScope::scopeQueryIncludingGlobal(Contractor::where('is_active', true))->orderBy('name')->get();
+        $contractors   = Contractor::where('is_active', true)->orderBy('name')->get();
 
         // FSD 13.3 — LOP Confirmation Prompt summary counts, computed over
         // the SAME filtered set the review screen (and the bulk "Confirm

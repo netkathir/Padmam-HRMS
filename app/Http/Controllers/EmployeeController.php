@@ -286,9 +286,10 @@ class EmployeeController extends Controller
     }
 
     /**
-     * FSD 10.8 — Contract Labour: contractor mandatory, must be active, must
-     * be mapped to the employee's branch, and contract dates (if the
-     * contractor has an agreement period configured) must fall within it.
+     * FSD 10.8 — Contract Labour: contractor mandatory, must be active, and
+     * contract dates (if the contractor has an agreement period configured)
+     * must fall within it. Contractor is a global master (no branch
+     * mapping), so no branch-match check applies here.
      */
     private function assertContractorForLabour(array $data): void
     {
@@ -300,19 +301,13 @@ class EmployeeController extends Controller
             throw ValidationException::withMessages(['contractor_id' => 'Contractor is mandatory for Contract Labour.']);
         }
 
-        $contractor = Contractor::with('branches')->find($data['contractor_id']);
+        $contractor = Contractor::find($data['contractor_id']);
         if (! $contractor) {
             return;
         }
 
         if (! $contractor->is_active) {
             throw ValidationException::withMessages(['contractor_id' => 'The selected contractor is inactive.']);
-        }
-
-        $branchId = $data['branch_id'] ?? null;
-        $mappedBranchIds = $contractor->branches->pluck('id')->push($contractor->branch_id)->filter();
-        if ($branchId && $mappedBranchIds->isNotEmpty() && ! $mappedBranchIds->contains($branchId)) {
-            throw ValidationException::withMessages(['contractor_id' => 'The selected contractor is not mapped to the selected branch.']);
         }
 
         if (! empty($data['contract_start_date'])) {
@@ -763,7 +758,7 @@ class EmployeeController extends Controller
                 ->orderBy('name')->get(),
             'designations'  => $this->scopedDesignations($currentBranchId),
             'employeeTypes' => EmployeeType::where('is_active', true)->get(),
-            'contractors'   => BranchScope::scopeQueryIncludingGlobal(Contractor::where('is_active', true))->orderBy('name')->get(),
+            'contractors'   => Contractor::where('is_active', true)->orderBy('name')->get(),
             'shifts'        => Shift::where('is_active', true)->get(),
             'managers'      => BranchScope::scopeQuery(Employee::active())->orderBy('first_name')->get(),
             'roles'         => \App\Models\Role::orderBy('name')->get(),

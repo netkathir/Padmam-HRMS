@@ -41,9 +41,6 @@
             <div class="col-auto">
                 <div class="px-3 py-2 rounded bg-primary-subtle text-primary fw-semibold small">
                     <i class="bi bi-person-workspace me-1"></i>{{ $contractor->name }}
-                    @if($contractor->company_name)
-                        <span class="text-muted fw-normal"> — {{ $contractor->company_name }}</span>
-                    @endif
                 </div>
             </div>
             <div class="col-auto">

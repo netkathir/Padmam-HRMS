@@ -29,14 +29,10 @@
                     <div class="form-check">
                         <input type="hidden" name="is_active" value="0">
                         <input type="checkbox" name="is_active" class="form-check-input" value="1" {{ old('is_active', $contractor->is_active) ? 'checked' : '' }}>
-                        <label class="form-check-label">Active</label>
+                        <label class="form-check-label">Status (Active) <span class="text-danger">*</span></label>
                     </div>
+                    @error('is_active')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">Company Name</label>
-                    <input type="text" name="company_name" class="form-control" value="{{ old('company_name', $contractor->company_name) }}" maxlength="150">
-                </div>
-                @include('partials._locked_branch_field', ['currentBranch' => $currentBranch, 'branchFieldLabel' => 'Primary Branch'])
 
                 <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">Contact Details</h6></div>
                 <div class="col-md-4">
@@ -60,13 +56,13 @@
                     @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-8">
-                    <label class="form-label">Address <span class="text-danger">*</span></label>
-                    <textarea name="address" class="form-control @error('address') is-invalid @enderror" rows="2" required>{{ old('address', $contractor->address) }}</textarea>
+                    <label class="form-label">Address</label>
+                    <textarea name="address" class="form-control @error('address') is-invalid @enderror" rows="2">{{ old('address', $contractor->address) }}</textarea>
                     @error('address')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">State <span class="text-danger">*</span></label>
-                    <select name="state" class="form-select @error('state') is-invalid @enderror" required>
+                    <label class="form-label">State <span class="text-muted">(required if address entered)</span></label>
+                    <select name="state" class="form-select @error('state') is-invalid @enderror">
                         <option value="">Select State</option>
                         @foreach($states as $st)
                             <option value="{{ $st }}" {{ old('state', $contractor->state) == $st ? 'selected' : '' }}>{{ $st }}</option>
@@ -75,13 +71,13 @@
                     @error('state')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">District <span class="text-danger">*</span></label>
-                    <input type="text" name="district" class="form-control @error('district') is-invalid @enderror" value="{{ old('district', $contractor->district) }}" required>
+                    <label class="form-label">District <span class="text-muted">(required if address entered)</span></label>
+                    <input type="text" name="district" class="form-control @error('district') is-invalid @enderror" value="{{ old('district', $contractor->district) }}">
                     @error('district')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">PIN Code <span class="text-danger">*</span></label>
-                    <input type="text" name="pincode" class="form-control @error('pincode') is-invalid @enderror" value="{{ old('pincode', $contractor->pincode) }}" maxlength="6" required>
+                    <label class="form-label">PIN Code <span class="text-muted">(required if address entered)</span></label>
+                    <input type="text" name="pincode" class="form-control @error('pincode') is-invalid @enderror" value="{{ old('pincode', $contractor->pincode) }}" maxlength="6">
                     @error('pincode')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
@@ -138,21 +134,6 @@
                     @elseif($contractor->isAgreementExpiringSoon())
                         <div class="form-text text-warning">Agreement expiring within 30 days.</div>
                     @endif
-                </div>
-
-                <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">Branch Applicability</h6></div>
-                <div class="col-md-8">
-                    @php $selectedBranches = old('branch_ids', $contractor->branches->pluck('id')->map(fn($id)=>(string)$id)->all()); @endphp
-                    <label class="form-label">Applicable Branches <span class="text-danger">*</span></label>
-                    <div class="border rounded p-2 @error('branch_ids') is-invalid @enderror" style="max-height:160px;overflow-y:auto;">
-                        @foreach($allBranches as $b)
-                        <div class="form-check">
-                            <input type="checkbox" name="branch_ids[]" class="form-check-input" id="cbranch_{{ $b->id }}" value="{{ $b->id }}" {{ in_array((string)$b->id, $selectedBranches) ? 'checked' : '' }}>
-                            <label class="form-check-label" for="cbranch_{{ $b->id }}">{{ $b->name }}</label>
-                        </div>
-                        @endforeach
-                    </div>
-                    @error('branch_ids')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                 </div>
             </div>
             <div class="mt-4 d-flex gap-2">

@@ -30,8 +30,8 @@ class DashboardController extends Controller
         $charts = $this->computeCharts($filters, $kpis);
 
         $authorizedBranches = Branch::whereIn('id', $filters['authorized_branch_ids'])->orderBy('name')->get();
+        // Contractor is a global master (no branch dimension).
         $contractors = Contractor::where('is_active', true)
-            ->whereIn('branch_id', $filters['branch_ids'])
             ->orderBy('name')
             ->get();
 
@@ -192,16 +192,14 @@ class DashboardController extends Controller
         $companyLabourCount = $this->baseEmployeeQuery($filters)
             ->where('primary_employee_type', 'labour')->where('labour_type', 'company_labour')->count();
 
+        // Contractor is a global master (no branch dimension), so these two
+        // KPIs are organization-wide, optionally narrowed to one contractor.
         $contractLabourCount = ContractWorker::active()
-            ->whereHas('contractor', function ($q) use ($filters) {
-                $q->whereIn('branch_id', $filters['branch_ids']);
-                if ($filters['contractor_id']) {
-                    $q->where('id', $filters['contractor_id']);
-                }
+            ->when($filters['contractor_id'], function ($q) use ($filters) {
+                $q->whereHas('contractor', fn ($q2) => $q2->where('id', $filters['contractor_id']));
             })->count();
 
         $contractorCount = Contractor::where('is_active', true)
-            ->whereIn('branch_id', $filters['branch_ids'])
             ->when($filters['contractor_id'], fn ($q) => $q->where('id', $filters['contractor_id']))
             ->count();
 
@@ -318,10 +316,11 @@ class DashboardController extends Controller
             ];
         })->values();
 
-        // Contractor-wise Labour Chart.
+        // Contractor-wise Labour Chart. Contractor is a global master (no
+        // branch dimension), so this is organization-wide, optionally
+        // narrowed to one contractor.
         $contractorWiseLabour = ContractWorker::active()
             ->join('contractors', 'contract_workers.contractor_id', '=', 'contractors.id')
-            ->whereIn('contractors.branch_id', $filters['branch_ids'])
             ->when($filters['contractor_id'], fn ($q) => $q->where('contractors.id', $filters['contractor_id']))
             ->selectRaw('contractors.name as label, COUNT(*) as value')
             ->groupBy('contractors.name')

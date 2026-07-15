@@ -11,15 +11,12 @@ namespace App\Http\Controllers\Masters;
 use App\Http\Controllers\Controller;
 use App\Models\Contractor;
 use App\Models\ContractWorker;
-use App\Support\BranchScope;
 use Illuminate\Http\Request;
 
 class ContractWorkerController extends Controller
 {
     public function index(Contractor $contractor, Request $request)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-
         $query = $contractor->contractWorkers()->orderBy('name');
 
         if ($request->filled('search')) {
@@ -39,14 +36,11 @@ class ContractWorkerController extends Controller
 
     public function create(Contractor $contractor)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
         return view('masters.contractors.workers.create', compact('contractor'));
     }
 
     public function store(Request $request, Contractor $contractor)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-
         // FSD 9.1 — "Contract Labour shall not be assigned to an inactive contractor."
         if (! $contractor->is_active) {
             return back()->with('error', 'Cannot add contract labour to an inactive contractor.');
@@ -74,14 +68,11 @@ class ContractWorkerController extends Controller
 
     public function edit(Contractor $contractor, ContractWorker $contractWorker)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
         return view('masters.contractors.workers.edit', compact('contractor', 'contractWorker'));
     }
 
     public function update(Request $request, Contractor $contractor, ContractWorker $contractWorker)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-
         $data = $request->validate([
             'name'            => ['required', 'string', 'max:100'],
             'gender'          => ['nullable', 'in:male,female,other'],
@@ -110,8 +101,6 @@ class ContractWorkerController extends Controller
 
     public function destroy(Contractor $contractor, ContractWorker $contractWorker)
     {
-        BranchScope::assertBranchAccess($contractor->branch_id);
-
         if ($contractWorker->payrollRecords()->exists()) {
             return back()->with('error', 'Cannot delete worker with existing payroll records.');
         }

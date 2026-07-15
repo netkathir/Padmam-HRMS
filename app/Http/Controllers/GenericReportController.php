@@ -131,7 +131,7 @@ class GenericReportController extends Controller
             $options['employeeTypes'] = EmployeeType::where('is_active', true)->orderBy('name')->get();
         }
         if (isset($map['contractor_id'])) {
-            $options['contractors'] = BranchScope::scopeQuery(Contractor::query())->orderBy('name')->get();
+            $options['contractors'] = Contractor::query()->orderBy('name')->get();
         }
         if (isset($map['employee_id'])) {
             $options['employees'] = BranchScope::scopeQuery(Employee::active())->orderBy('first_name')->get();

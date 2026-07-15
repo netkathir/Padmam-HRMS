@@ -71,7 +71,7 @@ class AttendanceController extends Controller
         $attendance  = $query->paginate(25)->withQueryString();
         $departments = BranchScope::scopeQuery(Department::query())->orderBy('name')->get();
         $employeeTypes = EmployeeType::where('is_active', true)->get();
-        $contractors = BranchScope::scopeQueryIncludingGlobal(Contractor::where('is_active', true))->orderBy('name')->get();
+        $contractors = Contractor::where('is_active', true)->orderBy('name')->get();
         $shifts = Shift::where('is_active', true)->get();
         $currentBranchId = BranchScope::currentBranchId();
         $branches = $currentBranchId ? Branch::where('id', $currentBranchId)->get() : Branch::active()->orderBy('name')->get();
@@ -386,7 +386,7 @@ class AttendanceController extends Controller
         $currentBranchId = BranchScope::currentBranchId();
         $branches = $currentBranchId ? Branch::where('id', $currentBranchId)->get() : Branch::active()->orderBy('name')->get();
         $employeeTypes = EmployeeType::where('is_active', true)->get();
-        $contractors = BranchScope::scopeQueryIncludingGlobal(Contractor::where('is_active', true))->orderBy('name')->get();
+        $contractors = Contractor::where('is_active', true)->orderBy('name')->get();
         $shifts = Shift::where('is_active', true)->get();
         $canRecalculate = ! BranchScope::isBranchScopedUser() || BranchAdminPermissions::can(auth()->user(), 'attendance', 'process');
 

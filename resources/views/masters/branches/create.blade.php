@@ -35,22 +35,15 @@
                             <option value="0" {{ old('is_active') == '0' ? 'selected' : '' }}>Inactive</option>
                         </select>
                     </div>
-                    <div class="col-12">
-                        <div class="form-check form-switch">
-                            @php $hasAddressOld = old('has_address', old('address') ? '1' : '0'); @endphp
-                            <input class="form-check-input" type="checkbox" name="has_address" value="1" id="hasAddress" {{ $hasAddressOld ? 'checked' : '' }}>
-                            <label class="form-check-label fw-medium" for="hasAddress">Address Available</label>
-                        </div>
-                        <div class="form-text">Enable this to record the branch's address, State, District, City and PIN Code.</div>
-                    </div>
+                    <div class="col-12"><h6 class="fw-bold border-bottom pb-2 mt-2">Address</h6></div>
 
-                    <div id="addressSection" class="row g-3 {{ $hasAddressOld ? '' : 'd-none' }}">
+                    <div id="addressSection" class="row g-3">
                         {{-- Address is stored server-side as a single `address` column/field
-                             (unchanged validation: required_if:has_address,1). These two line
-                             inputs are a UI convenience only — combined into the hidden
-                             `address` field just before submit — and are always optional. --}}
+                             (now unconditionally required). These two line inputs are a UI
+                             convenience only — combined into the hidden `address` field just
+                             before submit. --}}
                         <div class="col-md-6">
-                            <label class="form-label">Address Line 1</label>
+                            <label class="form-label">Address Line 1 <span class="text-danger">*</span></label>
                             <input type="text" name="address_line1" id="address_line1" class="form-control @error('address') is-invalid @enderror"
                                 value="{{ old('address_line1') }}">
                             @error('address')
@@ -66,7 +59,7 @@
 
                         <div class="col-md-3">
                             <label class="form-label">State <span class="text-danger">*</span></label>
-                            <select name="state" class="form-select @error('state') is-invalid @enderror">
+                            <select name="state" class="form-select @error('state') is-invalid @enderror" required>
                                 <option value="">Select State</option>
                                 @foreach ($states as $state)
                                     <option value="{{ $state }}" {{ old('state') === $state ? 'selected' : '' }}>{{ $state }}</option>
@@ -79,7 +72,7 @@
                         <div class="col-md-3">
                             <label class="form-label">District <span class="text-danger">*</span></label>
                             <input type="text" name="district" class="form-control @error('district') is-invalid @enderror"
-                                value="{{ old('district') }}">
+                                value="{{ old('district') }}" required>
                             @error('district')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -87,7 +80,7 @@
                         <div class="col-md-3">
                             <label class="form-label">City <span class="text-danger">*</span></label>
                             <input type="text" name="city" class="form-control @error('city') is-invalid @enderror"
-                                value="{{ old('city') }}">
+                                value="{{ old('city') }}" required>
                             @error('city')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -95,7 +88,7 @@
                         <div class="col-md-3">
                             <label class="form-label">PIN Code <span class="text-danger">*</span></label>
                             <input type="text" name="pincode" inputmode="numeric" maxlength="6"
-                                class="form-control @error('pincode') is-invalid @enderror" value="{{ old('pincode') }}">
+                                class="form-control @error('pincode') is-invalid @enderror" value="{{ old('pincode') }}" required>
                             @error('pincode')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -174,26 +167,6 @@
 @push('scripts')
 <script>
 (function () {
-    var hasAddressCheckbox = document.getElementById('hasAddress');
-    var addressSection = document.getElementById('addressSection');
-    var requiredWhenAddressed = addressSection
-        ? addressSection.querySelectorAll('[name="state"], [name="district"], [name="city"], [name="pincode"]')
-        : [];
-
-    function toggleAddressSection() {
-        if (!hasAddressCheckbox || !addressSection) return;
-        var show = hasAddressCheckbox.checked;
-        addressSection.classList.toggle('d-none', !show);
-        requiredWhenAddressed.forEach(function (el) {
-            el.required = show;
-        });
-    }
-
-    if (hasAddressCheckbox) {
-        hasAddressCheckbox.addEventListener('change', toggleAddressSection);
-        toggleAddressSection();
-    }
-
     // Address Line 1/2 are UI-only inputs; the server still expects a single
     // `address` field, so combine them into the hidden field before submit.
     var form = document.getElementById('createBranchForm');

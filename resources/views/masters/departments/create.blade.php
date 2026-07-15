@@ -16,8 +16,9 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Code <span class="text-danger">*</span></label>
-                    <input type="text" name="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code') }}" required>
+                    <input type="text" name="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code', $nextDepartmentCode) }}" required>
                     @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <div class="form-text">Auto-generated from the last Department Code — edit if needed.</div>
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
                     <div class="form-check">

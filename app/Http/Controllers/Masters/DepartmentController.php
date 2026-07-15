@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\Branch;
 use App\Support\BranchScope;
+use App\Support\SequentialCodeGenerator;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class DepartmentController extends Controller
@@ -35,7 +38,8 @@ class DepartmentController extends Controller
     public function create()
     {
         $currentBranch = BranchScope::currentBranch();
-        return view('masters.departments.create', compact('currentBranch'));
+        $nextDepartmentCode = $this->nextDepartmentCode();
+        return view('masters.departments.create', compact('currentBranch', 'nextDepartmentCode'));
     }
 
     public function store(Request $request)
@@ -54,10 +58,52 @@ class DepartmentController extends Controller
         BranchScope::assertBranchAccess($data['branch_id']);
         BranchScope::assertBranchIsActive($data['branch_id']);
 
-        Department::create($data);
+        $this->createWithRaceSafeCode($data);
 
         return redirect()->route('masters.departments.index')
             ->with('success', 'Department created successfully.');
+    }
+
+    /**
+     * The Department Code is auto-suggested on the Create page (see
+     * nextDepartmentCode()) but stays a normal editable field — the admin
+     * can accept the suggestion or type their own. Since two people could
+     * load the Create page at the same moment and both see the same
+     * suggested code, a retry-on-duplicate-key loop (mirroring
+     * ContractorController::createWithGeneratedCode()) still protects the
+     * unique constraint if the admin didn't change the pre-filled value.
+     */
+    private function createWithRaceSafeCode(array $data): Department
+    {
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            try {
+                return DB::transaction(fn () => Department::create($data));
+            } catch (QueryException $e) {
+                $isDuplicate = (string) $e->getCode() === '23000';
+                if (! $isDuplicate || $attempt === 5) {
+                    throw $e;
+                }
+                $data['code'] = $this->nextDepartmentCode();
+            }
+        }
+
+        throw new \RuntimeException('Unable to generate a unique Department Code after several attempts.');
+    }
+
+    /**
+     * Next sequential Department Code — "DEP" + zero-padded number, one
+     * higher than the latest existing code already following this
+     * convention (legacy codes in other formats, e.g. from before this
+     * feature existed, are ignored so they can't produce a nonsensical
+     * suggestion like incrementing a plain numeric legacy code).
+     */
+    private function nextDepartmentCode(): string
+    {
+        $lastCode = Department::where('code', 'REGEXP', '^DEP[0-9]+$')
+            ->orderByRaw('CAST(SUBSTRING(code, 4) AS UNSIGNED) DESC')
+            ->value('code');
+
+        return SequentialCodeGenerator::next($lastCode, 'DEP001');
     }
 
     public function edit(Department $department)

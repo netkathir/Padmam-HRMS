@@ -197,15 +197,13 @@ class BranchController extends Controller
                 ? ['required', 'string', 'max:20', 'unique:branches,code,' . $ignoreId]
                 : ['nullable', 'string', 'max:20'],
             'unit_type'                => ['nullable', 'string', 'max:50'],
-            // Address is only mandatory when the admin opts to maintain it
-            // (the "Address Available" toggle — `has_address`, not a stored
-            // column, just the signal for these `required_if`s).
-            'has_address'              => ['sometimes', 'boolean'],
-            'address'                  => ['nullable', 'string', 'required_if:has_address,1'],
-            'state'                    => ['nullable', 'string', 'max:100', 'in:' . implode(',', config('states')), 'required_if:has_address,1'],
-            'district'                 => ['nullable', 'string', 'max:100', 'required_if:has_address,1'],
-            'city'                     => ['nullable', 'string', 'max:100', 'required_if:has_address,1'],
-            'pincode'                  => ['nullable', 'digits:6', 'required_if:has_address,1'],
+            // Address is always visible/mandatory on the form now (no more
+            // "Address Available" toggle).
+            'address'                  => ['required', 'string'],
+            'state'                    => ['required', 'string', 'max:100', 'in:' . implode(',', config('states'))],
+            'district'                 => ['required', 'string', 'max:100'],
+            'city'                     => ['required', 'string', 'max:100'],
+            'pincode'                  => ['required', 'digits:6'],
             'contact_person'           => ['nullable', 'string', 'max:150'],
             'phone'                    => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
             'email'                    => ['nullable', 'email', 'max:150'],
@@ -222,7 +220,6 @@ class BranchController extends Controller
         ]);
 
         $data['weekly_off_days'] = $data['weekly_off_days'] ?? null;
-        unset($data['has_address']);
 
         return $data;
     }

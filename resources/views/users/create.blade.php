@@ -66,18 +66,18 @@
                         @endif
 
                         <div class="col-md-6">
-                            <label class="form-label">Role <span class="text-danger">*</span> <small class="text-muted">(select one or more)</small></label>
-                            <div class="border rounded p-2 @error('role_ids') is-invalid @enderror" style="max-height: 160px; overflow-y: auto;">
-                                @forelse($roles as $role)
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="role_ids[]" value="{{ $role->id }}" id="role{{ $role->id }}"
-                                        {{ in_array($role->id, old('role_ids', [])) ? 'checked' : '' }}>
-                                    <label class="form-check-label" for="role{{ $role->id }}">{{ $role->display_name ?: ucfirst(str_replace('_',' ',$role->name)) }}</label>
-                                </div>
-                                @empty
-                                <span class="text-muted">No assignable roles available.</span>
-                                @endforelse
-                            </div>
+                            <label class="form-label">Role <span class="text-danger">*</span></label>
+                            @if($roles->isNotEmpty())
+                            <select name="role_ids[]" class="form-select @error('role_ids') is-invalid @enderror" required>
+                                @foreach($roles as $role)
+                                <option value="{{ $role->id }}" {{ (int) old('role_ids.0') === $role->id ? 'selected' : '' }}>
+                                    {{ $role->display_name ?: ucfirst(str_replace('_',' ',$role->name)) }}
+                                </option>
+                                @endforeach
+                            </select>
+                            @else
+                            <div class="form-control-plaintext text-muted">No assignable roles available.</div>
+                            @endif
                             @error('role_ids')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                             @error('role_ids.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                         </div>
@@ -106,12 +106,18 @@
 
                         <div class="col-md-6">
                             <label class="form-label">Password <span class="text-danger">*</span></label>
-                            <input type="password" name="password" class="form-control @error('password') is-invalid @enderror" required>
-                            @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="input-group">
+                                <input type="password" name="password" class="form-control masked-toggle-field @error('password') is-invalid @enderror" required>
+                                <button type="button" class="btn btn-outline-secondary masked-toggle-btn" tabindex="-1"><i class="bi bi-eye"></i></button>
+                                @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Confirm Password <span class="text-danger">*</span></label>
-                            <input type="password" name="password_confirmation" class="form-control" required>
+                            <div class="input-group">
+                                <input type="password" name="password_confirmation" class="form-control masked-toggle-field" required>
+                                <button type="button" class="btn btn-outline-secondary masked-toggle-btn" tabindex="-1"><i class="bi bi-eye"></i></button>
+                            </div>
                         </div>
 
                         <div class="col-md-6 d-none">
@@ -227,6 +233,17 @@
             syncBranchAccess();
         });
     }
+
+    // Password / Confirm Password are masked by default; the eye-icon
+    // toggles plain-text visibility for the user to proofread what they typed.
+    document.querySelectorAll('.masked-toggle-btn').forEach(function (btn) {
+        var field = btn.closest('.input-group').querySelector('.masked-toggle-field');
+        btn.addEventListener('click', function () {
+            var showing = field.type === 'text';
+            field.type = showing ? 'password' : 'text';
+            btn.querySelector('i').className = showing ? 'bi bi-eye' : 'bi bi-eye-slash';
+        });
+    });
 })();
 </script>
 @endpush

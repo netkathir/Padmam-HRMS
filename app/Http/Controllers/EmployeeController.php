@@ -63,7 +63,52 @@ class EmployeeController extends Controller
 
     public function create()
     {
-        return view('employees.create', $this->formData());
+        $activeTab = 1;
+        // Tabs 8-10 (Bank/Salary/Documents) are directly fillable on Create
+        // too, so this needs the same reference data edit() already passes
+        // for those tabs.
+        $salarySlabs = \App\Models\SalarySlab::where('is_active', true)->get();
+        $pfEsiConfig = \App\Models\PfEsiConfig::effectiveOn(now()->toDateString());
+        $earningsComponents   = \App\Models\EarningsComponent::where('is_active', true)->orderBy('sort_order')->get();
+        $deductionsComponents = \App\Models\DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get();
+
+        return view('employees.create', $this->formData() + compact(
+            'activeTab', 'salarySlabs', 'pfEsiConfig', 'earningsComponents', 'deductionsComponents'
+        ));
+    }
+
+    /**
+     * Live "what code will this employee get" preview for the Create form —
+     * read-only, never consumes a Rule Engine sequence number (uses
+     * EmployeeNumberGenerator::preview(), the same non-consuming method the
+     * Rule Engine's own "Sample Employee Number" field uses) so simply
+     * loading/changing the form can never burn a real sequence value. The
+     * actual code is always re-resolved for real at submit time regardless
+     * of what this preview showed.
+     */
+    public function previewEmployeeCode(Request $request)
+    {
+        $category = $request->input('employee_category');
+        if (! in_array($category, ['staff', 'company_labour', 'contract_labour'], true)) {
+            return response()->json(['code' => null]);
+        }
+
+        $primaryType = $category === 'staff' ? 'staff' : 'labour';
+        $labourType = self::LABOUR_TYPE_MAP[$category];
+        $branchId = BranchScope::currentBranchId();
+        $contractorId = $request->integer('contractor_id') ?: null;
+
+        $generator = app(EmployeeNumberGenerator::class);
+        $rule = $generator->resolveRule($primaryType, $labourType, $branchId, $contractorId);
+
+        if ($rule) {
+            return response()->json(['code' => $generator->preview($rule, $branchId, $contractorId)]);
+        }
+
+        $prefix = $this->employeeTypePrefix($request->integer('employee_type_id') ?: null);
+        $lastCode = Employee::where('employee_code', 'like', $prefix . '%')->orderByDesc('id')->value('employee_code');
+
+        return response()->json(['code' => SequentialCodeGenerator::next($lastCode, $prefix . '0001')]);
     }
 
     private function assertDepartmentIsActive(?int $departmentId, ?Employee $employee = null): void
@@ -82,9 +127,9 @@ class EmployeeController extends Controller
      * Module 4 FSD 8.3 — resolve and apply the Employee Number Rule, if any,
      * for this new hire's classification/branch. If no Employee Number Rule
      * is configured in the Rule Engine, this falls back to a simple
-     * branch-wise sequence (one higher than the latest code already used in
-     * that branch) — Employee Code is no longer manually entered, on this
-     * form or as a bare fallback.
+     * sequence prefixed by the selected Employee Type (one higher than the
+     * latest code already using that prefix) — Employee Code is no longer
+     * manually entered, on this form or as a bare fallback.
      */
     private function applyEmployeeNumberRule(array $data): array
     {
@@ -102,9 +147,9 @@ class EmployeeController extends Controller
     /**
      * Decides the Employee Code to use: the applicable Employee Number
      * Rule's generated value (unless manual override is both permitted and
-     * provided), or — when no rule is configured — the branch-wise default
-     * sequence. Callable again on its own (with employee_code reset to
-     * null) to regenerate a fresh candidate if the first one collides at
+     * provided), or — when no rule is configured — the Employee-Type-prefixed
+     * default sequence. Callable again on its own (with employee_code reset
+     * to null) to regenerate a fresh candidate if the first one collides at
      * insert time.
      */
     private function resolveEmployeeCode(array $data, string $primaryType, ?string $labourType): ?string
@@ -123,34 +168,31 @@ class EmployeeController extends Controller
             return $data['employee_code'] ?? null;
         }
 
-        return ($data['employee_code'] ?? null) ?: $this->generateDefaultBranchEmployeeCode($data['branch_id'] ?? null);
+        return ($data['employee_code'] ?? null) ?: $this->generateDefaultEmployeeCode($data['employee_type_id'] ?? null);
     }
 
     /**
      * Default Employee Code generator used when no Employee Number Rule is
-     * configured — each branch keeps its own independent sequence, prefixed
-     * with the first two characters of that branch's own Branch Code (e.g.
-     * Branch Code "CH001" -> "CH0001", "CH0002"...; a different branch with
-     * Branch Code "MD005" independently reaches "MD0001", "MD0002"...).
-     * Only codes already carrying that branch's prefix are considered "the
-     * last one" — older codes from before this prefix existed (or a
-     * differently-prefixed branch) are ignored, so the branch's sequence
-     * restarts cleanly at 0001 the first time this runs for it. A row lock
-     * on the branch's latest matching employee serializes concurrent
-     * creations within the same branch; the retry loop is a defensive
-     * fallback against the rare duplicate-key race the lock doesn't cover —
-     * the composite unique index on (branch_id, employee_code) is the
-     * actual guarantee.
+     * configured — prefixed with the first two letters of the selected
+     * Employee Type's name (e.g. "Permanent" -> "PE0001", "PE0002"...;
+     * "Contract" -> "CO0001", "CO0002"...), continuing sequentially across
+     * every branch that has ever used that same prefix. Only codes already
+     * carrying that prefix are considered "the last one" — older codes from
+     * before this prefix existed (or with a different prefix) are ignored,
+     * so a brand new prefix cleanly starts at 0001. A row lock on the latest
+     * matching employee serializes concurrent creations under the same
+     * prefix; the retry loop is a defensive fallback against the rare
+     * duplicate-key race the lock doesn't cover — the composite unique index
+     * on (branch_id, employee_code) is the actual guarantee.
      */
-    private function generateDefaultBranchEmployeeCode(?int $branchId): string
+    private function generateDefaultEmployeeCode(?int $employeeTypeId): string
     {
-        $prefix = $this->branchCodePrefix($branchId);
+        $prefix = $this->employeeTypePrefix($employeeTypeId);
 
         for ($attempt = 1; $attempt <= 5; $attempt++) {
             try {
-                return DB::transaction(function () use ($branchId, $prefix) {
-                    $lastCode = Employee::where('branch_id', $branchId)
-                        ->where('employee_code', 'like', $prefix . '%')
+                return DB::transaction(function () use ($prefix) {
+                    $lastCode = Employee::where('employee_code', 'like', $prefix . '%')
                         ->orderByDesc('id')
                         ->lockForUpdate()
                         ->value('employee_code');
@@ -168,17 +210,17 @@ class EmployeeController extends Controller
         throw new \RuntimeException('Unable to generate a unique Employee Code after several attempts.');
     }
 
-    /** First two characters of the branch's own Branch Code, uppercased. */
-    private function branchCodePrefix(?int $branchId): string
+    /** First two letters of the selected Employee Type's own name, uppercased. */
+    private function employeeTypePrefix(?int $employeeTypeId): string
     {
-        $branchCode = $branchId ? Branch::find($branchId)?->code : null;
+        $name = $employeeTypeId ? EmployeeType::find($employeeTypeId)?->name : null;
 
-        return $branchCode ? strtoupper(substr($branchCode, 0, 2)) : 'EMP';
+        return $name ? strtoupper(substr($name, 0, 2)) : 'EMP';
     }
 
     /**
      * Creates the employee (and its login user, if requested) in a
-     * transaction. The row lock in generateDefaultBranchEmployeeCode()/the
+     * transaction. The row lock in generateDefaultEmployeeCode()/the
      * Rule Engine's own counter lock make a collision here unlikely but not
      * provably impossible (the lock is released before this insert runs) —
      * if employee_code was auto-generated and this still collides, a fresh
@@ -366,12 +408,16 @@ class EmployeeController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate($this->rules());
+        $isDraft = $request->boolean('save_as_draft');
+        $data = $request->validate($this->rules(0, $isDraft));
         $data['created_by'] = auth()->id();
+        $data['is_draft'] = $isDraft;
         $data = BranchScope::stampBranchId($data);
         BranchScope::assertBranchIsActive($data['branch_id']);
 
-        $this->assertContractorForLabour($data);
+        if (! $isDraft) {
+            $this->assertContractorForLabour($data);
+        }
         $this->assertShiftBelongsToBranch($data['shift_id'] ?? null, $data['branch_id']);
         $this->assertBiometricIdUnique($data['biometric_id'] ?? null, $data['branch_id'], null);
         $data = $this->applySameAsCurrentAddress($request, $data);
@@ -403,8 +449,50 @@ class EmployeeController extends Controller
 
         $employee = $this->createEmployeeWithRetry($data, $request, $codeWasGenerated, $primaryType, $labourType);
 
-        return redirect()->route('employees.show', $employee)
-            ->with('success', 'Employee created successfully.');
+        // FSD — Tabs 8-10 (Bank/Salary/Documents) are directly clickable and
+        // fillable on the Create wizard too, even though the employee itself
+        // is only created right here; each section is entirely optional
+        // (the user may leave any of them for later from Edit) and is
+        // processed with the exact same validation/persistence the
+        // standalone Tab 8/9/10 routes use.
+        if ($request->filled('bank_details.payment_mode')) {
+            $bankData = $request->validate($this->prefixRules('bank_details', $this->bankDetailRules()), [
+                'bank_details.ifsc_code.regex' => 'The IFSC code format is invalid (e.g. HDFC0001234).',
+                'bank_details.account_number_confirmation.same' => 'Account Number and Confirm Account Number must match.',
+            ])['bank_details'];
+            unset($bankData['account_number_confirmation']);
+            $employee->bankDetails()->create($bankData);
+        }
+        if ($request->filled('salary.ctc') && $request->filled('salary.basic_salary')) {
+            $salaryData = $request->validate($this->prefixRules('salary', $this->salaryRules()))['salary'];
+            $this->saveSalaryStructure($employee, $salaryData);
+        }
+        if ($request->has('documents')) {
+            $this->saveDocumentRows($employee, $this->documentRows($request));
+        }
+
+        if ($isDraft) {
+            return redirect()->route('employees.edit', $employee)
+                ->with('success', 'Employee saved as draft. You can continue registration anytime from Edit.');
+        }
+
+        // Reaching this via the final tab's "Save Employee" button (clicked
+        // before Bank/Salary/Documents could exist yet, since the employee
+        // itself didn't) — the employee is now fully created, nothing left
+        // to finalize, go straight to the profile.
+        if ($request->boolean('finish')) {
+            return redirect()->route('employees.show', $employee)
+                ->with('success', 'Employee registered successfully.');
+        }
+
+        // Tabs 1-7 are complete — continue the wizard into whichever tab the
+        // user actually clicked (Tab 7's own "Save & Next", or directly
+        // clicking a Tab 8/9/10 header/action before the employee existed
+        // yet), now that it has a real id. Defaults to Tab 8 (Bank
+        // Information) for any caller that doesn't specify one.
+        $nextTab = (int) $request->input('next_tab', 8);
+        return redirect()->route('employees.edit', ['employee' => $employee, 'tab' => $nextTab])
+            ->with('success', 'Employee details saved. Continue with Bank, Salary, and Documents.');
     }
 
     public function show(Employee $employee)
@@ -425,20 +513,38 @@ class EmployeeController extends Controller
         return view('employees.show', compact('employee', 'banks', 'canViewFullBankDetails'));
     }
 
-    public function edit(Employee $employee)
+    public function edit(Employee $employee, Request $request)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
-        return view('employees.edit', array_merge(compact('employee'), $this->formData($employee)));
+        $activeTab = (int) $request->input('tab', 1);
+        $employee->load(['documents', 'bankDetails.bank', 'currentSalary.components']);
+
+        // Tabs 8-10 (Bank/Salary/Documents) live in the same wizard shell —
+        // the extra data the standalone salary()/documents() actions expose
+        // is folded in here too, so those tabs don't need a separate page load.
+        $mandatoryDocTypes = json_decode(Setting::get('employee', 'mandatory_document_types', '[]'), true) ?: [];
+        $missingMandatoryDocs = array_diff($mandatoryDocTypes, $employee->documents->pluck('document_type')->all());
+        $salarySlabs = \App\Models\SalarySlab::where('is_active', true)->get();
+        $pfEsiConfig = \App\Models\PfEsiConfig::effectiveOn(now()->toDateString());
+        $earningsComponents   = \App\Models\EarningsComponent::where('is_active', true)->orderBy('sort_order')->get();
+        $deductionsComponents = \App\Models\DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get();
+        $salaryHistory = $employee->salaryHistory()->with('slab')->get();
+
+        return view('employees.edit', array_merge(
+            compact('employee', 'activeTab', 'missingMandatoryDocs', 'salarySlabs', 'pfEsiConfig', 'earningsComponents', 'deductionsComponents', 'salaryHistory'),
+            $this->formData($employee)
+        ));
     }
 
     public function update(Request $request, Employee $employee)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
-        $data = $request->validate($this->rules($employee->id));
+        $isDraft = $request->boolean('save_as_draft');
+        $data = $request->validate($this->rules($employee->id, $isDraft));
+        $data['is_draft'] = $isDraft;
         if (empty($data['employee_code'])) {
-            // employee_code is only nullable in rules() to support
-            // auto-generation on create; on update an empty submission
-            // must never blank out an existing employee's code.
+            // employee_code is never submitted (read-only on Edit) — always
+            // auto-generated at creation and never blanked out here.
             unset($data['employee_code']);
         }
         // A branch-scoped actor can never move an employee to another branch,
@@ -449,7 +555,9 @@ class EmployeeController extends Controller
         $this->assertDepartmentBelongsToBranch($data['department_id'], $data['branch_id']);
         $this->assertDesignationBelongsToBranch($data['designation_id'] ?? null, $data['branch_id']);
         $this->assertDepartmentIsActive($data['department_id'], $employee);
-        $this->assertContractorForLabour($data);
+        if (! $isDraft) {
+            $this->assertContractorForLabour($data);
+        }
         $this->assertShiftBelongsToBranch($data['shift_id'] ?? null, $data['branch_id']);
         $this->assertBiometricIdUnique($data['biometric_id'] ?? null, $data['branch_id'], $employee->id);
         $this->assertReportingToIsNotSelf($data['reporting_to'] ?? null, $employee->id);
@@ -470,7 +578,47 @@ class EmployeeController extends Controller
         unset($data['employee_category']);
 
         $employee->update($data);
+
+        if ($isDraft) {
+            return redirect()->route('employees.edit', $employee)
+                ->with('success', 'Draft saved. You can continue registration anytime.');
+        }
+
+        if ($request->filled('next_tab')) {
+            return redirect()->route('employees.edit', ['employee' => $employee, 'tab' => $request->input('next_tab')])
+                ->with('success', 'Saved. Continue to the next section.');
+        }
+
         return redirect()->route('employees.show', $employee)->with('success', 'Employee updated.');
+    }
+
+    /**
+     * Final tab (Documents) — "Save Employee". If the record is still a
+     * draft, this is what promotes it to complete: it validates the
+     * employee's already-stored data against the FULL (non-draft) rules —
+     * not a new submission, tabs 8-10 don't resubmit tabs 1-7's fields — and
+     * only then flips is_draft off. A non-draft employee is already
+     * complete, so this is a no-op confirmation for them.
+     */
+    public function finalize(Employee $employee)
+    {
+        BranchScope::assertBranchAccess($employee->branch_id);
+
+        if ($employee->is_draft) {
+            $category = $employee->primary_employee_type === 'staff' ? 'staff' : $employee->labour_type;
+            $payload = array_merge($employee->toArray(), ['employee_category' => $category]);
+
+            $validator = \Illuminate\Support\Facades\Validator::make($payload, $this->rules($employee->id));
+            if ($validator->fails()) {
+                return redirect()->route('employees.edit', $employee)
+                    ->withErrors($validator)
+                    ->with('error', 'This employee is still missing required information — please complete the highlighted fields before finishing registration.');
+            }
+
+            $employee->update(['is_draft' => false]);
+        }
+
+        return redirect()->route('employees.show', $employee)->with('success', 'Employee registration completed.');
     }
 
     public function destroy(Employee $employee)
@@ -496,35 +644,74 @@ class EmployeeController extends Controller
         return view('employees.documents', compact('employee', 'documents', 'missingMandatory'));
     }
 
+    private const DOCUMENT_TYPES = 'aadhaar,pan,bank_proof,appointment_letter,employment_agreement,education_certificate,experience_certificate,contractor_id,passport,other';
+
+    /**
+     * FSD Tab 10 — "Employee Documents must support uploading multiple
+     * documents using an 'Add Document' table." Accepts either the classic
+     * single-file submission (document_type/file/...) or a `documents[]`
+     * array (one row per Add-Document table row), so the existing
+     * single-upload callers keep working unchanged.
+     */
     public function uploadDocument(Request $request, Employee $employee)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
-        $request->validate([
-            'document_type'   => ['required', 'in:aadhaar,pan,passport,offer_letter,resume,relieving_letter,experience_letter,education_certificate,photo,photo_id,bank_proof,other'],
-            'document_number' => ['nullable', 'string', 'max:100'],
-            'expiry_date'     => ['nullable', 'date'],
-            'file'            => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
-        ]);
 
-        $file = $request->file('file');
-        $path = $file->store('employee-documents/' . $employee->id, 'public');
+        $rows = $this->documentRows($request);
+        $count = $this->saveDocumentRows($employee, $rows);
 
-        // Fixes a previously-broken insert: document_name/file_size/file_type/
-        // uploaded_by are NOT NULL columns the controller never populated,
-        // and document_number/expiry_date/is_verified now exist on the table
-        // (2026_07_17_000004 migration) matching what this always tried to save.
-        $employee->documents()->create([
-            'document_type'   => $request->document_type,
-            'document_name'   => $file->getClientOriginalName(),
-            'document_number' => $request->document_number,
-            'file_path'       => $path,
-            'file_size'       => $file->getSize(),
-            'file_type'       => $file->getClientMimeType(),
-            'expiry_date'     => $request->expiry_date,
-            'uploaded_by'     => auth()->id(),
-        ]);
+        return $this->redirectAfterTabAction($employee, $request, $count > 1 ? $count . ' documents uploaded.' : 'Document uploaded.');
+    }
 
-        return back()->with('success', 'Document uploaded.');
+    /** Validates either the classic single-file submission or a `documents[]` array (one row per Add-Document table row). */
+    private function documentRows(Request $request): array
+    {
+        return $request->has('documents')
+            ? $request->validate([
+                'documents'                   => ['required', 'array', 'min:1'],
+                'documents.*.document_type'   => ['required', 'in:' . self::DOCUMENT_TYPES],
+                'documents.*.document_number' => ['nullable', 'string', 'max:100'],
+                'documents.*.issue_date'      => ['nullable', 'date'],
+                'documents.*.expiry_date'     => ['nullable', 'date'],
+                'documents.*.remarks'         => ['nullable', 'string', 'max:255'],
+                'documents.*.file'            => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            ])['documents']
+            : [$request->validate([
+                'document_type'   => ['required', 'in:' . self::DOCUMENT_TYPES],
+                'document_number' => ['nullable', 'string', 'max:100'],
+                'issue_date'      => ['nullable', 'date'],
+                'expiry_date'     => ['nullable', 'date'],
+                'remarks'         => ['nullable', 'string', 'max:255'],
+                'file'            => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            ])];
+    }
+
+    /** Shared by the standalone Tab 10 route and the unified Create submission. */
+    private function saveDocumentRows(Employee $employee, array $rows): int
+    {
+        foreach ($rows as $row) {
+            $file = $row['file'];
+            $path = $file->store('employee-documents/' . $employee->id, 'public');
+
+            // Fixes a previously-broken insert: document_name/file_size/file_type/
+            // uploaded_by are NOT NULL columns the controller never populated,
+            // and document_number/expiry_date/is_verified now exist on the table
+            // (2026_07_17_000004 migration) matching what this always tried to save.
+            $employee->documents()->create([
+                'document_type'   => $row['document_type'],
+                'document_name'   => $file->getClientOriginalName(),
+                'document_number' => $row['document_number'] ?? null,
+                'issue_date'      => $row['issue_date'] ?? null,
+                'file_path'       => $path,
+                'file_size'       => $file->getSize(),
+                'file_type'       => $file->getClientMimeType(),
+                'expiry_date'     => $row['expiry_date'] ?? null,
+                'remarks'         => $row['remarks'] ?? null,
+                'uploaded_by'     => auth()->id(),
+            ]);
+        }
+
+        return count($rows);
     }
 
     public function deleteDocument(Employee $employee, \App\Models\EmployeeDocument $document)
@@ -556,6 +743,60 @@ class EmployeeController extends Controller
         ];
     }
 
+    private const FIELD_REFERENCING_RULES = [
+        'same', 'different', 'confirmed',
+        'required_if', 'required_unless', 'required_with', 'required_with_all', 'required_without', 'required_without_all',
+        'after', 'after_or_equal', 'before', 'before_or_equal', 'gt', 'gte', 'lt', 'lte',
+    ];
+
+    /**
+     * Nests a rule set under $prefix (e.g. 'bank_details.payment_mode'
+     * instead of 'payment_mode') so the SAME rule set defined for a
+     * standalone Tab 8/9 route can validate its nested `bank_details[...]`/
+     * `salary[...]` input when submitted together with Tabs 1-7 on Create.
+     * Rules that reference ANOTHER field by name (same:x, required_if:x,...,
+     * after:x) have that referenced field name prefixed too, since Laravel
+     * resolves it against the request's real (nested) field name, not the
+     * unprefixed one this rule set was originally written against.
+     */
+    private function prefixRules(string $prefix, array $rules): array
+    {
+        $prefixed = [];
+        foreach ($rules as $field => $fieldRules) {
+            $prefixed["$prefix.$field"] = array_map(function ($rule) use ($prefix) {
+                if (! is_string($rule) || ! str_contains($rule, ':')) {
+                    return $rule;
+                }
+                [$name, $params] = explode(':', $rule, 2);
+                if (! in_array($name, self::FIELD_REFERENCING_RULES, true)) {
+                    return $rule;
+                }
+                $parts = explode(',', $params);
+                $parts[0] = "$prefix.{$parts[0]}";
+                return $name . ':' . implode(',', $parts);
+            }, $fieldRules);
+        }
+
+        return $prefixed;
+    }
+
+    /**
+     * Tabs 8-10 (Bank/Salary/Documents) each keep their own existing route,
+     * embedded as further tabs in the same registration wizard shell — a
+     * "Save & Next" button on one of these tabs submits to next_tab so the
+     * wizard advances; without it (e.g. a plain "Save"/delete action) the
+     * request just returns to the referring page, same as before.
+     */
+    private function redirectAfterTabAction(Employee $employee, Request $request, string $message)
+    {
+        if ($request->filled('next_tab')) {
+            return redirect()->route('employees.edit', ['employee' => $employee, 'tab' => $request->input('next_tab')])
+                ->with('success', $message);
+        }
+
+        return back()->with('success', $message);
+    }
+
     public function storeBankDetail(Request $request, Employee $employee)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
@@ -572,7 +813,7 @@ class EmployeeController extends Controller
 
         $employee->bankDetails()->create($data);
 
-        return back()->with('success', 'Bank details added.');
+        return $this->redirectAfterTabAction($employee, $request, 'Bank details added.');
     }
 
     public function updateBankDetail(Request $request, Employee $employee, EmployeeBankDetail $bankDetail)
@@ -592,7 +833,7 @@ class EmployeeController extends Controller
 
         $bankDetail->update($data);
 
-        return back()->with('success', 'Bank details updated.');
+        return $this->redirectAfterTabAction($employee, $request, 'Bank details updated.');
     }
 
     public function destroyBankDetail(Employee $employee, EmployeeBankDetail $bankDetail)
@@ -613,10 +854,20 @@ class EmployeeController extends Controller
             abort(403, 'You do not have the "View Sensitive Data" permission for Employees in Branch Administration.');
         }
 
-        $salary  = $employee->currentSalary;
+        $salary  = $employee->currentSalary?->load('components');
         $history = $employee->salaryHistory()->with('slab')->get();
         $slabs   = \App\Models\SalarySlab::where('is_active', true)->get();
-        return view('employees.salary', compact('employee', 'salary', 'history', 'slabs'));
+        // FSD Tab 9 — PF/ESI applicability auto-defaults from the statutory
+        // wage ceilings (Statutory Configuration) and Salary Components pick
+        // from the active Earnings/Deductions masters (auto-displaying each
+        // one's own Type/Calculation Type/Calculation Base, computed live).
+        $pfEsiConfig = \App\Models\PfEsiConfig::effectiveOn(now()->toDateString());
+        $earningsComponents   = \App\Models\EarningsComponent::where('is_active', true)->orderBy('sort_order')->get();
+        $deductionsComponents = \App\Models\DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get();
+
+        return view('employees.salary', compact(
+            'employee', 'salary', 'history', 'slabs', 'pfEsiConfig', 'earningsComponents', 'deductionsComponents'
+        ));
     }
 
     public function storeSalary(Request $request, Employee $employee)
@@ -627,14 +878,31 @@ class EmployeeController extends Controller
             abort(403, 'You do not have the "View Sensitive Data" permission for Employees in Branch Administration.');
         }
 
-        // Fixes a pre-existing bug: these field names didn't match
-        // EmployeeSalaryStructure's real fillable columns (was validating
-        // slab_id/basic/other_allowances — the model has salary_slab_id/
-        // basic_salary/da/ta/medical_allowance/special_allowance instead),
-        // so every salary structure saved through this form had those
-        // fields silently stuck at their defaults, directly corrupting
-        // payroll math that reads basic_salary/da/ta straight off this row.
-        $data = $request->validate([
+        $data = $request->validate($this->salaryRules());
+        $this->saveSalaryStructure($employee, $data);
+
+        return $this->redirectAfterTabAction($employee, $request, 'Salary structure saved.');
+    }
+
+    /**
+     * Fixes a pre-existing bug: these field names didn't match
+     * EmployeeSalaryStructure's real fillable columns (was validating
+     * slab_id/basic/other_allowances — the model has salary_slab_id/
+     * basic_salary/da/ta/medical_allowance/special_allowance instead), so
+     * every salary structure saved through this form had those fields
+     * silently stuck at their defaults, directly corrupting payroll math
+     * that reads basic_salary/da/ta straight off this row.
+     *
+     * PF/ESI/TDS applicability is NOT part of this rule set — those describe
+     * the EMPLOYEE's own flags (Employee.is_pf_applicable/is_esi_applicable/
+     * is_tds_applicable), owned exclusively by Tab 7 (Statutory Information)
+     * and saved through the employee update itself; Tab 9's JS only
+     * *suggests* a value into Tab 7's own checkboxes (FSD Rule 8), so there
+     * is no separate, competing copy of these flags here to fall out of sync.
+     */
+    private function salaryRules(): array
+    {
+        return [
             'salary_slab_id'    => ['nullable', 'exists:salary_slabs,id'],
             'ctc'               => ['required', 'numeric', 'min:0'],
             'basic_salary'      => ['required', 'numeric', 'min:0'],
@@ -644,30 +912,90 @@ class EmployeeController extends Controller
             'medical_allowance' => ['nullable', 'numeric', 'min:0'],
             'special_allowance' => ['nullable', 'numeric', 'min:0'],
             'effective_from'    => ['required', 'date'],
-            'pf_applicable'     => ['boolean'],
-            'esi_applicable'    => ['boolean'],
-        ]);
+            'effective_to'      => ['nullable', 'date', 'after:effective_from'],
+            // FSD Tab 9 — "Salary Components must automatically display
+            // Component Type, Calculation Type, Calculation Base, and
+            // Calculated Amount based on the selected Salary Component."
+            // Only WHICH component is client input; its type/calc-base/rate
+            // are always looked up fresh from the master below, never
+            // trusted from the request.
+            'components'                   => ['nullable', 'array'],
+            'components.*.component_type'  => ['required_with:components', 'in:earning,deduction'],
+            'components.*.component_id'    => ['required_with:components', 'integer'],
+        ];
+    }
 
-        // pf_applicable/esi_applicable describe the EMPLOYEE's own
-        // applicability flags (Employee.is_pf_applicable/is_esi_applicable
-        // from Module 6), not a column on EmployeeSalaryStructure — updating
-        // the employee directly here, separate from the salary row itself.
-        $employee->update([
-            'is_pf_applicable'  => $request->boolean('pf_applicable'),
-            'is_esi_applicable' => $request->boolean('esi_applicable'),
-        ]);
-        unset($data['pf_applicable'], $data['esi_applicable']);
+    /** Shared by the standalone Tab 9 route and the unified Create submission. */
+    private function saveSalaryStructure(Employee $employee, array $data): void
+    {
+        $components = $data['components'] ?? [];
+        unset($data['components']);
 
         $data['employee_id']  = $employee->id;
         $data['created_by']   = auth()->id();
+
+        $resolvedComponents = $this->resolveSalaryComponents($components, (float) $data['ctc'], (float) $data['basic_salary']);
+        $componentEarnings  = collect($resolvedComponents)->where('component_type', 'earning')->sum('calculated_amount');
+        $componentDeductions = collect($resolvedComponents)->where('component_type', 'deduction')->sum('calculated_amount');
+
         $data['gross_salary'] = $data['basic_salary']
             + (float) ($data['hra'] ?? 0) + (float) ($data['da'] ?? 0) + (float) ($data['ta'] ?? 0)
-            + (float) ($data['medical_allowance'] ?? 0) + (float) ($data['special_allowance'] ?? 0);
+            + (float) ($data['medical_allowance'] ?? 0) + (float) ($data['special_allowance'] ?? 0)
+            + $componentEarnings;
+        $data['net_salary'] = $data['gross_salary'] - $componentDeductions;
 
         $employee->salaryHistory()->update(['is_current' => false, 'effective_to' => now()->toDateString()]);
-        $employee->salaryHistory()->create(array_merge($data, ['is_current' => true]));
+        $structure = $employee->salaryHistory()->create(array_merge($data, ['is_current' => true]));
 
-        return back()->with('success', 'Salary structure saved.');
+        foreach ($resolvedComponents as $component) {
+            $structure->components()->create($component);
+        }
+    }
+
+    /**
+     * Looks up each selected component's real configuration from the
+     * Earnings/Deductions Component masters (never trusting client-supplied
+     * type/base/rate) and computes its amount for this salary structure —
+     * percentage-type components are applied against CTC or Basic per the
+     * component's own calculation_base, fixed-type components use the
+     * configured rate directly.
+     */
+    private function resolveSalaryComponents(array $components, float $ctc, float $basicSalary): array
+    {
+        $resolved = [];
+
+        foreach ($components as $component) {
+            $type = $component['component_type'] ?? null;
+            $id = $component['component_id'] ?? null;
+            if (! $type || ! $id) {
+                continue;
+            }
+
+            $source = $type === 'earning'
+                ? \App\Models\EarningsComponent::find($id)
+                : \App\Models\DeductionsComponent::find($id);
+
+            if (! $source) {
+                continue;
+            }
+
+            $base = str_contains(strtolower((string) $source->calculation_base), 'ctc') ? $ctc : $basicSalary;
+            $calculatedAmount = $source->type === 'percentage'
+                ? round($base * (float) $source->percentage / 100, 2)
+                : (float) $source->percentage;
+
+            $resolved[] = [
+                'component_type'    => $type,
+                'component_id'      => $source->id,
+                'component_name'    => $source->name,
+                'calculation_type'  => $source->type,
+                'calculation_base'  => $source->calculation_base,
+                'rate'              => $source->percentage,
+                'calculated_amount' => $calculatedAmount,
+            ];
+        }
+
+        return $resolved;
     }
 
     public function exit(Employee $employee)
@@ -806,12 +1134,57 @@ class EmployeeController extends Controller
             ->get();
     }
 
-    private function rules(int $excludeId = 0): array
+    /**
+     * Fields that must stay present even on a "Save as Draft" submission —
+     * everything else has its required/required_if/required_unless/
+     * required_with rules relaxed to nullable. These are exactly the
+     * columns that are NOT NULL at the database level with no default, so
+     * a draft is always a real, valid row — just not yet complete against
+     * the full FSD business validation (addresses, statutory numbers,
+     * contract-labour conditionals, etc.), which "Save Employee" enforces.
+     */
+    private const DRAFT_REQUIRED_FIELDS = [
+        'first_name', 'last_name', 'employee_category', 'branch_id', 'department_id',
+        'designation_id', 'employee_type_id', 'date_of_joining', 'gender', 'phone',
+    ];
+
+    /** Relaxes every required/required_if/required_unless/required_with rule to nullable, except DRAFT_REQUIRED_FIELDS. */
+    private function relaxRulesForDraft(array $rules): array
+    {
+        foreach ($rules as $field => $fieldRules) {
+            if (in_array($field, self::DRAFT_REQUIRED_FIELDS, true)) {
+                continue;
+            }
+
+            $relaxed = [];
+            $hasNullable = false;
+            foreach ($fieldRules as $rule) {
+                if ($rule === 'required') {
+                    continue;
+                }
+                if (is_string($rule) && (str_starts_with($rule, 'required_if:') || str_starts_with($rule, 'required_unless:') || str_starts_with($rule, 'required_with:'))) {
+                    continue;
+                }
+                if ($rule === 'nullable') {
+                    $hasNullable = true;
+                }
+                $relaxed[] = $rule;
+            }
+            if (! $hasNullable) {
+                array_unshift($relaxed, 'nullable');
+            }
+            $rules[$field] = $relaxed;
+        }
+
+        return $rules;
+    }
+
+    private function rules(int $excludeId = 0, bool $isDraft = false): array
     {
         $minAge = (int) Setting::get('employee', 'min_working_age', 18);
         $nameRegex = 'regex:/^[a-zA-Z .\'-]+$/';
 
-        return [
+        $rules = [
             'first_name'       => ['required', 'string', 'max:100', $nameRegex],
             'middle_name'      => ['nullable', 'string', 'max:100', $nameRegex],
             'last_name'        => ['nullable', 'string', 'max:100', $nameRegex],
@@ -893,5 +1266,7 @@ class EmployeeController extends Controller
             'contractor_rate'            => ['nullable', 'numeric', 'min:0'],
             'contractor_remarks'         => ['nullable', 'string'],
         ];
+
+        return $isDraft ? $this->relaxRulesForDraft($rules) : $rules;
     }
 }

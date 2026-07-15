@@ -23,7 +23,7 @@ class Employee extends Model
         'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship',
         'address_line1', 'address_line2', 'city', 'district', 'state', 'pincode',
         'permanent_address_line1', 'permanent_address_line2', 'permanent_city', 'permanent_district', 'permanent_state', 'permanent_pincode',
-        'date_of_joining', 'date_of_confirmation', 'probation_end_date', 'contract_start_date', 'contract_end_date', 'status',
+        'date_of_joining', 'date_of_confirmation', 'probation_end_date', 'contract_start_date', 'contract_end_date', 'status', 'is_draft',
         'aadhaar_number', 'pan_number', 'uan_number', 'pf_number', 'esi_number',
         'passport_number', 'passport_expiry',
         'profile_photo', 'is_pf_applicable', 'is_esi_applicable', 'is_tds_applicable',
@@ -43,6 +43,7 @@ class Employee extends Model
             'is_pf_applicable'       => 'boolean',
             'is_esi_applicable'      => 'boolean',
             'is_tds_applicable'      => 'boolean',
+            'is_draft'               => 'boolean',
             'contractor_rate'        => 'decimal:2',
         ];
     }
@@ -71,6 +72,25 @@ class Employee extends Model
     public function getAgeAttribute(): ?int
     {
         return $this->date_of_birth ? $this->date_of_birth->age : null;
+    }
+
+    /**
+     * FSD Tab 1 — "System Classification must be auto-determined and
+     * read-only." Derived purely from the two stored classification
+     * columns (primary_employee_type/labour_type) — there is no separate
+     * classification column of its own, this is just its display form.
+     */
+    public function getSystemClassificationAttribute(): string
+    {
+        if ($this->primary_employee_type === 'staff') {
+            return 'Staff';
+        }
+
+        return match ($this->labour_type) {
+            'company_labour' => 'Company Labour',
+            'contract_labour' => 'Contract Labour',
+            default => 'Staff',
+        };
     }
 
     public function getProfilePhotoUrlAttribute(): string

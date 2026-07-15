@@ -39,4 +39,5 @@ class EmployeeSalaryStructure extends Model
     public function employee() { return $this->belongsTo(Employee::class); }
     public function slab()     { return $this->belongsTo(SalarySlab::class, 'salary_slab_id'); }
     public function creator()  { return $this->belongsTo(User::class, 'created_by'); }
+    public function components() { return $this->hasMany(EmployeeSalaryComponent::class, 'employee_salary_structure_id'); }
 }

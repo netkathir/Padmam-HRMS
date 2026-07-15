@@ -91,6 +91,7 @@ Route::middleware(['auth', 'force.password.change'])->group(function () {
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
     // Employees
+    Route::get('/employee-code/preview', [EmployeeController::class, 'previewEmployeeCode'])->name('employees.preview-code')->middleware('permission:employees.read');
     Route::resource('employees', EmployeeController::class)
         ->middlewareFor(['index', 'create', 'edit', 'show'], 'permission:employees.read')
         ->middlewareFor(['store'], 'permission:employees.create')
@@ -105,6 +106,7 @@ Route::middleware(['auth', 'force.password.change'])->group(function () {
     Route::post('/employees/{employee}/salary',    [EmployeeController::class, 'storeSalary'])->name('employees.salary.store')->middleware('permission:employees.full');
     Route::get('/employees/{employee}/exit',       [EmployeeController::class, 'exit'])->name('employees.exit')->middleware('permission:employees.read');
     Route::post('/employees/{employee}/exit',      [EmployeeController::class, 'processExit'])->name('employees.exit.store')->middleware('permission:employees.full');
+    Route::post('/employees/{employee}/finalize',  [EmployeeController::class, 'finalize'])->name('employees.finalize')->middleware('permission:employees.full');
 
     // Attendance (Contract Attendance shares the same module, per the sidebar)
     // Static routes MUST come before the {attendance} wildcard show route below.

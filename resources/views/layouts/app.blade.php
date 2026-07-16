@@ -14,18 +14,25 @@
     <style>
         * { box-sizing: border-box; }
 
+        html, body {
+            height: 100%;
+        }
         body {
             background-color: #f5f6fa;
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             font-size: 14px;
+            /* The page itself never scrolls — the sidebar's own nav (.sb-nav)
+               and .page-content below scroll independently instead, so the
+               sidebar stays fixed in place while either one scrolls. */
+            overflow: hidden;
         }
 
         /* ── Layout wrapper ── */
-        .layout-wrapper { display: flex; min-height: 100vh; }
+        .layout-wrapper { display: flex; height: 100vh; overflow: hidden; }
 
         /* ── Main content ── */
-        .main-content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-        .page-content  { flex: 1; padding: 20px 24px; }
+        .main-content { flex: 1; min-width: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .page-content  { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px; }
 
         /* ── Sidebar backdrop (mobile) ── */
         .sidebar-backdrop {

@@ -466,6 +466,13 @@ $showBranchAdmin =
             </a>
         @endif
 
+        {{-- Shared accordion parent — System Admin / Masters / Branch
+             Administration are the only 3 collapsible sections in the
+             sidebar; data-bs-parent (on each .collapse div below) makes
+             Bootstrap auto-close whichever of the OTHER two is open
+             whenever one is expanded, so at most one stays open at once. --}}
+        <div id="sidebarAccordion">
+
         {{-- ── SYSTEM ADMIN (collapsible) ──────────────────────── --}}
         @if ($showSysAdmin)
             <div class="mt-2">
@@ -479,7 +486,7 @@ $showBranchAdmin =
                     <i class="bi bi-chevron-up sb-collapse-chevron"></i>
                 </button>
 
-                <div class="collapse {{ $sysAdminOpen ? 'show' : '' }}" id="sysAdminMenu">
+                <div class="collapse {{ $sysAdminOpen ? 'show' : '' }}" id="sysAdminMenu" data-bs-parent="#sidebarAccordion">
                     <div class="sb-sub-nav">
                         @if ($can['users'])
                             <a href="{{ route('users.index') }}"
@@ -534,7 +541,7 @@ $showBranchAdmin =
                     <i class="bi bi-chevron-up sb-collapse-chevron"></i>
                 </button>
 
-                <div class="collapse {{ $mastersOpen ? 'show' : '' }}" id="mastersMenu">
+                <div class="collapse {{ $mastersOpen ? 'show' : '' }}" id="mastersMenu" data-bs-parent="#sidebarAccordion">
                     <div class="sb-sub-nav">
                         {{-- Organisation — each sub-link is gated by its own module
                              permission (masters_branches, masters_departments, ...)
@@ -674,7 +681,7 @@ $showBranchAdmin =
                     <i class="bi bi-chevron-up sb-collapse-chevron"></i>
                 </button>
 
-                <div class="collapse {{ $branchAdminOpen ? 'show' : '' }}" id="branchAdminMenu">
+                <div class="collapse {{ $branchAdminOpen ? 'show' : '' }}" id="branchAdminMenu" data-bs-parent="#sidebarAccordion">
                     <div class="sb-sub-nav">
                         @if ($can['branch_admin_head_assignments'])
                             <a href="{{ route('branch-admin.head-assignments.index') }}"
@@ -698,6 +705,8 @@ $showBranchAdmin =
                 </div>
             </div>
         @endif
+
+        </div>{{-- /#sidebarAccordion --}}
 
         {{-- ── People ───────────────────────────────────────────── --}}
         @if ($showPeople)

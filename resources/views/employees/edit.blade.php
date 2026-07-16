@@ -14,16 +14,14 @@
     <div class="card">
         <div class="card-body">
             <ul class="nav nav-tabs mb-4 flex-nowrap overflow-x-auto overflow-y-hidden" id="employeeWizardNav">
-                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="1">1. Employee Classification</button></li>
-                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="2">2. Personal Information</button></li>
-                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="3">3. Contact Information</button></li>
-                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="4">4. Address Information</button></li>
-                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="5">5. Employment Information</button></li>
-                <li class="nav-item" id="nav-tab-6-item"><button type="button" class="nav-link" data-nav-tab="6">6. Contract Labour Information</button></li>
-                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="7">7. Statutory Information</button></li>
-                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="8">8. Bank Information</button></li>
-                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="9">9. Designation &amp; Salary</button></li>
-                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="10">10. Employee Documents</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="2" data-step-label="Personal Information">Personal Information</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="3" data-step-label="Contact Information">Contact Information</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="4" data-step-label="Address Information">Address Information</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="5" data-step-label="Employment Information">Employment Information</button></li>
+                <li class="nav-item" id="nav-tab-6-item"><button type="button" class="nav-link" data-nav-tab="6" data-step-label="Contract Labour Information">Contract Labour Information</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="8" data-step-label="Bank Information">Bank Information</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="9" data-step-label="Designation &amp; Salary">Designation &amp; Salary</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="10" data-step-label="Employee Documents">Employee Documents</button></li>
             </ul>
 
             <form action="{{ route('employees.update', $employee) }}" method="POST" enctype="multipart/form-data" id="employeeWizardForm">
@@ -37,12 +35,11 @@
                     <div class="table-responsive mb-3">
                         <table class="table table-sm">
                             <thead>
-                                <tr><th>Mode</th><th>Bank</th><th>Account Holder</th><th>Account Number</th><th>IFSC</th><th>Primary</th><th></th></tr>
+                                <tr><th>Bank</th><th>Account Holder</th><th>Account Number</th><th>IFSC</th><th>Primary</th><th></th></tr>
                             </thead>
                             <tbody>
                                 @foreach ($employee->bankDetails as $bd)
                                     <tr>
-                                        <td>{{ ucfirst(str_replace('_', ' ', $bd->payment_mode)) }}</td>
                                         <td>{{ $bd->bank->name ?? $bd->bank_name ?? '—' }}</td>
                                         <td>{{ $bd->account_holder_name ?? '—' }}</td>
                                         <td>{{ $canViewFullBankDetails ? $bd->account_number : $bd->masked_account_number }}</td>
@@ -69,15 +66,6 @@
                     @csrf
                     <div class="row g-3">
                         <div class="col-md-3">
-                            <label class="form-label">Payment Mode</label>
-                            <select name="payment_mode" id="payment_mode" class="form-select">
-                                <option value="">— Not Set —</option>
-                                <option value="bank_transfer">Bank Transfer</option>
-                                <option value="cash">Cash</option>
-                                <option value="cheque">Cheque</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
                             <label class="form-label">Bank Name</label>
                             <select name="bank_id" class="form-select" data-searchable>
                                 <option value="">Select</option>
@@ -93,25 +81,25 @@
                         </div>
                         <div class="col-md-3">
                             <label class="form-label" id="account-holder-label">Account Holder Name</label>
-                            <input type="text" name="account_holder_name" class="form-control bank-transfer-field">
+                            <input type="text" name="account_holder_name" class="form-control">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label" id="account-number-label">Account Number</label>
                             <div class="input-group">
-                                <input type="password" name="account_number" class="form-control bank-transfer-field masked-toggle-field" autocomplete="off">
+                                <input type="password" name="account_number" class="form-control masked-toggle-field" autocomplete="off">
                                 <button type="button" class="btn btn-outline-secondary masked-toggle-btn" tabindex="-1"><i class="bi bi-eye"></i></button>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Confirm Account Number</label>
                             <div class="input-group">
-                                <input type="password" name="account_number_confirmation" class="form-control bank-transfer-field masked-toggle-field" autocomplete="off">
+                                <input type="password" name="account_number_confirmation" class="form-control masked-toggle-field" autocomplete="off">
                                 <button type="button" class="btn btn-outline-secondary masked-toggle-btn" tabindex="-1"><i class="bi bi-eye"></i></button>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label" id="ifsc-label">IFSC Code</label>
-                            <input type="text" name="ifsc_code" class="form-control bank-transfer-field" style="text-transform:uppercase">
+                            <input type="text" name="ifsc_code" class="form-control" style="text-transform:uppercase">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Bank Branch</label>
@@ -241,6 +229,11 @@
                             </select>
                             @error('designation_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Biometric ID <span class="text-danger">*</span></label>
+                            <input type="text" name="biometric_id" class="form-control @error('biometric_id') is-invalid @enderror" value="{{ old('biometric_id', $employee->biometric_id) }}" required>
+                            @error('biometric_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
 
                         <div class="col-12 mt-2"><h6 class="fw-bold border-bottom pb-2">Salary</h6></div>
                         <div class="col-md-6">
@@ -266,6 +259,15 @@
                             <input type="date" name="effective_to" class="form-control @error('effective_to') is-invalid @enderror" value="{{ old('effective_to') }}">
                             @error('effective_to')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             <div class="form-text">Leave blank for an open-ended (current) structure.</div>
+                        </div>
+
+                        <div class="col-12 mt-2"><h6 class="fw-bold border-bottom pb-2">Overtime Applicability</h6></div>
+                        <div class="col-md-3">
+                            <div class="form-check">
+                                <input type="hidden" name="is_ot_applicable" value="0">
+                                <input type="checkbox" name="is_ot_applicable" id="is_ot_applicable" class="form-check-input" value="1" {{ old('is_ot_applicable', $employee->is_ot_applicable) ? 'checked' : '' }}>
+                                <label class="form-check-label">OT Applicable</label>
+                            </div>
                         </div>
 
                         <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">TDS / PF / ESI Percentages <small class="fw-normal text-muted">(read-only — from the selected Salary Slab)</small></h6></div>
@@ -428,17 +430,12 @@
     // "just picked a different slab" without a separate Blade-rendered
     // version, and without ever showing a stale snapshot figure.
     $wizardCurrentSalary = $currentSalaryBreakdown;
-    $wizardPfEsiConfig = $pfEsiConfig ? [
-        'pf_wage_ceiling' => (float) $pfEsiConfig->pf_wage_ceiling,
-        'esi_wage_ceiling' => (float) $pfEsiConfig->esi_wage_ceiling,
-    ] : null;
 @endphp
 @push('scripts')
 <script>
     window.__employeeWizard = {
         activeTab: {{ (int) $activeTab }},
         currentSalaryBreakdown: @json($wizardCurrentSalary),
-        pfEsiConfig: @json($wizardPfEsiConfig),
         // Full base-path-aware URL template (the app may be deployed in a
         // subdirectory, e.g. /Padmam-HRMS/public, so a root-relative
         // '/salary-slab-breakdown/…' would resolve to the wrong host root).
@@ -459,7 +456,6 @@
         const permanentFields = document.getElementById('permanent-address-fields');
         const dobInput = document.getElementById('date_of_birth');
         const ageDisplay = document.getElementById('age_display');
-        const systemClassificationDisplay = document.getElementById('system_classification_display');
         const displayNameInput = document.getElementById('display_name');
         let displayNameEdited = !!(displayNameInput && displayNameInput.value.trim() !== '');
 
@@ -527,15 +523,23 @@
             syncInputFromSelect();
         }
 
+        // Step numbers are computed, not hardcoded — Contract Labour
+        // Information is only ever visible for the Contract Labour category,
+        // so a static "6. Bank Information" would show a gap (5 skipped)
+        // whenever it's hidden. Recomputed every time visibility changes.
+        function renumberNavTabs() {
+            Array.from(document.querySelectorAll('#employeeWizardNav .nav-item'))
+                .filter(function (li) { return li.style.display !== 'none'; })
+                .forEach(function (li, index) {
+                    var btn = li.querySelector('button[data-step-label]');
+                    if (btn) btn.textContent = (index + 1) + '. ' + btn.dataset.stepLabel;
+                });
+        }
+
         function refreshTab6Nav() {
             if (!navTab6Item) return;
             navTab6Item.style.display = tab6Visible() ? '' : 'none';
-        }
-
-        function refreshSystemClassification() {
-            if (!categorySelect || !systemClassificationDisplay) return;
-            const labels = { staff: 'Staff', company_labour: 'Company Labour', contract_labour: 'Contract Labour' };
-            systemClassificationDisplay.value = labels[categorySelect.value] || '';
+            renumberNavTabs();
         }
 
         function togglePermanentFields() {
@@ -577,9 +581,8 @@
         }
 
         if (categorySelect) {
-            categorySelect.addEventListener('change', function () { refreshTab6Nav(); refreshSystemClassification(); });
+            categorySelect.addEventListener('change', function () { refreshTab6Nav(); });
             refreshTab6Nav();
-            refreshSystemClassification();
         }
         if (sameAsCurrent && permanentFields) {
             sameAsCurrent.addEventListener('change', function () { togglePermanentFields(); copyCurrentToPermanentAddress(); });
@@ -610,6 +613,7 @@
         const panes = Array.from(document.querySelectorAll('[data-tab-pane]'));
 
         function isTabEnabled(n) {
+            if (n === 1 || n === 7) return false; // removed: Employee Classification / Statutory Information
             if (n === 6) return tab6Visible();
             return n >= 1 && n <= TOTAL_TABS;
         }
@@ -642,22 +646,9 @@
             });
         });
 
-        showTab(isTabEnabled(window.__employeeWizard.activeTab) ? window.__employeeWizard.activeTab : 1);
+        showTab(isTabEnabled(window.__employeeWizard.activeTab) ? window.__employeeWizard.activeTab : 2);
 
         document.querySelectorAll('[data-searchable]').forEach(makeSearchable);
-
-        // ── Tab 8: Bank Information — required fields only when Payment Mode = Bank Transfer ──
-        const paymentMode = document.getElementById('payment_mode');
-        if (paymentMode) {
-            function refreshBankRequired() {
-                const required = paymentMode.value === 'bank_transfer';
-                document.querySelectorAll('.bank-transfer-field').forEach(function (el) {
-                    el.toggleAttribute('required', required);
-                });
-            }
-            paymentMode.addEventListener('change', refreshBankRequired);
-            refreshBankRequired();
-        }
 
         // Account Number / Confirm Account Number are masked (password-style)
         // by default; the eye-icon toggles plain-text visibility for the user
@@ -710,13 +701,8 @@
 
         // ── Tab 9: Designation & Salary — the selected Salary Slab is the
         // single source of truth; its whole breakdown is fetched read-only
-        // (never computed/entered here) and PF/ESI/TDS are only
-        // *suggested* into Tab 7's own checkboxes (FSD Rule 8). ──
-        const pfEsiConfig = window.__employeeWizard.pfEsiConfig;
+        // (never computed/entered here). ──
         const salarySlabSelect = document.getElementById('salary_slab_id');
-        const pfCheckbox = document.getElementById('is_pf_applicable');
-        const esiCheckbox = document.getElementById('is_esi_applicable');
-        const tdsCheckbox = document.getElementById('is_tds_applicable');
 
         // Same field-based layout as the Salary Slab Master's own
         // create/edit form (label + boxed input per value) — these stay
@@ -760,13 +746,6 @@
             if (deductionComponentsBody) deductionComponentsBody.innerHTML = data ? componentRows(data.deduction_components) : placeholder;
         }
 
-        function applyStatutorySuggestions(data) {
-            if (!pfEsiConfig || !data) return;
-            if (pfCheckbox && data.basic_salary > 0) pfCheckbox.checked = data.basic_salary <= pfEsiConfig.pf_wage_ceiling;
-            if (esiCheckbox && data.gross_salary > 0) esiCheckbox.checked = data.gross_salary <= pfEsiConfig.esi_wage_ceiling;
-            if (tdsCheckbox) tdsCheckbox.checked = data.tds > 0;
-        }
-
         function fetchAndRenderSlabBreakdown(slabId) {
             if (!slabId) { renderSalarySlabBreakdown(null); return; }
             var url = window.__employeeWizard.salarySlabBreakdownUrl.replace('SLAB_ID', encodeURIComponent(slabId));
@@ -777,7 +756,6 @@
                 })
                 .then(function (data) {
                     renderSalarySlabBreakdown(data);
-                    applyStatutorySuggestions(data);
                 })
                 .catch(function (err) {
                     console.error('Salary Slab breakdown request errored for slab ' + slabId + ':', err);

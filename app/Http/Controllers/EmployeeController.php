@@ -68,10 +68,9 @@ class EmployeeController extends Controller
         // too, so this needs the same reference data edit() already passes
         // for those tabs.
         $salarySlabs = \App\Models\SalarySlab::where('is_active', true)->get();
-        $pfEsiConfig = \App\Models\PfEsiConfig::effectiveOn(now()->toDateString());
 
         return view('employees.create', $this->formData() + compact(
-            'activeTab', 'salarySlabs', 'pfEsiConfig'
+            'activeTab', 'salarySlabs'
         ));
     }
 
@@ -453,7 +452,9 @@ class EmployeeController extends Controller
         // (the user may leave any of them for later from Edit) and is
         // processed with the exact same validation/persistence the
         // standalone Tab 8/9/10 routes use.
-        if ($request->filled('bank_details.payment_mode')) {
+        // (Payment Mode was removed from this section — gate on whichever
+        // bank-identifying field the user actually filled in instead.)
+        if ($request->filled('bank_details.bank_id') || $request->filled('bank_details.bank_name') || $request->filled('bank_details.account_number')) {
             $bankData = $request->validate($this->prefixRules('bank_details', $this->bankDetailRules()), [
                 'bank_details.ifsc_code.regex' => 'The IFSC code format is invalid (e.g. HDFC0001234).',
                 'bank_details.account_number_confirmation.same' => 'Account Number and Confirm Account Number must match.',
@@ -514,7 +515,9 @@ class EmployeeController extends Controller
     public function edit(Employee $employee, Request $request)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
-        $activeTab = (int) $request->input('tab', 1);
+        // Tab 1 (Employee Classification) was removed — the wizard now
+        // opens on Tab 2 (Personal Information) by default.
+        $activeTab = (int) $request->input('tab', 2);
         $employee->load(['documents', 'bankDetails.bank', 'currentSalary.components']);
 
         // Tabs 8-10 (Bank/Salary/Documents) live in the same wizard shell —
@@ -523,7 +526,6 @@ class EmployeeController extends Controller
         $mandatoryDocTypes = json_decode(Setting::get('employee', 'mandatory_document_types', '[]'), true) ?: [];
         $missingMandatoryDocs = array_diff($mandatoryDocTypes, $employee->documents->pluck('document_type')->all());
         $salarySlabs = \App\Models\SalarySlab::where('is_active', true)->get();
-        $pfEsiConfig = \App\Models\PfEsiConfig::effectiveOn(now()->toDateString());
         $salaryHistory = $employee->salaryHistory()->with('slab')->get();
 
         // Always read from the Salary Slab currently assigned to the
@@ -536,7 +538,7 @@ class EmployeeController extends Controller
             : null;
 
         return view('employees.edit', array_merge(
-            compact('employee', 'activeTab', 'missingMandatoryDocs', 'salarySlabs', 'pfEsiConfig', 'salaryHistory', 'currentSalaryBreakdown'),
+            compact('employee', 'activeTab', 'missingMandatoryDocs', 'salarySlabs', 'salaryHistory', 'currentSalaryBreakdown'),
             $this->formData($employee)
         ));
     }
@@ -735,13 +737,12 @@ class EmployeeController extends Controller
     private function bankDetailRules(): array
     {
         return [
-            'payment_mode'         => ['required', 'in:bank_transfer,cash,cheque'],
             'bank_id'              => ['nullable', 'exists:banks,id'],
-            'bank_name'            => ['required_if:payment_mode,bank_transfer', 'nullable', 'string', 'max:100'],
-            'account_holder_name'  => ['required_if:payment_mode,bank_transfer', 'nullable', 'string', 'max:100'],
-            'account_number'       => ['required_if:payment_mode,bank_transfer', 'nullable', 'string', 'max:50'],
-            'account_number_confirmation' => ['required_if:payment_mode,bank_transfer', 'nullable', 'same:account_number'],
-            'ifsc_code'            => ['required_if:payment_mode,bank_transfer', 'nullable', 'string', 'regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'],
+            'bank_name'            => ['nullable', 'string', 'max:100'],
+            'account_holder_name'  => ['nullable', 'string', 'max:100'],
+            'account_number'       => ['nullable', 'string', 'max:50'],
+            'account_number_confirmation' => ['nullable', 'same:account_number'],
+            'ifsc_code'            => ['nullable', 'string', 'regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'],
             'branch_name'          => ['nullable', 'string', 'max:100'],
             'account_type'         => ['nullable', 'in:savings,current,salary'],
             'is_primary'           => ['boolean'],
@@ -755,8 +756,8 @@ class EmployeeController extends Controller
     ];
 
     /**
-     * Nests a rule set under $prefix (e.g. 'bank_details.payment_mode'
-     * instead of 'payment_mode') so the SAME rule set defined for a
+     * Nests a rule set under $prefix (e.g. 'bank_details.bank_name'
+     * instead of 'bank_name') so the SAME rule set defined for a
      * standalone Tab 8/9 route can validate its nested `bank_details[...]`/
      * `salary[...]` input when submitted together with Tabs 1-7 on Create.
      * Rules that reference ANOTHER field by name (same:x, required_if:x,...,
@@ -921,7 +922,37 @@ class EmployeeController extends Controller
         $data = $request->validate($this->salaryRules());
         $this->saveSalaryStructure($employee, $data);
 
+        // Biometric ID and the PF/ESI/TDS/OT applicability checkboxes now
+        // live on this same Designation & Salary tab (moved off the removed
+        // Employee Classification/Statutory Information tabs) — this is a
+        // standalone route/form on Edit (unlike Create, where they're part
+        // of the one combined Tabs-1-10 submission and already handled by
+        // the main rules()/store()), so they need their own validation and
+        // Employee-record update here.
+        $extra = $request->validate($this->employeeTabExtraRules());
+        $this->assertBiometricIdUnique($extra['biometric_id'] ?? null, $employee->branch_id, $employee->id);
+        $employee->update($extra);
+
         return $this->redirectAfterTabAction($employee, $request, 'Salary structure saved.');
+    }
+
+    /**
+     * Biometric ID (required, always manually entered — never
+     * auto-generated) and the PF/ESI/TDS/OT applicability checkboxes,
+     * relocated onto the Designation & Salary tab. Validated separately
+     * from salaryRules() since — on Edit — this tab is its own standalone
+     * form/route, distinct from the Tabs-1-7 form these fields used to
+     * belong to.
+     */
+    private function employeeTabExtraRules(): array
+    {
+        return [
+            'biometric_id'      => ['required', 'string', 'max:50'],
+            'is_pf_applicable'  => ['boolean'],
+            'is_esi_applicable' => ['boolean'],
+            'is_tds_applicable' => ['boolean'],
+            'is_ot_applicable'  => ['boolean'],
+        ];
     }
 
     /**
@@ -932,10 +963,6 @@ class EmployeeController extends Controller
      * Medical/Special Allowance/Salary Components are no longer accepted
      * from this form at all — they're always resolved fresh from the
      * selected slab in saveSalaryStructure() below.
-     *
-     * PF/ESI/TDS applicability is NOT part of this rule set — those describe
-     * the EMPLOYEE's own flags (Employee.is_pf_applicable/is_esi_applicable/
-     * is_tds_applicable), owned exclusively by Tab 7 (Statutory Information).
      */
     private function salaryRules(): array
     {
@@ -946,7 +973,8 @@ class EmployeeController extends Controller
             // Employee Master — "Designation & Salary" section. Department/
             // Designation are shared with Tab 5's own fields (same employee
             // columns); Employee Category/Type/Contractor Name are this
-            // section's own classification, distinct from Tab 1's.
+            // section's own classification, distinct from Employee Category
+            // on Tab 5.
             'department_id'                  => ['nullable', 'exists:departments,id'],
             'designation_id'                 => ['nullable', 'exists:designations,id'],
             'designation_employee_category'  => ['required', 'in:company,contractor'],
@@ -1292,17 +1320,11 @@ class EmployeeController extends Controller
             'emergency_contact_name'  => ['nullable', 'string', 'max:100'],
             'emergency_contact_phone' => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
             'emergency_contact_relationship' => ['nullable', 'string', 'max:50'],
-            'aadhaar_number'   => ['nullable', 'digits:12', Rule::unique('employees', 'aadhaar_number')->ignore($excludeId)],
-            'pan_number'       => ['nullable', 'regex:/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/', Rule::unique('employees', 'pan_number')->ignore($excludeId)],
-            'uan_number'       => ['nullable', 'digits:12', 'required_if:is_pf_applicable,1', Rule::unique('employees', 'uan_number')->ignore($excludeId)],
-            'pf_number'        => ['nullable', 'string', 'max:30', 'required_if:is_pf_applicable,1'],
-            'esi_number'       => ['nullable', 'digits:10', 'required_if:is_esi_applicable,1', Rule::unique('employees', 'esi_number')->ignore($excludeId)],
-            'passport_number'  => ['nullable', 'string', 'max:20'],
-            'passport_expiry'  => ['nullable', 'date'],
             'profile_photo'    => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
             'is_pf_applicable' => ['boolean'],
             'is_esi_applicable'=> ['boolean'],
             'is_tds_applicable'=> ['boolean'],
+            'is_ot_applicable' => ['boolean'],
             'contractor_id'    => ['required_if:employee_category,contract_labour', 'nullable', 'exists:contractors,id'],
             'contractor_employee_number' => ['nullable', 'string', 'max:50'],
             'work_order_number'          => ['nullable', 'string', 'max:50'],

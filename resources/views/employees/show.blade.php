@@ -161,13 +161,12 @@
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
-                                        <th>Mode</th><th>Bank</th><th>Account Holder</th><th>Account Number</th><th>IFSC</th><th>Primary</th><th></th>
+                                        <th>Bank</th><th>Account Holder</th><th>Account Number</th><th>IFSC</th><th>Primary</th><th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach ($employee->bankDetails as $bd)
                                         <tr>
-                                            <td>{{ ucfirst(str_replace('_', ' ', $bd->payment_mode)) }}</td>
                                             <td>{{ $bd->bank->name ?? $bd->bank_name ?? '—' }}</td>
                                             <td>{{ $bd->account_holder_name ?? '—' }}</td>
                                             <td>{{ $canViewFullBankDetails ? $bd->account_number : $bd->masked_account_number }}</td>
@@ -191,14 +190,6 @@
                         <form action="{{ route('employees.bank-details.store', $employee) }}" method="POST">
                             @csrf
                             <div class="row g-3">
-                                <div class="col-md-3">
-                                    <label class="form-label">Payment Mode</label>
-                                    <select name="payment_mode" class="form-select">
-                                        <option value="bank_transfer">Bank Transfer</option>
-                                        <option value="cash">Cash</option>
-                                        <option value="cheque">Cheque</option>
-                                    </select>
-                                </div>
                                 <div class="col-md-3">
                                     <label class="form-label">Bank</label>
                                     <select name="bank_id" class="form-select">

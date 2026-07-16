@@ -27,77 +27,13 @@
 {{-- FSD Rule 1 — Branch is never shown; it always follows the currently active branch. --}}
 <input type="hidden" name="branch_id" value="{{ $currentBranch->id ?? '' }}">
 
-{{-- ── Tab 1: Employee Classification ─────────────────────────────── --}}
-<div class="tab-pane" data-tab-pane="1">
-    <div class="row g-3">
-        <div class="col-md-3">
-            <label class="form-label">Employee Number</label>
-            <input type="text" id="employee_code_display" class="form-control" value="{{ $employee->employee_code ?? '' }}" placeholder="Select Employee Category &amp; Type" disabled>
-            <div class="form-text">Auto-generated and read-only.</div>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Employee Category <span class="text-danger">*</span></label>
-            <select name="employee_category" id="employee_category" class="form-select @error('employee_category') is-invalid @enderror" required>
-                <option value="">Select</option>
-                <option value="staff" {{ $currentCategory == 'staff' ? 'selected' : '' }}>Staff</option>
-                <option value="company_labour" {{ $currentCategory == 'company_labour' ? 'selected' : '' }}>Company Labour</option>
-                <option value="contract_labour" {{ $currentCategory == 'contract_labour' ? 'selected' : '' }}>Contract Labour</option>
-            </select>
-            @error('employee_category')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">System Classification</label>
-            <input type="text" id="system_classification_display" class="form-control" value="{{ $employee->system_classification ?? '' }}" disabled>
-            <div class="form-text">Auto-determined from Employee Category.</div>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Employee Type <span class="text-danger">*</span></label>
-            <select name="employee_type_id" id="employee_type_id" class="form-select @error('employee_type_id') is-invalid @enderror" data-searchable required>
-                <option value="">Select</option>
-                @foreach ($employeeTypes as $et)
-                    <option value="{{ $et->id }}" {{ old('employee_type_id', $employee->employee_type_id ?? null) == $et->id ? 'selected' : '' }}>{{ $et->name }}</option>
-                @endforeach
-            </select>
-            @error('employee_type_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Biometric ID <span class="text-danger">*</span></label>
-            <input type="text" name="biometric_id" class="form-control @error('biometric_id') is-invalid @enderror" value="{{ old('biometric_id', $employee->biometric_id ?? '') }}" required>
-            @error('biometric_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Status <span class="text-danger">*</span></label>
-            <select name="status" class="form-select @error('status') is-invalid @enderror" required>
-                @php $currentStatus = old('status', $employee->status ?? 'active'); @endphp
-                <option value="active" {{ $currentStatus == 'active' ? 'selected' : '' }}>Active</option>
-                <option value="probation" {{ $currentStatus == 'probation' ? 'selected' : '' }}>Probation</option>
-                <option value="inactive" {{ $currentStatus == 'inactive' ? 'selected' : '' }}>Inactive</option>
-                @if($employee)
-                    <option value="terminated" {{ $currentStatus == 'terminated' ? 'selected' : '' }}>Terminated</option>
-                @endif
-            </select>
-            @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        @if (! $employee)
-            <div class="col-md-3">
-                <div class="form-check mt-4">
-                    <input type="checkbox" name="create_user" class="form-check-input" value="1">
-                    <label class="form-check-label">Create Login User</label>
-                </div>
-            </div>
-        @endif
-    </div>
-    <div class="mt-4 d-flex gap-2">
-        <button type="button" class="btn btn-outline-secondary" disabled>Previous</button>
-        <button type="button" class="btn btn-primary wizard-next">Save &amp; Next</button>
-        @if($showSaveAsDraft)
-            <button type="submit" name="save_as_draft" value="1" class="btn btn-outline-primary">Save as Draft</button>
-        @else
-            <button type="submit" name="next_tab" value="" class="btn btn-outline-primary wizard-save-stay">Save as Draft</button>
-        @endif
-        <a href="{{ $employee ? route('employees.show', $employee) : route('employees.index') }}" class="btn btn-secondary">Cancel</a>
-    </div>
-</div>
+@if ($employee)
+    {{-- Biometric ID is manually entered on the Designation & Salary tab
+         (its own standalone form on Edit) — carried forward unchanged here
+         so this form's own `required` validation still passes when it's
+         submitted without visiting that tab. --}}
+    <input type="hidden" name="biometric_id" value="{{ $employee->biometric_id }}">
+@endif
 
 {{-- ── Tab 2: Personal Information ─────────────────────────────────── --}}
 <div class="tab-pane" data-tab-pane="2">
@@ -180,7 +116,7 @@
         </div>
     </div>
     <div class="mt-4 d-flex gap-2">
-        <button type="button" class="btn btn-outline-secondary wizard-prev">Previous</button>
+        <button type="button" class="btn btn-outline-secondary" disabled>Previous</button>
         <button type="button" class="btn btn-primary wizard-next">Save &amp; Next</button>
         @if($showSaveAsDraft)
             <button type="submit" name="save_as_draft" value="1" class="btn btn-outline-primary">Save as Draft</button>
@@ -335,6 +271,53 @@
 <div class="tab-pane" data-tab-pane="5">
     <div class="row g-3">
         <div class="col-md-3">
+            <label class="form-label">Employee Number</label>
+            <input type="text" id="employee_code_display" class="form-control" value="{{ $employee->employee_code ?? '' }}" placeholder="Select Employee Category &amp; Type" disabled>
+            <div class="form-text">Auto-generated and read-only.</div>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Employee Category <span class="text-danger">*</span></label>
+            <select name="employee_category" id="employee_category" class="form-select @error('employee_category') is-invalid @enderror" required>
+                <option value="">Select</option>
+                <option value="staff" {{ $currentCategory == 'staff' ? 'selected' : '' }}>Staff</option>
+                <option value="company_labour" {{ $currentCategory == 'company_labour' ? 'selected' : '' }}>Company Labour</option>
+                <option value="contract_labour" {{ $currentCategory == 'contract_labour' ? 'selected' : '' }}>Contract Labour</option>
+            </select>
+            @error('employee_category')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Employee Type <span class="text-danger">*</span></label>
+            <select name="employee_type_id" id="employee_type_id" class="form-select @error('employee_type_id') is-invalid @enderror" data-searchable required>
+                <option value="">Select</option>
+                @foreach ($employeeTypes as $et)
+                    <option value="{{ $et->id }}" {{ old('employee_type_id', $employee->employee_type_id ?? null) == $et->id ? 'selected' : '' }}>{{ $et->name }}</option>
+                @endforeach
+            </select>
+            @error('employee_type_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Status <span class="text-danger">*</span></label>
+            <select name="status" class="form-select @error('status') is-invalid @enderror" required>
+                @php $currentStatus = old('status', $employee->status ?? 'active'); @endphp
+                <option value="active" {{ $currentStatus == 'active' ? 'selected' : '' }}>Active</option>
+                <option value="probation" {{ $currentStatus == 'probation' ? 'selected' : '' }}>Probation</option>
+                <option value="inactive" {{ $currentStatus == 'inactive' ? 'selected' : '' }}>Inactive</option>
+                @if($employee)
+                    <option value="terminated" {{ $currentStatus == 'terminated' ? 'selected' : '' }}>Terminated</option>
+                @endif
+            </select>
+            @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        @if (! $employee)
+            <div class="col-md-3">
+                <div class="form-check mt-4">
+                    <input type="checkbox" name="create_user" class="form-check-input" value="1">
+                    <label class="form-check-label">Create Login User</label>
+                </div>
+            </div>
+        @endif
+
+        <div class="col-md-3">
             <label class="form-label">Department <span class="text-danger">*</span></label>
             <select name="department_id" class="form-select @error('department_id') is-invalid @enderror" data-searchable required>
                 <option value="">Select</option>
@@ -393,6 +376,12 @@
         </div>
 
         @if($canOverrideRules)
+        {{-- UI-hidden per current requirements — the fields/backend logic
+             stay fully intact (validation, stripUnauthorizedRuleOverrides(),
+             BusinessRule::resolveForEmployee()) in case this needs to be
+             shown again; only visually hidden via d-none. --}}
+        <div class="col-12 d-none">
+        <div class="row g-3">
         <div class="col-12 mt-3">
             <h6 class="fw-bold border-bottom pb-2">Rule Engine Overrides <small class="fw-normal text-muted">(optional — leave blank to use automatic branch/type resolution)</small></h6>
         </div>
@@ -423,6 +412,8 @@
                 @endforeach
             </select>
             <div class="form-text">Overrides one specific payroll category (LOP/PF/ESI/TDS/Overtime) — pick the rule for the category you need to override.</div>
+        </div>
+        </div>
         </div>
         @endif
     </div>
@@ -501,72 +492,10 @@
     </div>
 </div>
 
-{{-- ── Tab 7: Statutory Information ────────────────────────────────── --}}
-<div class="tab-pane" data-tab-pane="7">
-    <div class="row g-3">
-        <div class="col-md-4">
-            <label class="form-label">Aadhaar Number</label>
-            <input type="text" name="aadhaar_number" class="form-control @error('aadhaar_number') is-invalid @enderror" value="{{ old('aadhaar_number', $employee->aadhaar_number ?? '') }}" maxlength="12">
-            @error('aadhaar_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">PAN Number</label>
-            <input type="text" name="pan_number" class="form-control @error('pan_number') is-invalid @enderror" value="{{ old('pan_number', $employee->pan_number ?? '') }}" maxlength="10" style="text-transform:uppercase">
-            @error('pan_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">UAN Number</label>
-            <input type="text" name="uan_number" class="form-control @error('uan_number') is-invalid @enderror" value="{{ old('uan_number', $employee->uan_number ?? '') }}" maxlength="12">
-            @error('uan_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">PF Number</label>
-            <input type="text" name="pf_number" class="form-control @error('pf_number') is-invalid @enderror" value="{{ old('pf_number', $employee->pf_number ?? '') }}">
-            @error('pf_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">ESI Number</label>
-            <input type="text" name="esi_number" class="form-control @error('esi_number') is-invalid @enderror" value="{{ old('esi_number', $employee->esi_number ?? '') }}" maxlength="10">
-            @error('esi_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Passport Number</label>
-            <input type="text" name="passport_number" class="form-control" value="{{ old('passport_number', $employee->passport_number ?? '') }}">
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Passport Expiry</label>
-            <input type="date" name="passport_expiry" class="form-control @error('passport_expiry') is-invalid @enderror" value="{{ old('passport_expiry', $employee?->passport_expiry?->format('Y-m-d') ?? '') }}">
-            @error('passport_expiry')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        <div class="col-12 mt-2"><h6 class="fw-bold border-bottom pb-2">Statutory Applicability</h6></div>
-        <div class="col-md-3">
-            <div class="form-check">
-                <input type="checkbox" name="is_pf_applicable" id="is_pf_applicable" class="form-check-input" value="1" {{ old('is_pf_applicable', $employee->is_pf_applicable ?? true) ? 'checked' : '' }}>
-                <label class="form-check-label">PF Applicable</label>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="form-check">
-                <input type="checkbox" name="is_esi_applicable" id="is_esi_applicable" class="form-check-input" value="1" {{ old('is_esi_applicable', $employee->is_esi_applicable ?? true) ? 'checked' : '' }}>
-                <label class="form-check-label">ESI Applicable</label>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="form-check">
-                <input type="checkbox" name="is_tds_applicable" id="is_tds_applicable" class="form-check-input" value="1" {{ old('is_tds_applicable', $employee->is_tds_applicable ?? false) ? 'checked' : '' }}>
-                <label class="form-check-label">TDS Applicable</label>
-            </div>
-        </div>
-        <div class="form-text">Defaults from the applicable Salary Slab and Statutory Configuration once a Salary Structure is saved on the Salary Structure tab — always user-overridable here.</div>
-    </div>
-    <div class="mt-4 d-flex gap-2">
-        <button type="button" class="btn btn-outline-secondary wizard-prev">Previous</button>
-        <button type="submit" name="next_tab" value="8" class="btn btn-primary">Save &amp; Next</button>
-        @if($showSaveAsDraft)
-            <button type="submit" name="save_as_draft" value="1" class="btn btn-outline-primary">Save as Draft</button>
-        @else
-            <button type="submit" name="next_tab" value="" class="btn btn-outline-primary wizard-save-stay">Save as Draft</button>
-        @endif
-        <a href="{{ $employee ? route('employees.show', $employee) : route('employees.index') }}" class="btn btn-secondary">Cancel</a>
-    </div>
-</div>
+{{--
+    Tab 7 (Statutory Information) has been removed — the identity-document
+    fields (Aadhaar/PAN/UAN/PF/ESI numbers, Passport) are no longer
+    collected via the Employee Master; the PF/ESI/TDS (and new OT)
+    applicability checkboxes moved onto the Designation & Salary tab,
+    alongside the Salary Slab that already drives their auto-suggestion.
+--}}

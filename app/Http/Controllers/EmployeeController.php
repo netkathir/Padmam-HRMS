@@ -407,6 +407,8 @@ class EmployeeController extends Controller
     {
         $isDraft = $request->boolean('save_as_draft');
         $data = $request->validate($this->rules(0, $isDraft));
+        $data['designation_id'] = $this->resolveDesignationId($data['designation'] ?? null);
+        unset($data['designation']);
         $data['created_by'] = auth()->id();
         $data['is_draft'] = $isDraft;
         $data = BranchScope::stampBranchId($data);
@@ -548,6 +550,8 @@ class EmployeeController extends Controller
         BranchScope::assertBranchAccess($employee->branch_id);
         $isDraft = $request->boolean('save_as_draft');
         $data = $request->validate($this->rules($employee->id, $isDraft));
+        $data['designation_id'] = $this->resolveDesignationId($data['designation'] ?? null);
+        unset($data['designation']);
         $data['is_draft'] = $isDraft;
         if (empty($data['employee_code'])) {
             // employee_code is never submitted (read-only on Edit) — always
@@ -613,7 +617,14 @@ class EmployeeController extends Controller
 
         if ($employee->is_draft) {
             $category = $employee->primary_employee_type === 'staff' ? 'staff' : $employee->labour_type;
-            $payload = array_merge($employee->toArray(), ['employee_category' => $category]);
+            $payload = array_merge($employee->toArray(), [
+                'employee_category' => $category,
+                // rules() now validates the free-text 'designation' field, not
+                // the FK 'designation_id' — reconstruct it from whichever
+                // Designation record is currently linked, same pattern as
+                // employee_category above.
+                'designation' => $employee->designation?->name,
+            ]);
 
             $validator = \Illuminate\Support\Facades\Validator::make($payload, $this->rules($employee->id));
             if ($validator->fails()) {
@@ -976,7 +987,9 @@ class EmployeeController extends Controller
             // section's own classification, distinct from Employee Category
             // on Tab 5.
             'department_id'                  => ['nullable', 'exists:departments,id'],
-            'designation_id'                 => ['nullable', 'exists:designations,id'],
+            // Free text, resolved-or-created into designation_id in
+            // saveSalaryStructure() below — same as Tab 5's own field.
+            'designation'                    => ['nullable', 'string', 'max:100'],
             'designation_employee_category'  => ['required', 'in:company,contractor'],
             'designation_employee_type'      => ['required', 'in:staff,labor,contractor_staff,contractor_labor'],
             'designation_contractor_id'      => ['required_if:designation_employee_category,contractor', 'nullable', 'exists:contractors,id'],
@@ -1025,8 +1038,8 @@ class EmployeeController extends Controller
         if (! empty($data['department_id'])) {
             $employeeUpdates['department_id'] = $data['department_id'];
         }
-        if (! empty($data['designation_id'])) {
-            $employeeUpdates['designation_id'] = $data['designation_id'];
+        if (! empty($data['designation'])) {
+            $employeeUpdates['designation_id'] = $this->resolveDesignationId($data['designation']);
         }
         $employee->update($employeeUpdates);
 
@@ -1131,9 +1144,30 @@ class EmployeeController extends Controller
 
         if ($designation && $designation->department_id !== null && (int) $designation->department?->branch_id !== (int) $branchId) {
             throw ValidationException::withMessages([
-                'designation_id' => 'The selected designation does not belong to the selected branch.',
+                // 'designation' (not 'designation_id') — that's the free-text
+                // field name the form actually shows @error() next to now.
+                'designation' => 'A designation with this exact name already exists under a different branch\'s department. Please use a different name.',
             ]);
         }
+    }
+
+    /**
+     * Designation is no longer picked from an existing Masters record — the
+     * user types the name directly on the Employee form. This resolves it to
+     * (creating if necessary) a Designation row with that exact name, so the
+     * `designation_id` FK, the Designation Master table, and every existing
+     * report/payslip/view that reads $employee->designation->name keep
+     * working completely unchanged.
+     */
+    private function resolveDesignationId(?string $name): ?int
+    {
+        $name = trim((string) $name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return Designation::firstOrCreate(['name' => $name], ['is_active' => true])->id;
     }
 
     private function formData(?Employee $employee = null): array
@@ -1156,7 +1190,6 @@ class EmployeeController extends Controller
             'departments'   => BranchScope::scopeQuery(Department::query())
                 ->where(fn($q) => $q->where('is_active', true)->when($employee?->department_id, fn($q2) => $q2->orWhere('id', $employee->department_id)))
                 ->orderBy('name')->get(),
-            'designations'  => $this->scopedDesignations($currentBranchId),
             'employeeTypes' => EmployeeType::where('is_active', true)->get(),
             'contractors'   => Contractor::where('is_active', true)->orderBy('name')->get(),
             'shifts'        => Shift::where('is_active', true)->get(),
@@ -1189,24 +1222,6 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Designation dropdown scoped the same way as Masters\DesignationController's
-     * own listing — Designation has no branch_id of its own, it's reached
-     * transitively via department_id -> departments.branch_id. A NULL
-     * department_id designation is kept regardless of branch (not yet
-     * assigned to a department, so it can't be excluded by branch).
-     */
-    private function scopedDesignations(?int $branchId)
-    {
-        return Designation::query()
-            ->when($branchId !== null, fn($q) => $q->where(
-                fn($q2) => $q2->whereNull('department_id')
-                    ->orWhereHas('department', fn($d) => $d->where('branch_id', $branchId))
-            ))
-            ->orderBy('name')
-            ->get();
-    }
-
-    /**
      * Fields that must stay present even on a "Save as Draft" submission —
      * everything else has its required/required_if/required_unless/
      * required_with rules relaxed to nullable. These are exactly the
@@ -1217,7 +1232,7 @@ class EmployeeController extends Controller
      */
     private const DRAFT_REQUIRED_FIELDS = [
         'first_name', 'last_name', 'employee_category', 'branch_id', 'department_id',
-        'designation_id', 'employee_type_id', 'date_of_joining', 'gender', 'phone',
+        'designation', 'employee_type_id', 'date_of_joining', 'gender', 'phone',
     ];
 
     /** Relaxes every required/required_if/required_unless/required_with rule to nullable, except DRAFT_REQUIRED_FIELDS. */
@@ -1281,7 +1296,11 @@ class EmployeeController extends Controller
             'employee_category' => ['required', 'in:staff,company_labour,contract_labour'],
             'branch_id'        => ['required', 'exists:branches,id'],
             'department_id'    => ['required', 'exists:departments,id'],
-            'designation_id'   => ['required', 'exists:designations,id'],
+            // Designation is no longer picked from the Masters module — the
+            // user types it directly; resolveDesignationId() resolves it to
+            // (or creates) the matching Designation record right after
+            // validation, in both store() and update().
+            'designation'      => ['required', 'string', 'max:100'],
             'employee_type_id' => ['required', 'exists:employee_types,id'],
             'date_of_joining'  => ['required', 'date'],
             'date_of_confirmation' => ['nullable', 'date', 'after_or_equal:date_of_joining'],

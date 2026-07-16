@@ -6,7 +6,7 @@
     and edit.blade.php inside their single Tabs-1-7 form.
 
     Expects: $employee (Employee|null — null on Create), $currentBranch,
-    $departments, $designations, $employeeTypes, $contractors, $shifts,
+    $departments, $employeeTypes, $contractors, $shifts,
     $managers, $roles, $states, $canOverrideRules, $canSetContractorRate,
     $ruleOptions.
 --}}
@@ -329,13 +329,8 @@
         </div>
         <div class="col-md-3">
             <label class="form-label">Designation <span class="text-danger">*</span></label>
-            <select name="designation_id" class="form-select @error('designation_id') is-invalid @enderror" data-searchable required>
-                <option value="">Select</option>
-                @foreach ($designations as $des)
-                    <option value="{{ $des->id }}" {{ old('designation_id', $employee->designation_id ?? null) == $des->id ? 'selected' : '' }}>{{ $des->name }}</option>
-                @endforeach
-            </select>
-            @error('designation_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            <input type="text" name="designation" class="form-control @error('designation') is-invalid @enderror" value="{{ old('designation', $employee->designation->name ?? '') }}" required>
+            @error('designation')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
         <div class="col-md-3">
             <label class="form-label">Date of Joining <span class="text-danger">*</span></label>

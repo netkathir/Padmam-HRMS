@@ -134,12 +134,7 @@
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Designation</label>
-                            <select name="salary[designation_id]" class="form-select" data-searchable>
-                                <option value="">Select</option>
-                                @foreach ($designations as $des)
-                                    <option value="{{ $des->id }}">{{ $des->name }}</option>
-                                @endforeach
-                            </select>
+                            <input type="text" name="salary[designation]" class="form-control" value="{{ old('salary.designation') }}">
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Biometric ID <span class="text-danger">*</span></label>

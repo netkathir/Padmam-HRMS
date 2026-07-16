@@ -221,13 +221,8 @@
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Designation</label>
-                            <select name="designation_id" class="form-select @error('designation_id') is-invalid @enderror" data-searchable>
-                                <option value="">Select</option>
-                                @foreach ($designations as $des)
-                                    <option value="{{ $des->id }}" {{ old('designation_id', $employee->designation_id) == $des->id ? 'selected' : '' }}>{{ $des->name }}</option>
-                                @endforeach
-                            </select>
-                            @error('designation_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <input type="text" name="designation" class="form-control @error('designation') is-invalid @enderror" value="{{ old('designation', $employee->designation->name ?? '') }}">
+                            @error('designation')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Biometric ID <span class="text-danger">*</span></label>

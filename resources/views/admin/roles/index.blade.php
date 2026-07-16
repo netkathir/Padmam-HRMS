@@ -31,7 +31,6 @@
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>System Name</th>
                         <th>Role Name</th>
                         <th>Role Code</th>
                         <th>Description</th>
@@ -45,7 +44,6 @@
                     @forelse($roles as $role)
                     <tr>
                         <td class="text-muted ps-3">{{ $role->id }}</td>
-                        <td><code class="text-primary fw-medium">{{ $role->name }}</code></td>
                         <td class="fw-medium">{{ $role->display_name }}</td>
                         <td>{{ $role->role_code ?? '—' }}</td>
                         <td class="text-muted"><small>{{ $role->description ?? '—' }}</small></td>
@@ -81,7 +79,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-5">
+                        <td colspan="8" class="text-center text-muted py-5">
                             <i class="bi bi-shield-x d-block mb-2" style="font-size:32px;opacity:.3;"></i>
                             No roles found. <a href="{{ route('admin.roles.create') }}">Create the first role</a>.
                         </td>

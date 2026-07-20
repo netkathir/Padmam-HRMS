@@ -49,7 +49,7 @@ class ContractWorkerController extends Controller
         $data = $request->validate([
             'name'            => ['required', 'string', 'max:100'],
             'gender'          => ['nullable', 'in:male,female,other'],
-            'phone'           => ['nullable', 'string', 'max:20'],
+            'phone'           => ['nullable', 'digits:10'],
             'id_proof_type'   => ['nullable', 'in:aadhaar,passport,voter_id,driving_license,other'],
             'id_proof_number' => ['nullable', 'string', 'max:50'],
             'skill_type'      => ['nullable', 'string', 'max:100'],
@@ -76,7 +76,7 @@ class ContractWorkerController extends Controller
         $data = $request->validate([
             'name'            => ['required', 'string', 'max:100'],
             'gender'          => ['nullable', 'in:male,female,other'],
-            'phone'           => ['nullable', 'string', 'max:20'],
+            'phone'           => ['nullable', 'digits:10'],
             'id_proof_type'   => ['nullable', 'in:aadhaar,passport,voter_id,driving_license,other'],
             'id_proof_number' => ['nullable', 'string', 'max:50'],
             'skill_type'      => ['nullable', 'string', 'max:100'],

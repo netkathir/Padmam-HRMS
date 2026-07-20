@@ -31,7 +31,7 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Phone</label>
-                    <input type="text" name="phone" class="form-control" value="{{ old('phone') }}">
+                    <input type="text" name="phone" class="form-control" value="{{ old('phone') }}" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)">
                 </div>
 
                 {{-- ID Proof --}}

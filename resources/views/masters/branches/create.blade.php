@@ -106,7 +106,7 @@
                     <div class="col-md-4">
                         <label class="form-label">Contact Number</label>
                         <input type="text" name="phone" class="form-control @error('phone') is-invalid @enderror"
-                            value="{{ old('phone') }}">
+                            value="{{ old('phone') }}" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)">
                         @error('phone')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror

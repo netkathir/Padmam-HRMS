@@ -9,16 +9,6 @@
             @csrf
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label class="form-label">Checkpoint <span class="text-danger">*</span></label>
-                    <select name="checkpoint_id" class="form-select @error('checkpoint_id') is-invalid @enderror" data-searchable required>
-                        <option value="">Select</option>
-                        @foreach ($checkpoints as $cp)
-                            <option value="{{ $cp->id }}" {{ old('checkpoint_id') == $cp->id ? 'selected' : '' }}>{{ $cp->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('checkpoint_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-4">
                     <label class="form-label">Employee <span class="text-danger">*</span></label>
                     <select name="employee_id" class="form-select @error('employee_id') is-invalid @enderror" data-searchable required>
                         <option value="">Select</option>
@@ -29,10 +19,36 @@
                     @error('employee_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4">
+                    <label class="form-label">Checkpoint <span class="text-danger">*</span></label>
+                    <select name="checkpoint_id" id="checkpoint_id" class="form-select @error('checkpoint_id') is-invalid @enderror" data-searchable required>
+                        <option value="">Select</option>
+                        @foreach ($checkpoints as $cp)
+                            <option value="{{ $cp->id }}" data-code="{{ $cp->code }}" {{ old('checkpoint_id') == $cp->id ? 'selected' : '' }}>{{ $cp->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('checkpoint_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-4">
                     <label class="form-label">Employee Checkpoint ID <span class="text-danger">*</span></label>
-                    <input type="text" name="emp_checkpoint_id" class="form-control @error('emp_checkpoint_id') is-invalid @enderror" value="{{ old('emp_checkpoint_id') }}" required placeholder="e.g. 001">
-                    @error('emp_checkpoint_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    <div class="form-text">The employee's own ID at this specific checkpoint (device-local, may differ per checkpoint).</div>
+                    {{--
+                        Numeric-only, no letters — the checkpoint's own code
+                        is shown as a fixed, non-editable prefix badge (never
+                        typed, never stored as part of the value) so every
+                        row stores just the bare number consistently. This is
+                        what makes the (checkpoint, ID) uniqueness check
+                        reliable — mixing "SPI500" and "500" for the same
+                        checkpoint+number used to slip past it as two
+                        different strings.
+                    --}}
+                    <div class="input-group">
+                        <span class="input-group-text" id="checkpoint-code-prefix">—</span>
+                        <input type="text" inputmode="numeric" pattern="[0-9]+" maxlength="20"
+                            oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+                            name="emp_checkpoint_id" class="form-control @error('emp_checkpoint_id') is-invalid @enderror"
+                            value="{{ old('emp_checkpoint_id') }}" required placeholder="e.g. 001">
+                    </div>
+                    @error('emp_checkpoint_id')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    <div class="form-text">Numbers only — the checkpoint code shown on the left is attached automatically, don't type it.</div>
                 </div>
             </div>
             <div class="mt-4 d-flex gap-2">
@@ -89,12 +105,30 @@
                     });
                 });
             }
-            input.addEventListener('focus', function () { renderList(''); });
+            input.addEventListener('focus', function () { renderList(input.value); });
+            // preventDefault() on the option's mousedown (above) keeps the
+            // input focused after a selection, so a second click never
+            // fires another `focus` event and the list never reopens.
+            // Reopening on plain `click` too fixes that.
+            input.addEventListener('click', function () { renderList(input.value); });
             input.addEventListener('input', function () { renderList(input.value); });
             input.addEventListener('blur', function () { setTimeout(function () { list.style.display = 'none'; syncInputFromSelect(); }, 150); });
             syncInputFromSelect();
         }
         document.querySelectorAll('[data-searchable]').forEach(makeSearchable);
+
+        // ── Employee Checkpoint ID: show the selected checkpoint's own code as a fixed prefix badge. ──
+        const checkpointSelect = document.getElementById('checkpoint_id');
+        const checkpointCodePrefix = document.getElementById('checkpoint-code-prefix');
+        function refreshCheckpointCodePrefix() {
+            if (!checkpointSelect || !checkpointCodePrefix) return;
+            const opt = checkpointSelect.options[checkpointSelect.selectedIndex];
+            checkpointCodePrefix.textContent = (opt && opt.value) ? (opt.dataset.code || '—') : '—';
+        }
+        if (checkpointSelect) {
+            checkpointSelect.addEventListener('change', refreshCheckpointCodePrefix);
+            refreshCheckpointCodePrefix();
+        }
     })();
 </script>
 @endpush

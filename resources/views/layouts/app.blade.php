@@ -10,6 +10,21 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     {{-- Bootstrap Icons --}}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    {{-- Flatpickr — system-wide replacement date picker, auto-applied to every native input[type=date] (see bottom of page). Material Blue theme for a modern look, matching this app's blue accent. --}}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/themes/material_blue.css">
+    <style>
+        /* static: true (set at init below) keeps the calendar anchored
+           directly under its input so it scrolls with the page instead of
+           floating fixed over the viewport. Compact sizing on top of the
+           Material Blue theme to match this app's density. */
+        .flatpickr-calendar { font-size: 13px; border-radius: 8px; }
+        .flatpickr-day { height: 32px; line-height: 32px; }
+        .flatpickr-months .flatpickr-month { height: 34px; }
+        .flatpickr-current-month { font-size: 13px; padding-top: 3px; }
+        .flatpickr-weekdays { height: 24px; }
+        span.flatpickr-weekday { font-size: 11px; }
+        .numInputWrapper { height: 24px; }
+    </style>
 
     <style>
         * { box-sizing: border-box; }
@@ -172,6 +187,37 @@
 
 {{-- Chart.js — Dashboard FSD charts (Overall Dashboard, Branch Dashboard) --}}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+{{-- Flatpickr — system-wide date picker replacement --}}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<script>
+// Replaces every native input[type=date] on the page with Flatpickr — one
+// shared init instead of touching all date fields individually. altInput
+// shows a readable "d-M-Y" while the real input (submitted to the server)
+// keeps the Y-m-d format every controller already expects, so no backend
+// changes are needed. Re-run on Bootstrap modals when they're shown, since
+// dynamically-inserted date inputs (e.g. the biometric upload preview modal)
+// wouldn't exist yet at page load.
+function initFlatpickrOn(root) {
+    (root || document).querySelectorAll('input[type="date"]:not([data-fp-init])').forEach(function (el) {
+        el.setAttribute('data-fp-init', '1');
+        flatpickr(el, {
+            altInput: true,
+            altFormat: 'd-M-Y',
+            dateFormat: 'Y-m-d',
+            allowInput: true,
+            // static: true renders the calendar as a sibling of the input
+            // (anchored to it, scrolls with the page) instead of appending
+            // it to <body> as a viewport-fixed element that visually
+            // "floats"/detaches from the field when the page scrolls.
+            static: true,
+            disableMobile: true,
+        });
+    });
+}
+initFlatpickrOn(document);
+document.addEventListener('shown.bs.modal', function (e) { initFlatpickrOn(e.target); });
+</script>
 
 <script>
 // Sidebar toggle

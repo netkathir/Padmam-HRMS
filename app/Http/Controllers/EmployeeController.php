@@ -1152,7 +1152,11 @@ class EmployeeController extends Controller
             // (or creates) the matching Designation record right after
             // validation, in both store() and update().
             'designation'      => [$classificationRequired, 'string', 'max:100'],
-            'employee_type_id' => [$classificationRequired, 'exists:employee_types,id'],
+            // Employee Type dropdown removed from the Employee Slab form
+            // (and never collected in Create Employee either) — always
+            // nullable now; employees.employee_type_id stays in the schema,
+            // just no longer set from any form.
+            'employee_type_id' => ['nullable', 'exists:employee_types,id'],
             'date_of_joining'  => [$classificationRequired, 'date'],
             'date_of_confirmation' => ['nullable', 'date', 'after_or_equal:date_of_joining'],
             'probation_end_date'   => ['nullable', 'date', 'after:date_of_joining'],
@@ -1167,8 +1171,8 @@ class EmployeeController extends Controller
             'religion'         => ['nullable', 'string', 'max:50'],
             'personal_email'   => ['nullable', 'email', 'max:150'],
             'official_email'   => ['required', 'email', 'max:255', 'unique:employees,official_email,' . $excludeId],
-            'phone'            => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
-            'alternate_phone'  => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'phone'            => ['required', 'digits:10'],
+            'alternate_phone'  => ['nullable', 'digits:10'],
             // Status now lives on the Employee Slab's Employment Information
             // section, not Create Employee's own Steps 1-3 — nullable there
             // (store() defaults it to 'active'), required for Employee Slab.
@@ -1191,7 +1195,7 @@ class EmployeeController extends Controller
             'permanent_state'         => ['nullable', 'string', 'max:100'],
             'permanent_pincode'       => ['nullable', 'digits:6'],
             'emergency_contact_name'  => ['nullable', 'string', 'max:100'],
-            'emergency_contact_phone' => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'emergency_contact_phone' => ['nullable', 'digits:10'],
             'emergency_contact_relationship' => ['nullable', 'string', 'max:50'],
             'profile_photo'    => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
             'is_pf_applicable' => ['boolean'],

@@ -28,7 +28,7 @@
                     <div class="mb-4">
                         <label class="form-label" for="phone">Phone</label>
                         <input type="text" name="phone" id="phone" value="{{ old('phone', $user->phone) }}"
-                               class="form-control">
+                               class="form-control" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)">
                     </div>
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-save me-2"></i>Save Changes

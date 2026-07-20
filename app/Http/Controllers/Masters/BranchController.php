@@ -205,7 +205,7 @@ class BranchController extends Controller
             'city'                     => ['required', 'string', 'max:100'],
             'pincode'                  => ['required', 'digits:6'],
             'contact_person'           => ['nullable', 'string', 'max:150'],
-            'phone'                    => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'phone'                    => ['nullable', 'digits:10'],
             'email'                    => ['nullable', 'email', 'max:150'],
             'branch_head_user_id'      => ['nullable', 'exists:users,id'],
             'start_date'               => ['nullable', 'date'],

@@ -42,49 +42,14 @@
                         <label class="form-label">Employee Category <span class="text-danger">*</span></label>
                         <select name="employee_category" id="employee_category" class="form-select @error('employee_category') is-invalid @enderror" required>
                             <option value="">Select</option>
-                            <option value="staff" {{ $currentCategory == 'staff' ? 'selected' : '' }}>Staff</option>
+                            <option value="staff" {{ $currentCategory == 'staff' ? 'selected' : '' }}>Company Staff</option>
                             <option value="company_labour" {{ $currentCategory == 'company_labour' ? 'selected' : '' }}>Company Labour</option>
                             <option value="contract_labour" {{ $currentCategory == 'contract_labour' ? 'selected' : '' }}>Contract Labour</option>
                         </select>
                         @error('employee_category')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Employee Type <span class="text-danger">*</span></label>
-                        <select name="employee_type_id" class="form-select @error('employee_type_id') is-invalid @enderror" data-searchable required>
-                            <option value="">Select</option>
-                            @foreach ($employeeTypes as $et)
-                                <option value="{{ $et->id }}" {{ old('employee_type_id', $employee->employee_type_id) == $et->id ? 'selected' : '' }}>{{ $et->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('employee_type_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Status <span class="text-danger">*</span></label>
-                        @php $currentStatus = old('status', $employee->status ?? 'active'); @endphp
-                        <select name="status" class="form-select @error('status') is-invalid @enderror" required>
-                            <option value="active" {{ $currentStatus == 'active' ? 'selected' : '' }}>Active</option>
-                            <option value="probation" {{ $currentStatus == 'probation' ? 'selected' : '' }}>Probation</option>
-                            <option value="inactive" {{ $currentStatus == 'inactive' ? 'selected' : '' }}>Inactive</option>
-                            <option value="terminated" {{ $currentStatus == 'terminated' ? 'selected' : '' }}>Terminated</option>
-                        </select>
-                        @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    @if (! $employee->user)
-                        <div class="col-md-3">
-                            <div class="form-check mt-4">
-                                <input type="checkbox" name="create_user" id="create_user" class="form-check-input" value="1">
-                                <label class="form-check-label" for="create_user">Create Login User</label>
-                            </div>
-                        </div>
-                        <div class="col-md-3" id="create-user-role-field" style="display:none;">
-                            <label class="form-label">Role</label>
-                            <select name="role_id" class="form-select" data-searchable>
-                                @foreach ($roles as $role)
-                                    <option value="{{ $role->id }}" {{ $role->name === 'employee' ? 'selected' : '' }}>{{ $role->display_name ?? $role->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    @endif
+                    {{-- Employee Type dropdown removed from this form per request; employees.employee_type_id column untouched. --}}
+                    {{-- Create Login User option removed from this form per request. --}}
                     <div class="col-md-3">
                         <label class="form-label">Department <span class="text-danger">*</span></label>
                         <select name="department_id" class="form-select @error('department_id') is-invalid @enderror" data-searchable required>
@@ -115,6 +80,10 @@
                         </select>
                         @error('shift_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
+                    {{--
+                        Reporting To, Probation End Date, and Confirmation
+                        Date temporarily disabled per request. Uncomment to
+                        restore.
                     <div class="col-md-3">
                         <label class="form-label">Reporting To</label>
                         <select name="reporting_to" class="form-select @error('reporting_to') is-invalid @enderror" data-searchable>
@@ -137,52 +106,56 @@
                         <input type="date" name="date_of_confirmation" class="form-control @error('date_of_confirmation') is-invalid @enderror" value="{{ old('date_of_confirmation', $employee->date_of_confirmation?->format('Y-m-d')) }}">
                         @error('date_of_confirmation')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
+                    --}}
+
+                    {{-- Moved to the bottom of Employment Information per request. Hidden entirely for Contract Labour (item 6) — see refreshContractFields() below. --}}
+                    <div class="col-md-3" id="status-field">
+                        <label class="form-label">Status <span class="text-danger">*</span></label>
+                        @php $currentStatus = old('status', $employee->status ?? 'active'); @endphp
+                        <select name="status" id="status" class="form-select @error('status') is-invalid @enderror" required>
+                            <option value="active" {{ $currentStatus == 'active' ? 'selected' : '' }}>Active</option>
+                            <option value="probation" {{ $currentStatus == 'probation' ? 'selected' : '' }}>Probation</option>
+                            <option value="inactive" {{ $currentStatus == 'inactive' ? 'selected' : '' }}>Inactive</option>
+                            <option value="terminated" {{ $currentStatus == 'terminated' ? 'selected' : '' }}>Terminated</option>
+                        </select>
+                        @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
                 </div>
 
-                {{-- Contract Labour Information — shown only when Employee Category = Contract Labour. --}}
+                {{--
+                    Contract Labour Information — shown only when Employee
+                    Category = Contract Labour. Simplified per request to
+                    just Contractor + Contract Start/End Date (auto-filled
+                    from the selected contractor's own agreement dates);
+                    Contractor Employee Number, Work Order Number, Labour
+                    Category, Contractor Rate, and Contractor Remarks removed.
+                --}}
                 <div id="contract-labour-fields" class="row g-3 mt-1" style="display:none;">
                     <div class="col-12"><h6 class="fw-bold border-bottom pb-2 mt-2">Contract Labour Information</h6></div>
                     <div class="col-md-4">
                         <label class="form-label">Contractor <span class="text-danger">*</span></label>
-                        <select name="contractor_id" class="form-select @error('contractor_id') is-invalid @enderror" data-searchable>
+                        <select name="contractor_id" id="contractor_id" class="form-select @error('contractor_id') is-invalid @enderror" data-searchable>
                             <option value="">Select</option>
                             @foreach ($contractors as $c)
-                                <option value="{{ $c->id }}" {{ old('contractor_id', $employee->contractor_id) == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+                                <option value="{{ $c->id }}"
+                                    data-agreement-start="{{ $c->agreement_start_date?->format('Y-m-d') }}"
+                                    data-agreement-end="{{ $c->agreement_end_date?->format('Y-m-d') }}"
+                                    {{ old('contractor_id', $employee->contractor_id) == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
                             @endforeach
                         </select>
                         @error('contractor_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Contractor Employee Number</label>
-                        <input type="text" name="contractor_employee_number" class="form-control" value="{{ old('contractor_employee_number', $employee->contractor_employee_number) }}">
+                        <label class="form-label">Contract Start Date</label>
+                        <input type="date" name="contract_start_date" id="contract_start_date" class="form-control @error('contract_start_date') is-invalid @enderror" value="{{ old('contract_start_date', $employee->contract_start_date?->format('Y-m-d')) }}" readonly>
+                        @error('contract_start_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">From the selected contractor's agreement — not editable here.</div>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Work Order Number</label>
-                        <input type="text" name="work_order_number" class="form-control" value="{{ old('work_order_number', $employee->work_order_number) }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Contract Start Date</label>
-                        <input type="date" name="contract_start_date" class="form-control @error('contract_start_date') is-invalid @enderror" value="{{ old('contract_start_date', $employee->contract_start_date?->format('Y-m-d')) }}">
-                        @error('contract_start_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-3">
                         <label class="form-label">Contract End Date</label>
-                        <input type="date" name="contract_end_date" class="form-control @error('contract_end_date') is-invalid @enderror" value="{{ old('contract_end_date', $employee->contract_end_date?->format('Y-m-d')) }}">
+                        <input type="date" name="contract_end_date" id="contract_end_date" class="form-control @error('contract_end_date') is-invalid @enderror" value="{{ old('contract_end_date', $employee->contract_end_date?->format('Y-m-d')) }}" readonly>
                         @error('contract_end_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Labour Category</label>
-                        <input type="text" name="labour_category" class="form-control" value="{{ old('labour_category', $employee->labour_category) }}">
-                    </div>
-                    @if($canSetContractorRate)
-                    <div class="col-md-3">
-                        <label class="form-label">Contractor Rate</label>
-                        <input type="number" step="0.01" name="contractor_rate" class="form-control" value="{{ old('contractor_rate', $employee->contractor_rate) }}">
-                    </div>
-                    @endif
-                    <div class="col-12">
-                        <label class="form-label">Contractor Remarks</label>
-                        <textarea name="contractor_remarks" class="form-control" rows="2">{{ old('contractor_remarks', $employee->contractor_remarks) }}</textarea>
+                        <div class="form-text">From the selected contractor's agreement — not editable here.</div>
                     </div>
                 </div>
 
@@ -477,7 +450,14 @@
                     });
                 });
             }
-            input.addEventListener('focus', function () { renderList(''); });
+            input.addEventListener('focus', function () { renderList(input.value); });
+            // preventDefault() on the option's mousedown (above) stops the
+            // browser's default blur, so the input stays focused after a
+            // selection — meaning a second click on it never fires another
+            // `focus` event, and the list never reopens. Reopening on a
+            // plain `click` too (harmless no-op alongside `focus` on the
+            // first click) fixes that "second click does nothing" bug.
+            input.addEventListener('click', function () { renderList(input.value); });
             input.addEventListener('input', function () { renderList(input.value); });
             input.addEventListener('blur', function () { setTimeout(function () { list.style.display = 'none'; syncInputFromSelect(); }, 150); });
             syncInputFromSelect();
@@ -493,28 +473,55 @@
             });
         });
 
-        // ── Employment Information: Create Login User reveals the Role select. ──
-        const createUserCheckbox = document.getElementById('create_user');
-        const createUserRoleField = document.getElementById('create-user-role-field');
-        function refreshCreateUserRole() {
-            if (!createUserCheckbox || !createUserRoleField) return;
-            createUserRoleField.style.display = createUserCheckbox.checked ? '' : 'none';
-        }
-        if (createUserCheckbox) {
-            createUserCheckbox.addEventListener('change', refreshCreateUserRole);
-            refreshCreateUserRole();
-        }
-
         // ── Employment Information: Contract Labour fields only for Contract Labour category ──
+        // Also hides the Status field for Contract Labour (item 6) — its
+        // `required` attribute is toggled off in step so a hidden field
+        // never blocks submission.
         const categorySelect = document.getElementById('employee_category');
         const contractFields = document.getElementById('contract-labour-fields');
+        const statusField = document.getElementById('status-field');
+        const statusSelect = document.getElementById('status');
         function refreshContractFields() {
-            if (!categorySelect || !contractFields) return;
-            contractFields.style.display = categorySelect.value === 'contract_labour' ? '' : 'none';
+            if (!categorySelect) return;
+            const isContractLabour = categorySelect.value === 'contract_labour';
+            if (contractFields) contractFields.style.display = isContractLabour ? '' : 'none';
+            if (statusField) statusField.style.display = isContractLabour ? 'none' : '';
+            if (statusSelect) statusSelect.toggleAttribute('required', !isContractLabour);
         }
         if (categorySelect) {
             categorySelect.addEventListener('change', refreshContractFields);
             refreshContractFields();
+        }
+
+        // ── Contract Labour Information: selecting a Contractor auto-fills
+        // Contract Start/End Date from that contractor's own agreement dates. ──
+        // These two date inputs get converted to Flatpickr instances
+        // system-wide (see layouts/app.blade.php) — setting `.value`
+        // directly on the original input does NOT update Flatpickr's own
+        // internal state or its visible "alt" display input, so this must
+        // go through the Flatpickr instance's own setDate() API
+        // (`el._flatpickr`) when one is present, falling back to a plain
+        // value assignment if Flatpickr hasn't initialized yet.
+        const contractorSelect = document.getElementById('contractor_id');
+        const contractStartInput = document.getElementById('contract_start_date');
+        const contractEndInput = document.getElementById('contract_end_date');
+        function setDateValue(input, value) {
+            if (!input) return;
+            if (input._flatpickr) {
+                input._flatpickr.setDate(value || null, true);
+            } else {
+                input.value = value || '';
+            }
+        }
+        function refreshContractDatesFromContractor() {
+            if (!contractorSelect) return;
+            const opt = contractorSelect.options[contractorSelect.selectedIndex];
+            const hasSelection = opt && opt.value;
+            setDateValue(contractStartInput, hasSelection ? (opt.dataset.agreementStart || '') : '');
+            setDateValue(contractEndInput, hasSelection ? (opt.dataset.agreementEnd || '') : '');
+        }
+        if (contractorSelect) {
+            contractorSelect.addEventListener('change', refreshContractDatesFromContractor);
         }
 
         // ── Designation & Salary: Employee Category drives Type's options/visibility. ──

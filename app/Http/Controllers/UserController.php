@@ -345,7 +345,7 @@ class UserController extends Controller
             'email'        => ['nullable', 'email', 'max:255', 'unique:users,email' . ($ignoreId ? ",$ignoreId" : '')],
             'username'     => ['required', 'string', 'max:50', 'unique:users,username' . ($ignoreId ? ",$ignoreId" : '')],
             // FSD 15.1 — "Mobile Number: optional, valid format."
-            'mobile'       => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'mobile'       => ['nullable', 'digits:10'],
             'user_type'    => ['nullable', 'in:' . implode(',', $allowedUserTypes)],
             'employee_id'  => ['nullable', 'exists:employees,id'],
             // Module 11 (FSD 15.1) — "Role: Multi-select, mandatory, at least

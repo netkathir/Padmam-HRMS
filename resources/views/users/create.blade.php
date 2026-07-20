@@ -33,7 +33,7 @@
 
                         <div class="col-md-6 d-none">
                             <label class="form-label">Mobile Number</label>
-                            <input type="text" name="mobile" class="form-control @error('mobile') is-invalid @enderror" value="{{ old('mobile') }}" placeholder="e.g. +91 98765 43210">
+                            <input type="text" name="mobile" class="form-control @error('mobile') is-invalid @enderror" value="{{ old('mobile') }}" placeholder="e.g. +91 98765 43210" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)">
                             @error('mobile')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 

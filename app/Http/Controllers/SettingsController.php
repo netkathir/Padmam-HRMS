@@ -36,7 +36,7 @@ class SettingsController extends Controller
             'state'                 => ['required', 'string', 'max:100', 'in:' . implode(',', config('states'))],
             'district'              => ['required', 'string', 'max:100'],
             'pincode'               => ['required', 'digits:6'],
-            'phone'                 => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'phone'                 => ['nullable', 'digits:10'],
             'email'                 => ['nullable', 'email', 'max:150'],
             'website'               => ['nullable', 'string', 'max:200'],
             'gstin'                 => ['nullable', 'string', 'regex:/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/'],

@@ -73,8 +73,8 @@ class ContractorController extends Controller
                 ? ['required', 'string', 'max:20', Rule::unique('contractors', 'code')->ignore($contractorId)]
                 : ['nullable', 'string', 'max:20'],
             'contact_person' => ['required', 'string', 'max:100'],
-            'phone'          => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
-            'alternate_phone' => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'phone'          => ['required', 'digits:10'],
+            'alternate_phone' => ['nullable', 'digits:10'],
             'email'          => ['nullable', 'email', 'max:150'],
             // Address is optional; State/District/PIN Code are only required
             // when an Address has actually been entered.

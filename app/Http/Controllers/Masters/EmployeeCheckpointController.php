@@ -60,12 +60,30 @@ class EmployeeCheckpointController extends Controller
     private function rules(?int $ignoreId = null): array
     {
         return [
-            'checkpoint_id'     => ['required', 'exists:checkpoints,id'],
+            // One mapping per (checkpoint, employee) — an employee cannot be
+            // registered twice under the same checkpoint, even with a
+            // different Employee Checkpoint ID.
+            'checkpoint_id'     => [
+                'required', 'exists:checkpoints,id',
+                Rule::unique('employee_checkpoints', 'checkpoint_id')
+                    ->where(fn ($q) => $q->where('employee_id', request('employee_id')))
+                    ->ignore($ignoreId),
+            ],
             'employee_id'       => ['required', 'exists:employees,id'],
+            // Numbers only — the checkpoint's own code is a fixed, separate
+            // prefix shown in the UI, never typed or stored as part of this
+            // value. This is also what makes the uniqueness check below
+            // reliable: mixing "SPI500" and "500" for the same
+            // checkpoint+number used to slip past it as two different
+            // strings before this was enforced. A given door-local ID is
+            // unique WITHIN a checkpoint — the biometric device can't tell
+            // two employees apart if they're both registered as, say, "500"
+            // at the same checkpoint. Different checkpoints may reuse the
+            // same number freely (SPP 001 and SGI 001 are different people).
             'emp_checkpoint_id' => [
-                'required', 'string', 'max:50',
+                'required', 'digits_between:1,20',
                 Rule::unique('employee_checkpoints', 'emp_checkpoint_id')
-                    ->where(fn ($q) => $q->where('checkpoint_id', request('checkpoint_id'))->where('employee_id', request('employee_id')))
+                    ->where(fn ($q) => $q->where('checkpoint_id', request('checkpoint_id')))
                     ->ignore($ignoreId),
             ],
         ];
@@ -73,7 +91,11 @@ class EmployeeCheckpointController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate($this->rules());
+        $data = $request->validate($this->rules(), [
+            'checkpoint_id.unique' => 'This employee is already mapped to the selected checkpoint.',
+            'emp_checkpoint_id.unique' => 'This Employee Checkpoint ID is already used by another employee at the selected checkpoint.',
+            'emp_checkpoint_id.digits_between' => 'Employee Checkpoint ID must contain numbers only.',
+        ]);
         $this->assertCheckpointBranchAccess($data['checkpoint_id']);
 
         EmployeeCheckpoint::create($data);
@@ -96,7 +118,11 @@ class EmployeeCheckpointController extends Controller
     {
         $this->assertCheckpointBranchAccess($employeeCheckpoint->checkpoint_id);
 
-        $data = $request->validate($this->rules($employeeCheckpoint->id));
+        $data = $request->validate($this->rules($employeeCheckpoint->id), [
+            'checkpoint_id.unique' => 'This employee is already mapped to the selected checkpoint.',
+            'emp_checkpoint_id.unique' => 'This Employee Checkpoint ID is already used by another employee at the selected checkpoint.',
+            'emp_checkpoint_id.digits_between' => 'Employee Checkpoint ID must contain numbers only.',
+        ]);
         $this->assertCheckpointBranchAccess($data['checkpoint_id']);
 
         $employeeCheckpoint->update($data);

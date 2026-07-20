@@ -176,12 +176,37 @@ class BiometricUploadService
             return [null, null];
         }
 
+        // The device's Person ID column is the checkpoint prefix + the
+        // employee's door-local number combined (e.g. "SPP001" for
+        // checkpoint "SPP") — Employee-Checkpoint Mapping stores just the
+        // plain number ("001"), so strip the matched checkpoint's own
+        // name/code off the front before comparing. Also tries the
+        // unstripped value, so a mapping that was deliberately entered with
+        // the full prefixed ID still resolves.
+        $strippedPersonId = $this->stripCheckpointPrefix($personId, $checkpoint);
+
         $mapping = EmployeeCheckpoint::where('checkpoint_id', $checkpoint->id)
-            ->where('emp_checkpoint_id', $personId)
+            ->whereIn('emp_checkpoint_id', array_unique([$strippedPersonId, $personId]))
             ->with('employee')
             ->first();
 
         return [$checkpoint, $mapping?->employee];
+    }
+
+    /** Strips a leading checkpoint name/code (case-insensitive, with an optional separator like "_" or "-") off a raw Person ID. */
+    private function stripCheckpointPrefix(string $personId, Checkpoint $checkpoint): string
+    {
+        foreach ([$checkpoint->code, $checkpoint->name] as $prefix) {
+            if ($prefix === null || $prefix === '') {
+                continue;
+            }
+            if (stripos($personId, $prefix) === 0) {
+                $rest = substr($personId, strlen($prefix));
+                return ltrim($rest, '_- ');
+            }
+        }
+
+        return $personId;
     }
 
     /**

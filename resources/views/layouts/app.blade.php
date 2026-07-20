@@ -126,6 +126,12 @@
             @hasSection('page-title')
             <div class="d-flex align-items-center justify-content-between mb-4">
                 <div class="d-flex align-items-center gap-3">
+                    {{--
+                        Back button disabled system-wide, per request — every
+                        page used to get one from here (single shared
+                        location, not per-view) via either an explicit
+                        @section('back-url', ...) or a browser history.back()
+                        fallback. Uncomment to restore.
                     @unless(Route::is('dashboard'))
                     @hasSection('back-url')
                     <a href="@yield('back-url')" class="btn-back" title="Go back">
@@ -137,6 +143,7 @@
                     </button>
                     @endif
                     @endunless
+                    --}}
                     <div>
                         <h1 class="page-title">@yield('page-title')</h1>
                         @hasSection('page-subtitle')

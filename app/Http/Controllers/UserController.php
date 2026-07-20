@@ -22,12 +22,14 @@ class UserController extends Controller
 
         // Branch Administration — strict branch-wise filtering. A
         // branch-scoped actor (branch_head/branch_user) only ever sees their
-        // own branch's users; a Super Admin always sees only the currently
-        // selected branch's users (switchable via the Branch Switcher —
-        // there is no "All Branches" view). Only accounts that predate this
-        // module (unscoped, currentBranchId() null) keep today's unscoped
-        // behavior with an optional ad-hoc branch filter.
-        $query = BranchScope::scopeQuery($query);
+        // own branch's users; a Super Admin always sees the currently
+        // selected branch's users (switchable via the Branch Switcher — there
+        // is no "All Branches" view) PLUS every legacy/unscoped account
+        // (branch_id NULL — accounts that predate this module, including
+        // Super Admin itself) — scopeQuery() alone would otherwise hide every
+        // such account the instant any branch is selected, since `branch_id
+        // = X` never matches a NULL column in SQL.
+        $query = BranchScope::scopeQueryIncludingGlobal($query);
 
         if (BranchScope::currentBranchId() === null && $request->filled('branch_id')) {
             $query->where('branch_id', $request->branch_id);

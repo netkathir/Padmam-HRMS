@@ -682,7 +682,13 @@ $showBranchAdmin =
             </div>
         @endif
 
-        {{-- ── BRANCH ADMINISTRATION (collapsible) ──────────────── --}}
+        {{--
+            Branch Administration group disabled per request:
+            - Branch Head Assignment: commented out below
+            - Branch Switcher: commented out below
+            - The "Branch Administration" section/label itself removed
+            - Audit Log moved to its own standalone link after Reports
+              (see the Insights section further down)
         @if ($showBranchAdmin)
             <div class="mt-2">
                 <button class="sb-collapse-btn {{ $branchAdminOpen ? '' : 'collapsed' }}" type="button"
@@ -719,6 +725,7 @@ $showBranchAdmin =
                 </div>
             </div>
         @endif
+        --}}
 
         </div>{{-- /#sidebarAccordion --}}
 
@@ -792,12 +799,20 @@ $showBranchAdmin =
         @endif
 
         {{-- ── Insights ─────────────────────────────────────────── --}}
-        @if ($showInsights)
+        @if ($showInsights || $can['branch_admin_audit_log'])
             <div class="sb-section-label"><i class="bi bi-graph-up"></i> Insights</div>
+            @if ($showInsights)
             <a href="{{ route('reports.index') }}" class="sb-link {{ $isReports ? 'active' : '' }}">
                 <i class="bi bi-bar-chart-line"></i>
                 <span>Reports</span>
             </a>
+            @endif
+            @if ($can['branch_admin_audit_log'])
+            <a href="{{ route('branch-admin.audit-log.index') }}" class="sb-link {{ $isBranchAdminAuditLog ? 'active' : '' }}">
+                <i class="bi bi-journal-text"></i>
+                <span>Audit Log</span>
+            </a>
+            @endif
         @endif
 
         {{-- ── Profile — always visible ─────────────────────────── --}}

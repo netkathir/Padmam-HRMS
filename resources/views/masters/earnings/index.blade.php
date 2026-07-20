@@ -36,8 +36,9 @@
                         <td><i class="bi bi-{{ $comp->is_esi_applicable ? 'check-circle-fill text-success' : 'x-circle text-muted' }}"></i></td>
                         <td><span class="badge bg-{{ $comp->is_active ? 'success' : 'danger' }}-subtle text-{{ $comp->is_active ? 'success' : 'danger' }}">{{ $comp->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
+                            <a href="{{ route('masters.generic.show', ['module' => 'earnings', 'id' => $comp->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
                             <a href="{{ route('masters.earnings.edit', $comp) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                            <form action="{{ route('masters.earnings.destroy', $comp) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this component?')">
+                            <form action="{{ route('masters.earnings.destroy', $comp) }}" method="POST" class="d-inline" data-confirm-delete="Delete this component?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                             </form>

@@ -6,9 +6,6 @@
     <a href="{{ route('employees.show', $employee) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Back to Profile</a>
 @endsection
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
 @if(!empty($missingMandatory))
     <div class="alert alert-warning">
         <i class="bi bi-exclamation-triangle"></i> Missing mandatory document(s):
@@ -76,7 +73,7 @@
                                 <td>
                                     <a href="{{ Storage::url($doc->file_path) }}" target="_blank" class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></a>
                                     @can('employees.full')
-                                    <form action="{{ route('employees.documents.destroy', [$employee, $doc]) }}" method="POST" class="d-inline" onsubmit="return confirm('Remove this document?');">
+                                    <form action="{{ route('employees.documents.destroy', [$employee, $doc]) }}" method="POST" class="d-inline" data-confirm-delete="Remove this document?">
                                         @csrf @method('DELETE')
                                         <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                                     </form>

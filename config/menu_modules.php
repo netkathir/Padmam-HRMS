@@ -112,6 +112,16 @@ return [
         'icon' => 'bi-bank',
         'section' => 'Masters',
     ],
+    'masters_checkpoints' => [
+        'label' => 'Checkpoints',
+        'icon' => 'bi-geo-alt',
+        'section' => 'Masters',
+    ],
+    'masters_employee_checkpoints' => [
+        'label' => 'Employee Checkpoint Mapping',
+        'icon' => 'bi-person-lines-fill',
+        'section' => 'Masters',
+    ],
     'rule_engine' => [
         'label' => 'Rule Engine',
         'icon' => 'bi-diagram-3-fill',

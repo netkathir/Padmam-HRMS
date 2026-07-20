@@ -37,7 +37,7 @@
                                 <td>{{ $branch->name }}</td>
                                 <td><span class="badge bg-secondary">{{ $branch->code }}</span></td>
                                 <td>
-                                    <form action="{{ route('branch-admin.branch-switcher.switch') }}" method="POST" class="branch-switch-form">
+                                    <form action="{{ route('branch-admin.branch-switcher.switch') }}" method="POST" class="branch-switch-form" data-confirm-delete="Switching branches will clear any unsaved changes on branch-specific screens. Continue?">
                                         @csrf
                                         <input type="hidden" name="branch_id" value="{{ $branch->id }}">
                                         <button type="submit" class="btn btn-sm btn-outline-primary" {{ (string) $currentBranchId === (string) $branch->id ? 'disabled' : '' }}>
@@ -67,13 +67,6 @@
         });
     });
 
-    document.querySelectorAll('.branch-switch-form').forEach(function (form) {
-        form.addEventListener('submit', function (e) {
-            if (!confirm('Switching branches will clear any unsaved changes on branch-specific screens. Continue?')) {
-                e.preventDefault();
-            }
-        });
-    });
 })();
 </script>
 @endpush

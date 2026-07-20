@@ -63,13 +63,13 @@
                                     </a>
                                     @if ($assignment->status === 'active')
                                         <form action="{{ route('branch-admin.head-assignments.deactivate', $assignment) }}" method="POST" class="d-inline"
-                                            onsubmit="return confirm('Deactivate this Branch Head assignment?')">
+                                            data-confirm-delete="Deactivate this Branch Head assignment?">
                                             @csrf
                                             <button type="submit" class="btn btn-sm btn-outline-warning" title="Deactivate"><i class="bi bi-slash-circle"></i></button>
                                         </form>
                                     @else
                                         <form action="{{ route('branch-admin.head-assignments.destroy', $assignment) }}" method="POST" class="d-inline"
-                                            onsubmit="return confirm('Delete this assignment record?')">
+                                            data-confirm-delete="Delete this assignment record?">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
                                         </form>

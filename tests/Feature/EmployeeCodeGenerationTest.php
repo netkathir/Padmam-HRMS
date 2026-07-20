@@ -114,7 +114,7 @@ class EmployeeCodeGenerationTest extends TestCase
             'official_email' => 'anitha123@example.com', 'phone' => '9098789798',
             'address_line1' => 'No 16 Kovil street', 'district' => 'Villupuram',
             'state' => 'Andhra Pradesh', 'pincode' => '604303', 'biometric_id' => '78764567',
-            'status' => 'active', 'is_draft' => false,
+            'status' => 'active',
         ]);
         $this->assertNull($employee->employee_code);
 
@@ -152,7 +152,7 @@ class EmployeeCodeGenerationTest extends TestCase
             'address_line1' => 'No 16 Kovil street', 'district' => 'Villupuram',
             'state' => 'Andhra Pradesh', 'pincode' => '604303', 'biometric_id' => '78764567',
             'department_id' => $department->id, 'employee_type_id' => $employeeType->id,
-            'primary_employee_type' => 'staff', 'status' => 'active', 'is_draft' => false,
+            'primary_employee_type' => 'staff', 'status' => 'active',
         ]);
 
         $this->actingAs($admin)->put("http://localhost/employees/{$employee->id}", $this->stepsOneToThreePayload([
@@ -185,7 +185,7 @@ class EmployeeCodeGenerationTest extends TestCase
                 'official_email' => $email, 'phone' => '9098789798',
                 'address_line1' => 'No 16 Kovil street', 'district' => 'Villupuram',
                 'state' => 'Andhra Pradesh', 'pincode' => '604303', 'biometric_id' => uniqid(),
-                'status' => 'active', 'is_draft' => false,
+                'status' => 'active',
             ]);
 
             $this->actingAs($admin)->put("http://localhost/employees/{$employee->id}", $this->stepsOneToThreePayload([

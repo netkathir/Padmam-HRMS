@@ -6,12 +6,6 @@
 @section('back-url', route('employees.index'))
 
 @section('content')
-    @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    @endif
-    @if($employee->is_draft)
-        <div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> This employee is still a draft. Complete Personal, Contact, and Address Information here, then use Employee Slab to add Employment, Bank, and Salary details.</div>
-    @endif
     <div class="card">
         <div class="card-body">
             <ul class="nav nav-tabs mb-4 flex-nowrap overflow-x-auto overflow-y-hidden" id="employeeWizardNav">
@@ -130,12 +124,6 @@
                 const current = parseInt(pane.dataset.tabPane, 10);
                 showTab(Math.max(current - 1, 2));
             });
-        });
-
-        // Any "Save"-while-staying button submits next_tab equal to its own pane.
-        document.querySelectorAll('.wizard-save-stay').forEach(function (btn) {
-            const pane = btn.closest('[data-tab-pane]');
-            if (pane) btn.value = pane.dataset.tabPane;
         });
 
         const start = window.__employeeWizard.activeTab;

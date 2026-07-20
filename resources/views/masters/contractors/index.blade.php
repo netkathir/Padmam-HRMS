@@ -9,12 +9,6 @@
         Masters</a>
 @endsection
 @section('content')
-    @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    @endif
-    @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show"><i class="bi bi-exclamation-triangle"></i> {{ session('error') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    @endif
     @if($expiringSoonCount > 0)
         <div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> {{ $expiringSoonCount }} contractor(s) have a licence or agreement expiring within 30 days.</div>
     @endif
@@ -76,11 +70,14 @@
                                         class="badge bg-{{ $c->is_active ? 'success' : 'danger' }}-subtle text-{{ $c->is_active ? 'success' : 'danger' }}">{{ $c->is_active ? 'Active' : 'Inactive' }}</span>
                                 </td>
                                 <td>
+                                    <a href="{{ route('masters.generic.show', ['module' => 'contractors', 'id' => $c->id]) }}"
+                                        class="btn btn-sm btn-outline-secondary" title="View"><i
+                                            class="bi bi-eye"></i></a>
                                     <a href="{{ route('masters.contractors.edit', $c) }}"
                                         class="btn btn-sm btn-outline-primary" title="Edit"><i
                                             class="bi bi-pencil"></i></a>
                                     <form action="{{ route('masters.contractors.destroy', $c) }}" method="POST"
-                                        class="d-inline" onsubmit="return confirm('Delete this contractor?')">
+                                        class="d-inline" data-confirm-delete="Delete this contractor?">
                                         @csrf @method('DELETE')
                                         <button class="btn btn-sm btn-outline-danger" title="Delete"><i
                                                 class="bi bi-trash"></i></button>

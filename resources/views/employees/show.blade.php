@@ -60,7 +60,6 @@
                         <div class="col-sm-6"><strong>Marital Status:</strong>
                             {{ ucfirst($employee->marital_status ?? '—') }}</div>
                         <div class="col-sm-6"><strong>Blood Group:</strong> {{ $employee->blood_group ?? '—' }}</div>
-                        <div class="col-sm-6"><strong>Biometric ID:</strong> {{ $employee->biometric_id ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Personal Email:</strong> {{ $employee->personal_email ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Official Email:</strong> {{ $employee->official_email ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Phone:</strong> {{ $employee->phone ?? '—' }}</div>
@@ -148,103 +147,6 @@
             </div>
             @endif
 
-            <div class="card mt-3">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    Bank Details
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#add-bank-detail-form">
-                        <i class="bi bi-plus"></i> Add
-                    </button>
-                </div>
-                <div class="card-body">
-                    @if ($employee->bankDetails->isEmpty())
-                        <p class="text-muted mb-0">No bank details on record.</p>
-                    @else
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Bank</th><th>Account Holder</th><th>Account Number</th><th>IFSC</th><th>Primary</th><th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($employee->bankDetails as $bd)
-                                        <tr>
-                                            <td>{{ $bd->bank->name ?? $bd->bank_name ?? '—' }}</td>
-                                            <td>{{ $bd->account_holder_name ?? '—' }}</td>
-                                            <td>{{ $canViewFullBankDetails ? $bd->account_number : $bd->masked_account_number }}</td>
-                                            <td>{{ $bd->ifsc_code ?? '—' }}</td>
-                                            <td>{{ $bd->is_primary ? 'Yes' : '' }}</td>
-                                            <td>
-                                                @can('employees.full')
-                                                <form action="{{ route('employees.bank-details.destroy', [$employee, $bd]) }}" method="POST" class="d-inline" onsubmit="return confirm('Remove these bank details?');">
-                                                    @csrf @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                                                </form>
-                                                @endcan
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    @endif
-                    <div class="collapse mt-3" id="add-bank-detail-form">
-                        <form action="{{ route('employees.bank-details.store', $employee) }}" method="POST">
-                            @csrf
-                            <div class="row g-3">
-                                <div class="col-md-3">
-                                    <label class="form-label">Bank</label>
-                                    <select name="bank_id" class="form-select">
-                                        <option value="">Select</option>
-                                        @foreach ($banks ?? [] as $bank)
-                                            <option value="{{ $bank->id }}">{{ $bank->name }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">Bank Name (if not listed)</label>
-                                    <input type="text" name="bank_name" class="form-control">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">Account Holder Name</label>
-                                    <input type="text" name="account_holder_name" class="form-control">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Account Number</label>
-                                    <input type="text" name="account_number" class="form-control">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Confirm Account Number</label>
-                                    <input type="text" name="account_number_confirmation" class="form-control">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">IFSC Code</label>
-                                    <input type="text" name="ifsc_code" class="form-control" style="text-transform:uppercase">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Branch Name</label>
-                                    <input type="text" name="branch_name" class="form-control">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Account Type</label>
-                                    <select name="account_type" class="form-select">
-                                        <option value="savings">Savings</option>
-                                        <option value="current">Current</option>
-                                        <option value="salary">Salary</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4 d-flex align-items-end">
-                                    <div class="form-check">
-                                        <input type="checkbox" name="is_primary" value="1" class="form-check-input">
-                                        <label class="form-check-label">Set as Primary</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-primary btn-sm mt-3">Save Bank Details</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 @endsection

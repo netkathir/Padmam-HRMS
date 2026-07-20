@@ -6,9 +6,6 @@
     <a href="{{ route('leaves.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Back</a>
 @endsection
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
 <div class="row g-3">
     <div class="col-md-8">
         <div class="card">
@@ -88,7 +85,7 @@
         @if($leave->status === 'pending' && auth()->user()->employee_id === $leave->employee_id)
         <div class="card">
             <div class="card-body">
-                <form action="{{ route('leaves.cancel', $leave) }}" method="POST" onsubmit="return confirm('Cancel this leave request?')">
+                <form action="{{ route('leaves.cancel', $leave) }}" method="POST" data-confirm-delete="Cancel this leave request?">
                     @csrf
                     <button class="btn btn-outline-secondary w-100"><i class="bi bi-x-circle"></i> Cancel Request</button>
                 </form>

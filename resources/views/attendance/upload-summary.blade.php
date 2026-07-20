@@ -2,21 +2,19 @@
 @section('title', 'Upload Summary')
 @section('page-title', 'Upload Validation Summary')
 @section('page-subtitle', $upload->original_filename)
+@section('back-url', route('attendance.index', ['from_date' => $upload->period_from->toDateString(), 'to_date' => $upload->period_to->toDateString()]))
 @section('page-actions')
-    <a href="{{ route('attendance.process.form') }}" class="btn btn-primary btn-sm"><i class="bi bi-gear"></i> Process Attendance</a>
-    <a href="{{ route('attendance.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Register</a>
+    <a href="{{ route('attendance.index', ['from_date' => $upload->period_from->toDateString(), 'to_date' => $upload->period_to->toDateString()]) }}" class="btn btn-primary btn-sm"><i class="bi bi-calendar-check"></i> View Attendance Register</a>
 @endsection
 @section('content')
-@if (session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
 <div class="row g-3">
     @php
         $tiles = [
             ['label' => 'Total Rows', 'value' => $upload->total_rows, 'color' => 'primary'],
-            ['label' => 'Valid Rows', 'value' => $upload->valid_rows, 'color' => 'success'],
+            ['label' => 'New Rows Saved', 'value' => $upload->valid_rows, 'color' => 'success'],
+            ['label' => 'Rows Updated', 'value' => $upload->updated_rows, 'color' => 'info'],
             ['label' => 'Invalid Rows', 'value' => $upload->invalid_rows, 'color' => 'danger'],
-            ['label' => 'Duplicate Rows', 'value' => $upload->duplicate_rows, 'color' => 'warning'],
+            ['label' => 'Repeated Punches (within 3 min)', 'value' => $upload->duplicate_rows, 'color' => 'warning'],
             ['label' => 'Unknown Employees', 'value' => $upload->unknown_employee_rows, 'color' => 'secondary'],
             ['label' => 'Invalid Dates', 'value' => $upload->invalid_date_rows, 'color' => 'secondary'],
             ['label' => 'Invalid Times', 'value' => $upload->invalid_time_rows, 'color' => 'secondary'],
@@ -47,6 +45,7 @@
                 <i class="bi bi-file-earmark-excel"></i> Download Error File
             </a>
         @endif
+        <p class="text-muted small mt-3 mb-0">Attendance has already been computed for the employees and dates found in this file — no separate processing step is needed.</p>
     </div>
 </div>
 @endsection

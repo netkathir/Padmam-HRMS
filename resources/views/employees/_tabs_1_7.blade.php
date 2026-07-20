@@ -8,19 +8,6 @@
 
     Expects: $employee (Employee|null — null on Create), $currentBranch, $states.
 --}}
-@php
-    // Every one of Steps 1-3 shows a "Save as Draft" button per the FSD,
-    // labelled identically either way. For a draft (or brand-new) employee it
-    // actually flags the row is_draft=1. Once a record is already complete
-    // (is_draft=false), the SAME label instead just persists this tab's data
-    // and stays put — reusing it to flip a complete record back into draft
-    // status would be a silent, surprising data regression, and there's no
-    // partial state left to "save as draft" once registration is finished.
-    // (next_tab is filled in client-side by wizard.js, matching the button's
-    // own tab-pane).
-    $showSaveAsDraft = ! $employee || $employee->is_draft;
-@endphp
-
 {{-- FSD Rule 1 — Branch is never shown; it always follows the currently active branch. --}}
 <input type="hidden" name="branch_id" value="{{ $currentBranch->id ?? '' }}">
 
@@ -103,20 +90,10 @@
             <label class="form-label">Religion</label>
             <input type="text" name="religion" class="form-control" value="{{ old('religion', $employee->religion ?? '') }}">
         </div>
-        <div class="col-md-4">
-            <label class="form-label">Biometric ID <span class="text-danger">*</span></label>
-            <input type="text" name="biometric_id" class="form-control @error('biometric_id') is-invalid @enderror" value="{{ old('biometric_id', $employee->biometric_id ?? '') }}" required>
-            @error('biometric_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
     </div>
     <div class="mt-4 d-flex gap-2">
         <button type="button" class="btn btn-outline-secondary" disabled>Previous</button>
         <button type="button" class="btn btn-primary wizard-next">Save &amp; Next</button>
-        @if($showSaveAsDraft)
-            <button type="submit" name="save_as_draft" value="1" class="btn btn-outline-primary">Save as Draft</button>
-        @else
-            <button type="submit" name="next_tab" value="" class="btn btn-outline-primary wizard-save-stay">Save as Draft</button>
-        @endif
         <a href="{{ $employee ? route('employees.show', $employee) : route('employees.index') }}" class="btn btn-secondary">Cancel</a>
     </div>
 </div>
@@ -160,11 +137,6 @@
     <div class="mt-4 d-flex gap-2">
         <button type="button" class="btn btn-outline-secondary wizard-prev">Previous</button>
         <button type="button" class="btn btn-primary wizard-next">Save &amp; Next</button>
-        @if($showSaveAsDraft)
-            <button type="submit" name="save_as_draft" value="1" class="btn btn-outline-primary">Save as Draft</button>
-        @else
-            <button type="submit" name="next_tab" value="" class="btn btn-outline-primary wizard-save-stay">Save as Draft</button>
-        @endif
         <a href="{{ $employee ? route('employees.show', $employee) : route('employees.index') }}" class="btn btn-secondary">Cancel</a>
     </div>
 </div>
@@ -251,9 +223,6 @@
     </div>
     <div class="mt-4 d-flex gap-2">
         <button type="button" class="btn btn-outline-secondary wizard-prev">Previous</button>
-        @if($showSaveAsDraft)
-            <button type="submit" name="save_as_draft" value="1" class="btn btn-outline-primary">Save as Draft</button>
-        @endif
         <button type="submit" name="finish" value="1" class="btn btn-success">Save Employee</button>
         <a href="{{ $employee ? route('employees.show', $employee) : route('employees.index') }}" class="btn btn-secondary">Cancel</a>
     </div>

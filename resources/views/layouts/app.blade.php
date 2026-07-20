@@ -120,6 +120,7 @@
         <div class="page-content">
             {{-- Alerts --}}
             @include('partials._alerts')
+            @include('partials._confirm-modal')
 
             {{-- Page header --}}
             @hasSection('page-title')
@@ -196,13 +197,44 @@ if (backdrop) {
     });
 }
 
-// Auto-dismiss alerts after 5 seconds
-document.querySelectorAll('.alert').forEach(el => {
-    setTimeout(() => {
-        const bsAlert = bootstrap.Alert.getOrCreateInstance(el);
-        if (bsAlert) bsAlert.close();
-    }, 5000);
+// Toast notifications — top-right, auto-shown on page load.
+document.querySelectorAll('.toast').forEach(el => {
+    bootstrap.Toast.getOrCreateInstance(el).show();
 });
+
+// System-themed delete/destructive-action confirmation — replaces the
+// browser's native confirm() everywhere. Any form with a
+// data-confirm-delete="Message?" attribute is intercepted: the form is not
+// submitted until the shared modal is confirmed, then it's submitted
+// programmatically.
+(function () {
+    const modalEl = document.getElementById('confirmActionModal');
+    if (!modalEl) return;
+    const modal = new bootstrap.Modal(modalEl);
+    const messageEl = modalEl.querySelector('[data-confirm-message]');
+    const confirmBtn = modalEl.querySelector('[data-confirm-proceed]');
+    let pendingForm = null;
+
+    document.addEventListener('submit', function (e) {
+        const form = e.target;
+        if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-confirm-delete')) return;
+        if (form.dataset.confirmed === '1') return; // already confirmed, let it submit
+
+        e.preventDefault();
+        pendingForm = form;
+        messageEl.textContent = form.getAttribute('data-confirm-delete') || 'Are you sure?';
+        modal.show();
+    });
+
+    confirmBtn.addEventListener('click', function () {
+        modal.hide();
+        if (pendingForm) {
+            pendingForm.dataset.confirmed = '1';
+            pendingForm.requestSubmit();
+            pendingForm = null;
+        }
+    });
+})();
 </script>
 
 @stack('scripts')

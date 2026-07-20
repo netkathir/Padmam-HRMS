@@ -172,17 +172,6 @@ class PayrollController extends Controller
         $periodDate = \Carbon\Carbon::create($year, $month, 1)->toDateString();
         $pfEsi      = PfEsiConfig::effectiveOn($periodDate);
 
-        // FSD 7.5 — "the applicable slab shall be automatically selected...
-        // If no applicable slab is found, the system shall show a validation
-        // message before payroll processing." Only enforced for employee
-        // types that have at least one active slab defined at all; an
-        // employee type with none configured yet falls back to PfEsiConfig
-        // exactly as before this feature existed (no regression for
-        // deployments that haven't configured Salary Slabs).
-        $slabbedEmployeeTypes = SalarySlab::where('is_active', true)->get()
-            ->flatMap(fn($s) => $s->applicable_employee_types ?? ['staff', 'company_labour', 'contract_labour'])
-            ->unique()->all();
-
         $generated = $skipped = $errors = 0;
         $noSlabEmployees = [];
         $noSalaryEmployees = [];
@@ -210,10 +199,12 @@ class PayrollController extends Controller
             $branchId    = $employee->branch_id;
             $contractorId = $employee->contractor_id;
 
-            $employeeTypeKey = $primaryType === 'staff' ? 'staff' : $labourType;
-            $slab = SalarySlab::findApplicable((float) $salary->ctc, $primaryType, $labourType, $periodDate);
+            // The Salary Slab is assigned directly on the employee's own
+            // salary record (Employee Slab's Designation & Salary section) —
+            // no auto-detection by CTC range anymore.
+            $slab = $salary->slab;
 
-            if (! $slab && $employeeTypeKey && in_array($employeeTypeKey, $slabbedEmployeeTypes, true)) {
+            if (! $slab) {
                 $noSlabEmployees[] = $employee->full_name;
                 $errors++;
                 continue;

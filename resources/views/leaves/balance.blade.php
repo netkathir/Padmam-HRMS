@@ -3,15 +3,6 @@
 @section('page-title','Leave Balance')
 @section('page-subtitle','Leave balance for ' . $year)
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
-@if($errors->any())
-    <div class="alert alert-danger alert-dismissible fade show">
-        @foreach($errors->all() as $error) <div>{{ $error }}</div> @endforeach
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
 <div class="card mb-3">
     <div class="card-body">
         <form method="GET" class="row g-2 align-items-end">

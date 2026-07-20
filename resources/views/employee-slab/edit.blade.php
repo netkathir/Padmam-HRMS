@@ -6,10 +6,6 @@
 @section('back-url', route('employee-slab.index'))
 
 @section('content')
-    @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    @endif
-
     {{-- ── Section 1: Employment Information ───────────────────────────── --}}
     <div class="card mb-3">
         <div class="card-header"><h6 class="mb-0">Employment Information</h6></div>
@@ -32,7 +28,6 @@
                 <input type="hidden" name="state" value="{{ $employee->state }}">
                 <input type="hidden" name="pincode" value="{{ $employee->pincode }}">
                 <input type="hidden" name="permanent_address_line1" value="{{ $employee->permanent_address_line1 }}">
-                <input type="hidden" name="biometric_id" value="{{ $employee->biometric_id }}">
                 <input type="hidden" name="branch_id" value="{{ $currentBranch->id ?? $employee->branch_id }}">
 
                 @php $currentCategory = old('employee_category', $employee->primary_employee_type === 'staff' ? 'staff' : $employee->labour_type); @endphp
@@ -216,7 +211,7 @@
                                     <td>{{ $bd->is_primary ? 'Yes' : '' }}</td>
                                     <td>
                                         @can('employees.full')
-                                        <form action="{{ route('employees.bank-details.destroy', [$employee, $bd]) }}" method="POST" class="d-inline" onsubmit="return confirm('Remove these bank details?');">
+                                        <form action="{{ route('employees.bank-details.destroy', [$employee, $bd]) }}" method="POST" class="d-inline" data-confirm-delete="Remove these bank details?">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                                         </form>
@@ -379,7 +374,12 @@
                             @endforeach
                         </select>
                         @error('salary_slab_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">The employee's entire salary structure is inherited from the selected slab — nothing below is manually entered.</div>
+                        <div class="form-text">PF/ESI/TDS percentages are inherited from the selected slab, applied to the Basic Salary entered below.</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Basic Salary (₹) <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" min="0" name="basic_salary" id="basic_salary" class="form-control @error('basic_salary') is-invalid @enderror" value="{{ old('basic_salary', $employee->currentSalary?->basic_salary) }}" required>
+                        @error('basic_salary')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Effective From <span class="text-danger">*</span></label>
@@ -409,33 +409,12 @@
                     <div class="col-md-2"><label class="form-label">ESI Employee %</label><input type="text" id="inherited_esi_employee_percentage" class="form-control" value="" disabled></div>
                     <div class="col-md-2"><label class="form-label">ESI Employer %</label><input type="text" id="inherited_esi_employer_percentage" class="form-control" value="" disabled></div>
 
-                    <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">Salary Structure <small class="fw-normal text-muted">(read-only — from the selected Salary Slab)</small></h6></div>
-                    <div class="col-md-3"><label class="form-label">Basic Salary (₹)</label><input type="text" id="inherited_basic_salary" class="form-control" value="" disabled></div>
+                    <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">Computed Summary <small class="fw-normal text-muted">(read-only — Basic Salary above, calculated against the selected slab's percentages)</small></h6></div>
                     <div class="col-md-3"><label class="form-label">Gross Salary (₹)</label><input type="text" id="inherited_gross_salary" class="form-control" value="" disabled></div>
                     <div class="col-md-3"><label class="form-label">CTC (₹)</label><input type="text" id="inherited_ctc" class="form-control" value="" disabled></div>
                     <div class="col-md-3"><label class="form-label">Employer Contribution (₹)</label><input type="text" id="inherited_employer_contributions" class="form-control" value="" disabled></div>
                     <div class="col-md-3"><label class="form-label">Total Deductions (₹)</label><input type="text" id="inherited_total_deductions" class="form-control" value="" disabled></div>
                     <div class="col-md-3"><label class="form-label">Net Salary (₹)</label><input type="text" id="inherited_net_salary" class="form-control" value="" disabled></div>
-
-                    <div class="col-12 mt-2">
-                        <h6 class="fw-bold border-bottom pb-2">Salary Components <small class="fw-normal text-muted">(read-only — from the selected Salary Slab)</small></h6>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <h6 class="small text-muted">Earnings Components</h6>
-                                <table class="table table-sm">
-                                    <thead><tr><th>Component</th><th>Calc. Type</th><th>Calc. Base</th><th>Amount</th></tr></thead>
-                                    <tbody id="inherited_earning_components"><tr><td colspan="4" class="text-muted">Select a Salary Slab above</td></tr></tbody>
-                                </table>
-                            </div>
-                            <div class="col-md-6">
-                                <h6 class="small text-muted">Deduction Components</h6>
-                                <table class="table table-sm">
-                                    <thead><tr><th>Component</th><th>Calc. Type</th><th>Calc. Base</th><th>Amount</th></tr></thead>
-                                    <tbody id="inherited_deduction_components"><tr><td colspan="4" class="text-muted">Select a Salary Slab above</td></tr></tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
                 </div>
                 <div class="mt-3">
                     <button type="submit" class="btn btn-success">Save Designation & Salary</button>
@@ -589,38 +568,28 @@
             pf_employer_percentage: document.getElementById('inherited_pf_employer_percentage'),
             esi_employee_percentage: document.getElementById('inherited_esi_employee_percentage'),
             esi_employer_percentage: document.getElementById('inherited_esi_employer_percentage'),
-            basic_salary: document.getElementById('inherited_basic_salary'),
             gross_salary: document.getElementById('inherited_gross_salary'),
             ctc: document.getElementById('inherited_ctc'),
             employer_contributions: document.getElementById('inherited_employer_contributions'),
             total_deductions: document.getElementById('inherited_total_deductions'),
             net_salary: document.getElementById('inherited_net_salary'),
         };
-        const earningComponentsBody = document.getElementById('inherited_earning_components');
-        const deductionComponentsBody = document.getElementById('inherited_deduction_components');
+        const basicSalaryInput = document.getElementById('basic_salary');
 
         function formatNumber(value) {
             return (typeof value === 'number' ? value : parseFloat(value || 0)).toFixed(2);
-        }
-        function componentRows(components) {
-            if (!components || !components.length) return '<tr><td colspan="4" class="text-muted">None</td></tr>';
-            return components.map(function (c) {
-                return '<tr><td>' + c.name + '</td><td>' + (c.calculation_type ? c.calculation_type.charAt(0).toUpperCase() + c.calculation_type.slice(1) : '—')
-                    + '</td><td>' + (c.calculation_base || '—') + '</td><td>₹' + formatNumber(c.amount) + '</td></tr>';
-            }).join('');
         }
         function renderSalarySlabBreakdown(data) {
             Object.keys(inheritedFields).forEach(function (key) {
                 var field = inheritedFields[key];
                 if (field) field.value = data ? formatNumber(data[key]) : '';
             });
-            var placeholder = '<tr><td colspan="4" class="text-muted">' + (data ? 'None' : 'Select a Salary Slab above') + '</td></tr>';
-            if (earningComponentsBody) earningComponentsBody.innerHTML = data ? componentRows(data.earning_components) : placeholder;
-            if (deductionComponentsBody) deductionComponentsBody.innerHTML = data ? componentRows(data.deduction_components) : placeholder;
         }
         function fetchAndRenderSlabBreakdown(slabId) {
             if (!slabId) { renderSalarySlabBreakdown(null); return; }
-            var url = window.__employeeSlab.salarySlabBreakdownUrl.replace('SLAB_ID', encodeURIComponent(slabId));
+            var basicSalary = parseFloat(basicSalaryInput.value) || 0;
+            var url = window.__employeeSlab.salarySlabBreakdownUrl.replace('SLAB_ID', encodeURIComponent(slabId))
+                + '?basic_salary=' + encodeURIComponent(basicSalary);
             fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(renderSalarySlabBreakdown)
@@ -629,10 +598,13 @@
         if (salarySlabSelect) {
             salarySlabSelect.addEventListener('change', function () { fetchAndRenderSlabBreakdown(salarySlabSelect.value); });
         }
+        if (basicSalaryInput) {
+            basicSalaryInput.addEventListener('input', function () { fetchAndRenderSlabBreakdown(salarySlabSelect.value); });
+        }
         if (window.__employeeSlab.currentSalaryBreakdown) {
             renderSalarySlabBreakdown(window.__employeeSlab.currentSalaryBreakdown);
         }
-        if (salarySlabSelect && salarySlabSelect.value) {
+        if (salarySlabSelect && salarySlabSelect.value && !window.__employeeSlab.currentSalaryBreakdown) {
             fetchAndRenderSlabBreakdown(salarySlabSelect.value);
         }
     })();

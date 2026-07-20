@@ -14,12 +14,6 @@
 @endsection
 
 @section('content')
-    @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    @endif
-    @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show">{{ session('error') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    @endif
     <div class="card">
         <div class="card-body">
             <form method="GET" class="row g-2 mb-3">
@@ -92,14 +86,14 @@
             @if($canConfirm || $canClose)
             <div class="d-flex gap-2 mb-3">
                 @if($canConfirm)
-                <form action="{{ route('payroll.confirm') }}" method="POST" onsubmit="return confirm('Confirm payroll for every eligible employee in this period?');">
+                <form action="{{ route('payroll.confirm') }}" method="POST" data-confirm-delete="Confirm payroll for every eligible employee in this period?">
                     @csrf
                     <input type="hidden" name="month" value="{{ $month }}"><input type="hidden" name="year" value="{{ $year }}">
                     <button class="btn btn-sm btn-info"><i class="bi bi-check2-square"></i> Confirm Payroll (Period)</button>
                 </form>
                 @endif
                 @if($canClose)
-                <form action="{{ route('payroll.close') }}" method="POST" onsubmit="return confirm('Close payroll for every confirmed employee in this period? Changes will require reopening.');">
+                <form action="{{ route('payroll.close') }}" method="POST" data-confirm-delete="Close payroll for every confirmed employee in this period? Changes will require reopening.">
                     @csrf
                     <input type="hidden" name="month" value="{{ $month }}"><input type="hidden" name="year" value="{{ $year }}">
                     <button class="btn btn-sm btn-dark"><i class="bi bi-lock"></i> Close Payroll (Period)</button>

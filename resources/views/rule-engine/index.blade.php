@@ -6,9 +6,6 @@
     <a href="{{ route('rule-engine.create') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Rule</a>
 @endsection
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
 <div class="card">
     <div class="card-body">
         <form method="GET" class="row g-2 mb-3">
@@ -49,7 +46,7 @@
                         <td><span class="badge bg-{{ $rule->status == 'active' ? 'success' : 'danger' }}-subtle text-{{ $rule->status == 'active' ? 'success' : 'danger' }}">{{ ucfirst($rule->status) }}</span></td>
                         <td>
                             <a href="{{ route('rule-engine.edit', $rule) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                            <form action="{{ route('rule-engine.destroy', $rule) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this rule?')">
+                            <form action="{{ route('rule-engine.destroy', $rule) }}" method="POST" class="d-inline" data-confirm-delete="Delete this rule?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                             </form>

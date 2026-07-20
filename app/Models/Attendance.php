@@ -40,6 +40,8 @@ class Attendance extends Model
     protected function casts(): array {
         return [
             'date' => 'date',
+            'in_time' => 'datetime',
+            'out_time' => 'datetime',
             'approved_at' => 'datetime',
             'ot_approved_at' => 'datetime',
             'is_late' => 'boolean',

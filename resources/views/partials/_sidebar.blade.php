@@ -587,7 +587,7 @@ $showBranchAdmin =
                         @endif
 
                         {{-- HR Policy --}}
-                        @if ($can['masters_shifts'] || $can['masters_holidays'] || $can['masters_leave_types'])
+                        @if ($can['masters_shifts'] || $can['masters_holidays'] || $can['masters_leave_types'] || $can['masters_checkpoints'] || $can['masters_employee_checkpoints'])
                             <div class="sb-sub-group-label">HR Policy</div>
                         @endif
                         @if ($can['masters_shifts'])
@@ -606,6 +606,18 @@ $showBranchAdmin =
                             <a href="{{ route('masters.leave-types.index') }}"
                                 class="sb-link sb-sub-link {{ request()->routeIs('masters.leave-types.*') ? 'active' : '' }}">
                                 <i class="bi bi-calendar-minus"></i><span>Leave Types</span>
+                            </a>
+                        @endif
+                        @if ($can['masters_checkpoints'])
+                            <a href="{{ route('masters.checkpoints.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.checkpoints.*') ? 'active' : '' }}">
+                                <i class="bi bi-geo-alt"></i><span>Checkpoints</span>
+                            </a>
+                        @endif
+                        @if ($can['masters_employee_checkpoints'])
+                            <a href="{{ route('masters.employee-checkpoints.index') }}"
+                                class="sb-link sb-sub-link {{ request()->routeIs('masters.employee-checkpoints.*') ? 'active' : '' }}">
+                                <i class="bi bi-person-lines-fill"></i><span>Employee Checkpoint Mapping</span>
                             </a>
                         @endif
 

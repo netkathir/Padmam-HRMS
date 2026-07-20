@@ -6,17 +6,6 @@
     <a href="{{ route('payroll.index', ['month' => $payroll->month, 'year' => $payroll->year]) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Back to Payroll</a>
 @endsection
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
-@if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show">{{ session('error') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
-@if($errors->any())
-    <div class="alert alert-danger">
-        @foreach($errors->all() as $error)<div>{{ $error }}</div>@endforeach
-    </div>
-@endif
 <div class="row g-3 justify-content-center">
     <div class="col-md-7">
         <div class="card mb-3">

@@ -15,12 +15,6 @@
     <a href="{{ route('payroll.index', ['month' => $payroll->month, 'year' => $payroll->year]) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Payroll</a>
 @endsection
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
-@if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show">{{ session('error') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
 @php
     $employee = $payroll->employee;
     // Module 11 (FSD 15.2) — PAN/UAN/PF/ESI/bank account were previously

@@ -7,9 +7,6 @@
     <a href="{{ route('masters.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Masters</a>
 @endsection
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
 <div class="card mb-3">
     <div class="card-body">
         <h6 class="text-primary mb-2">Sunday Pay Policy</h6>
@@ -59,8 +56,9 @@
                         <td><span class="badge bg-{{ $holiday->is_paid ? 'success' : 'secondary' }}-subtle text-{{ $holiday->is_paid ? 'success' : 'secondary' }}">{{ $holiday->is_paid ? 'Paid' : 'Unpaid' }}</span></td>
                         <td><span class="badge bg-{{ $holiday->is_active ? 'success' : 'danger' }}-subtle text-{{ $holiday->is_active ? 'success' : 'danger' }}">{{ $holiday->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
+                            <a href="{{ route('masters.generic.show', ['module' => 'holidays', 'id' => $holiday->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
                             <a href="{{ route('masters.holidays.edit', $holiday) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                            <form action="{{ route('masters.holidays.destroy', $holiday) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this holiday?')">
+                            <form action="{{ route('masters.holidays.destroy', $holiday) }}" method="POST" class="d-inline" data-confirm-delete="Delete this holiday?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                             </form>

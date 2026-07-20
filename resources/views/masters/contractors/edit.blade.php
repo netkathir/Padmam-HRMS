@@ -3,12 +3,6 @@
 @section('page-title','Edit Contractor')
 @section('page-subtitle',$contractor->name)
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
-@if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show"><i class="bi bi-exclamation-triangle"></i> {{ session('error') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
 <div class="card mb-3">
     <div class="card-body">
         <form action="{{ route('masters.contractors.update', $contractor) }}" method="POST">
@@ -177,7 +171,7 @@
                         <td><a href="{{ asset('storage/' . $doc->file_path) }}" target="_blank">{{ $doc->original_name }}</a></td>
                         <td>{{ $doc->created_at->format('d M Y') }}</td>
                         <td>
-                            <form action="{{ route('masters.contractors.documents.destroy', [$contractor, $doc]) }}" method="POST" class="d-inline" onsubmit="return confirm('Remove this document?')">
+                            <form action="{{ route('masters.contractors.documents.destroy', [$contractor, $doc]) }}" method="POST" class="d-inline" data-confirm-delete="Remove this document?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                             </form>

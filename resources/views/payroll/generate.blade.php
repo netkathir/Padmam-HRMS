@@ -3,12 +3,6 @@
 @section('page-title','Generate Payroll')
 @section('page-subtitle','Payroll Processing — Preview, Calculate, Confirm, Close and Reopen from one screen')
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
-@if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show"><i class="bi bi-exclamation-triangle"></i> {{ session('error') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
 <div class="row g-3">
     <div class="col-md-4">
         <div class="card mb-3">
@@ -69,7 +63,7 @@
             <div class="card-header"><h6 class="mb-0">Payroll Parameters</h6></div>
             <div class="card-body">
                 <form action="{{ route('payroll.generate.post') }}" method="POST"
-                    onsubmit="return confirm('This will calculate payroll for the selected period, including LOP (Loss of Pay) derived from attendance and leave records. Proceed?');">
+                    data-confirm-delete="This will calculate payroll for the selected period, including LOP (Loss of Pay) derived from attendance and leave records. Proceed?">
                     @csrf
                     <div class="mb-3">
                         <label class="form-label">Payroll Month <span class="text-danger">*</span></label>

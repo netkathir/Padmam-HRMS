@@ -12,6 +12,7 @@ use App\Models\EarningsComponent;
 use App\Models\DeductionsComponent;
 use App\Models\PfEsiConfig;
 use App\Models\Bank;
+use App\Models\Checkpoint;
 use Illuminate\Http\Request;
 
 class MasterController extends Controller
@@ -28,6 +29,7 @@ class MasterController extends Controller
             'earningsCount'    => EarningsComponent::count(),
             'deductionsCount'  => DeductionsComponent::count(),
             'bankCount'        => Bank::count(),
+            'checkpointCount'  => Checkpoint::count(),
         ]);
     }
 }

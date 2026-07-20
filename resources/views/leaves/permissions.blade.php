@@ -6,9 +6,6 @@
     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addPermissionModal"><i class="bi bi-plus-lg"></i> Request Permission</button>
 @endsection
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
 <div class="card">
     <div class="card-body">
         <form method="GET" class="row g-2 mb-3">

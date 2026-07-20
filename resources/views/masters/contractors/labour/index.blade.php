@@ -41,7 +41,7 @@
                                             <form
                                                 action="{{ route('masters.contractors.labour.remove', [$contractor, $emp]) }}"
                                                 method="POST" class="d-inline"
-                                                onsubmit="return confirm('Remove this employee from the contractor?')">
+                                                data-confirm-delete="Remove this employee from the contractor?">
                                                 @csrf @method('DELETE')
                                                 <button class="btn btn-sm btn-outline-danger"
                                                     title="Remove from contractor"><i class="bi bi-person-x"></i></button>

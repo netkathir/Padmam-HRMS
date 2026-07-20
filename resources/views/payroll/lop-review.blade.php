@@ -6,15 +6,6 @@
     <a href="{{ route('payroll.index', ['month'=>$month,'year'=>$year]) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Payroll</a>
 @endsection
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
-@if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show">{{ session('error') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
-@if($errors->any())
-    <div class="alert alert-danger">{{ $errors->first() }}</div>
-@endif
 <div class="card mb-3">
     <div class="card-body">
         <form method="GET" class="row g-2 align-items-end">
@@ -89,13 +80,13 @@
         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
             <p class="text-muted small mb-0">Changing Approved LOP Days away from the Calculated value requires a reason. Employees with zero calculated LOP don't require any selection.</p>
             <div class="d-flex gap-2">
-                <form action="{{ route('payroll.lop.bulk') }}" method="POST" onsubmit="return confirm('Apply LOP to all eligible employees in this filtered list?');">
+                <form action="{{ route('payroll.lop.bulk') }}" method="POST" data-confirm-delete="Apply LOP to all eligible employees in this filtered list?">
                     @csrf
                     <input type="hidden" name="action" value="apply_all">
                     <input type="hidden" name="month" value="{{ $month }}"><input type="hidden" name="year" value="{{ $year }}">
                     <button class="btn btn-sm btn-outline-success"><i class="bi bi-check-all"></i> Apply LOP to All</button>
                 </form>
-                <form action="{{ route('payroll.lop.bulk') }}" method="POST" id="bulkRemoveForm" onsubmit="return confirm('Remove LOP for the selected employees?');">
+                <form action="{{ route('payroll.lop.bulk') }}" method="POST" id="bulkRemoveForm" data-confirm-delete="Remove LOP for the selected employees?">
                     @csrf
                     <input type="hidden" name="action" value="remove_selected">
                     <input type="hidden" name="month" value="{{ $month }}"><input type="hidden" name="year" value="{{ $year }}">

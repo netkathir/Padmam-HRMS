@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title','Salary Slabs')
 @section('page-title','Salary Slabs')
-@section('page-subtitle','Manage CTC salary bands')
+@section('page-subtitle','Manage salary slab PF/ESI/TDS configuration')
 @section('page-actions')
     <a href="{{ route('masters.salary-slabs.create') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Slab</a>
     <a href="{{ route('masters.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Masters</a>
@@ -22,31 +22,27 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Name</th><th>From Salary (₹)</th><th>To Salary (₹)</th><th>Basic (₹)</th><th>Gross (₹)</th><th>CTC (₹)</th><th>TDS%</th><th>PF Emp/Empr%</th><th>ESI Emp/Empr%</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Slab Name</th><th>TDS%</th><th>PF Emp/Empr%</th><th>ESI Emp/Empr%</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($slabs as $slab)
                     <tr>
                         <td>{{ $slabs->firstItem() + $loop->index }}</td>
                         <td>{{ $slab->name }}</td>
-                        <td>₹{{ number_format($slab->min_ctc, 0) }}</td>
-                        <td>₹{{ number_format($slab->max_ctc, 0) }}</td>
-                        <td>₹{{ number_format($slab->basic_salary ?? 0, 0) }}</td>
-                        <td>₹{{ number_format($slab->gross_salary ?? 0, 0) }}</td>
-                        <td>₹{{ number_format($slab->ctc ?? 0, 0) }}</td>
                         <td>{{ $slab->tds_percentage ?? '—' }}</td>
                         <td>{{ $slab->pf_employee_percentage ?? '—' }} / {{ $slab->pf_employer_percentage ?? '—' }}</td>
                         <td>{{ $slab->esi_employee_percentage ?? '—' }} / {{ $slab->esi_employer_percentage ?? '—' }}</td>
                         <td><span class="badge bg-{{ $slab->is_active ? 'success' : 'danger' }}-subtle text-{{ $slab->is_active ? 'success' : 'danger' }}">{{ $slab->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
+                            <a href="{{ route('masters.generic.show', ['module' => 'salary-slabs', 'id' => $slab->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
                             <a href="{{ route('masters.salary-slabs.edit', $slab) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                            <form action="{{ route('masters.salary-slabs.destroy', $slab) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this salary slab?')">
+                            <form action="{{ route('masters.salary-slabs.destroy', $slab) }}" method="POST" class="d-inline" data-confirm-delete="Delete this salary slab?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                             </form>
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="12" class="text-center text-muted py-4">No salary slabs found.</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted py-4">No salary slabs found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

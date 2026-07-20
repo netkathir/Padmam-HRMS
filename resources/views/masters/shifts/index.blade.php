@@ -36,8 +36,9 @@
                         <td><span class="badge bg-{{ $shift->is_overnight ? 'warning' : 'light' }} text-{{ $shift->is_overnight ? 'dark' : 'muted' }}">{{ $shift->is_overnight ? 'Yes' : 'No' }}</span></td>
                         <td><span class="badge bg-{{ $shift->is_active ? 'success' : 'danger' }}-subtle text-{{ $shift->is_active ? 'success' : 'danger' }}">{{ $shift->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
+                            <a href="{{ route('masters.generic.show', ['module' => 'shifts', 'id' => $shift->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
                             <a href="{{ route('masters.shifts.edit', $shift) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                            <form action="{{ route('masters.shifts.destroy', $shift) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this shift?')">
+                            <form action="{{ route('masters.shifts.destroy', $shift) }}" method="POST" class="d-inline" data-confirm-delete="Delete this shift?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                             </form>

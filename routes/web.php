@@ -32,6 +32,9 @@ use App\Http\Controllers\Masters\SalarySlabController;
 use App\Http\Controllers\Masters\OtRateController;
 use App\Http\Controllers\Masters\PfEsiConfigController;
 use App\Http\Controllers\Masters\BankController;
+use App\Http\Controllers\Masters\GenericMasterShowController;
+use App\Http\Controllers\Masters\CheckpointController;
+use App\Http\Controllers\Masters\EmployeeCheckpointController;
 use App\Http\Controllers\RuleEngine\RuleController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\RolePermissionController;
@@ -109,7 +112,6 @@ Route::middleware(['auth', 'force.password.change'])->group(function () {
     Route::get('/salary-slab-breakdown/{salarySlab}', [EmployeeController::class, 'salarySlabBreakdown'])->name('employees.salary-slab-breakdown')->middleware('permission:employees.read');
     Route::get('/employees/{employee}/exit',       [EmployeeController::class, 'exit'])->name('employees.exit')->middleware('permission:employees.read');
     Route::post('/employees/{employee}/exit',      [EmployeeController::class, 'processExit'])->name('employees.exit.store')->middleware('permission:employees.full');
-    Route::post('/employees/{employee}/finalize',  [EmployeeController::class, 'finalize'])->name('employees.finalize')->middleware('permission:employees.full');
 
     // Employee Slab — Employment Information, Bank Information, and
     // Designation & Salary, as one single-step form (not a wizard). Shares
@@ -143,10 +145,6 @@ Route::middleware(['auth', 'force.password.change'])->group(function () {
     Route::post('/attendance/upload/{upload}/mapping',   [AttendanceController::class, 'confirmMapping'])->name('attendance.upload.confirm')->middleware('permission:attendance.create');
     Route::get('/attendance/upload/{upload}/summary',    [AttendanceController::class, 'uploadSummary'])->name('attendance.upload.summary')->middleware('permission:attendance.read');
     Route::get('/attendance/upload/{upload}/errors',     [AttendanceController::class, 'downloadUploadErrors'])->name('attendance.upload.errors')->middleware('permission:attendance.read');
-
-    // 11.3 Attendance Processing
-    Route::get('/attendance/process',            [AttendanceController::class, 'processForm'])->name('attendance.process.form')->middleware('permission:attendance.read');
-    Route::post('/attendance/process',           [AttendanceController::class, 'process'])->name('attendance.process.post')->middleware('permission:attendance.create');
 
     // 11.4 Register actions
     Route::post('/attendance/recalculate-selected', [AttendanceController::class, 'recalculateSelected'])->name('attendance.recalculate-selected')->middleware('permission:attendance.full');
@@ -243,6 +241,11 @@ Route::middleware(['auth', 'force.password.change'])->group(function () {
 
     Route::middleware("permission:{$mastersReadAbilities}")->group(function () {
         Route::get('/masters', [MasterController::class, 'index'])->name('masters.index');
+        // Shared generic "View" screen — one route/controller/Blade view
+        // reused by every Masters module (see GenericMasterShowController).
+        // The controller re-checks the specific module's own .read
+        // permission; this group gate just requires masters access at all.
+        Route::get('/masters/{module}/{id}/view', [GenericMasterShowController::class, 'show'])->name('masters.generic.show')->where('id', '[0-9]+');
     });
 
     // Branch Management is Super-Admin-only by design — gated on role, not on
@@ -341,6 +344,19 @@ Route::middleware(['auth', 'force.password.change'])->group(function () {
         ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_banks.read')
         ->middlewareFor(['store'], 'permission:masters_banks.create')
         ->middlewareFor(['update', 'destroy'], 'permission:masters_banks.full');
+
+    // Biometric Bulk Upload rework — Checkpoint replaces the old free-text
+    // "door" concept; Employee-Checkpoint Mapping records which door-local
+    // ID an employee is registered under at each checkpoint.
+    Route::resource('masters/checkpoints', CheckpointController::class, ['as' => 'masters'])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_checkpoints.read')
+        ->middlewareFor(['store'], 'permission:masters_checkpoints.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_checkpoints.full');
+
+    Route::resource('masters/employee-checkpoints', EmployeeCheckpointController::class, ['as' => 'masters', 'parameters' => ['employee-checkpoints' => 'employeeCheckpoint']])->except('show')
+        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_employee_checkpoints.read')
+        ->middlewareFor(['store'], 'permission:masters_employee_checkpoints.create')
+        ->middlewareFor(['update', 'destroy'], 'permission:masters_employee_checkpoints.full');
 
     // Module 4 — Rule Engine (single screen, category-driven; Employee Number
     // Configuration is not a separate form per the FSD).

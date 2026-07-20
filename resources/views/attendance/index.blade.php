@@ -6,7 +6,6 @@
 
 @section('page-actions')
     <a href="{{ route('attendance.upload.form') }}" class="btn btn-primary btn-sm"><i class="bi bi-upload"></i> Biometric Upload</a>
-    <a href="{{ route('attendance.process.form') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-gear"></i> Process Attendance</a>
     <a href="{{ route('attendance.correction.form') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil-square"></i> Correction</a>
     <a href="{{ route('attendance.mark') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus-lg"></i> Mark Attendance</a>
     <a href="{{ route('attendance.manual') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i> Manual Entry</a>
@@ -14,12 +13,6 @@
 @endsection
 
 @section('content')
-    @if (session('success'))
-        <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    @endif
-    @if (session('warning'))
-        <div class="alert alert-warning alert-dismissible fade show"><i class="bi bi-exclamation-triangle"></i> {{ session('warning') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    @endif
     <div class="card">
         <div class="card-body">
             <form method="GET" class="row g-2 mb-3">
@@ -125,7 +118,7 @@
                 <a href="{{ route('attendance.export.pdf', request()->query()) }}" class="btn btn-sm btn-outline-danger"><i class="bi bi-file-earmark-pdf"></i> Export PDF</a>
             </div>
 
-            <form action="{{ route('attendance.recalculate-selected') }}" method="POST" id="recalcForm">
+            <form action="{{ route('attendance.recalculate-selected') }}" method="POST" id="recalcForm" data-confirm-delete="Recalculate the selected attendance records?">
                 @csrf
                 <div class="table-responsive">
                     <table class="table table-hover table-sm">
@@ -193,7 +186,7 @@
                         </tbody>
                     </table>
                 </div>
-                <button type="submit" class="btn btn-sm btn-outline-primary" onclick="return confirm('Recalculate the selected attendance records?');"><i class="bi bi-arrow-repeat"></i> Recalculate Selected</button>
+                <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Recalculate Selected</button>
             </form>
             <div class="d-flex justify-content-end mt-2">{{ $attendance->links() }}</div>
         </div>

@@ -194,12 +194,10 @@ class StatutoryReportDefinitions
                 key: 'salary-slab-wise-statutory-report',
                 section: 'statutory',
                 title: 'Salary Slab-Wise Statutory Report',
-                description: 'Configured PF/ESI/TDS percentages and wage ceilings per Salary Slab (current master configuration, not a per-payslip figure).',
+                description: 'Configured PF/ESI/TDS percentages per Salary Slab (current master configuration, not a per-payslip figure).',
                 query: fn () => SalarySlab::query(),
                 columns: [
                     ['key' => 'name', 'label' => 'Slab Name', 'path' => 'name'],
-                    ['key' => 'min_ctc', 'label' => 'Min CTC', 'path' => 'min_ctc', 'format' => 'currency'],
-                    ['key' => 'max_ctc', 'label' => 'Max CTC', 'path' => 'max_ctc', 'format' => 'currency'],
                     ['key' => 'pf_employee_pct', 'label' => 'PF Employee %', 'path' => 'pf_employee_percentage'],
                     ['key' => 'pf_employer_pct', 'label' => 'PF Employer %', 'path' => 'pf_employer_percentage'],
                     ['key' => 'esi_employee_pct', 'label' => 'ESI Employee %', 'path' => 'esi_employee_percentage'],
@@ -207,7 +205,7 @@ class StatutoryReportDefinitions
                     ['key' => 'tds_pct', 'label' => 'TDS %', 'path' => 'tds_percentage'],
                     ['key' => 'is_active', 'label' => 'Active', 'path' => 'is_active', 'format' => 'boolean'],
                 ],
-                defaultSort: ['min_ctc', 'asc'],
+                defaultSort: ['name', 'asc'],
             ),
 
             new ReportDefinition(

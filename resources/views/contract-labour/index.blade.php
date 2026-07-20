@@ -87,7 +87,7 @@
                                             <td>
                                                 <form action="{{ route('masters.contractors.labour.remove', [$contractor, $emp]) }}"
                                                       method="POST" class="d-inline"
-                                                      onsubmit="return confirm('Remove {{ $emp->full_name }} from this contractor?')">
+                                                      data-confirm-delete="Remove {{ $emp->full_name }} from this contractor?">
                                                     @csrf @method('DELETE')
                                                     <button class="btn btn-sm btn-outline-danger" title="Remove">
                                                         <i class="bi bi-person-x"></i>

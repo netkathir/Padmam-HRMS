@@ -11,7 +11,7 @@ class SalarySlab extends Model
 
     protected $table = 'salary_slabs';
     protected $fillable = [
-        'name', 'min_ctc', 'max_ctc', 'basic_salary',
+        'name',
         'tds_percentage', 'pf_employee_percentage', 'pf_employer_percentage',
         'esi_employee_percentage', 'esi_employer_percentage',
         'is_active',
@@ -19,9 +19,6 @@ class SalarySlab extends Model
     protected function casts(): array
     {
         return [
-            'min_ctc' => 'decimal:2',
-            'max_ctc' => 'decimal:2',
-            'basic_salary' => 'decimal:2',
             'tds_percentage' => 'decimal:2',
             'pf_employee_percentage' => 'decimal:2',
             'pf_employer_percentage' => 'decimal:2',
@@ -33,93 +30,59 @@ class SalarySlab extends Model
     public function salaryStructures() { return $this->hasMany(EmployeeSalaryStructure::class, 'salary_slab_id'); }
     public function employees() { return $this->hasMany(Employee::class, 'salary_slab_id'); }
 
-    /** Employee Master — "Designation & Salary" is now entirely inherited from this slab's own components. */
-    public function components() { return $this->hasMany(SalarySlabComponent::class, 'salary_slab_id'); }
-
-    /** Slab Name is never manually entered — always derived from its salary range. */
-    public static function generateName(float $minCtc, float $maxCtc): string
-    {
-        return '₹' . number_format($minCtc, 0) . ' - ₹' . number_format($maxCtc, 0);
-    }
-
-    /**
-     * FSD 7.5: "The applicable slab shall be automatically selected during
-     * payroll processing based on the employee's salary" — matched purely by
-     * CTC range now that Applicability (employee type) and Effective Period
-     * were removed from the Salary Slab; $primaryType/$labourType/$date are
-     * kept as accepted (ignored) parameters so existing call sites (e.g.
-     * PayrollController) don't need to change.
-     */
-    public static function findApplicable(float $salary, ?string $primaryType = null, ?string $labourType = null, ?string $date = null): ?self
-    {
-        return static::where('is_active', true)
-            ->where('min_ctc', '<=', $salary)
-            ->where('max_ctc', '>=', $salary)
-            ->first();
-    }
-
-    // ── Computed salary breakdown — the single source of truth an employee
-    // assigned to this slab inherits verbatim (FSD: "no duplicate or manual
-    // salary calculations should exist in the Employee module"). PF is
+    // ── Computed salary breakdown — Basic Salary is entered per-employee
+    // (Employee Slab's Designation & Salary section), never stored on the
+    // slab itself; every figure here is derived from that employee-entered
+    // Basic Salary plus this slab's own PF/ESI/TDS percentages. PF is
     // calculated on Basic Salary, ESI/TDS on Gross — standard convention. ──
 
-    public function getEarningComponentsAttribute()
+    public function grossSalary(float $basicSalary): float
     {
-        return $this->components->where('component_type', 'earning')->values();
+        return round($basicSalary, 2);
     }
 
-    public function getDeductionComponentsAttribute()
+    public function pfEmployee(float $basicSalary): float
     {
-        return $this->components->where('component_type', 'deduction')->values();
+        return round($basicSalary * (float) $this->pf_employee_percentage / 100, 2);
     }
 
-    public function getGrossSalaryAttribute(): float
+    public function pfEmployer(float $basicSalary): float
     {
-        return round((float) $this->basic_salary + $this->earning_components->sum('calculated_amount'), 2);
+        return round($basicSalary * (float) $this->pf_employer_percentage / 100, 2);
     }
 
-    public function getPfEmployeeAttribute(): float
+    public function esiEmployee(float $basicSalary): float
     {
-        return round((float) $this->basic_salary * (float) $this->pf_employee_percentage / 100, 2);
+        return round($this->grossSalary($basicSalary) * (float) $this->esi_employee_percentage / 100, 2);
     }
 
-    public function getPfEmployerAttribute(): float
+    public function esiEmployer(float $basicSalary): float
     {
-        return round((float) $this->basic_salary * (float) $this->pf_employer_percentage / 100, 2);
+        return round($this->grossSalary($basicSalary) * (float) $this->esi_employer_percentage / 100, 2);
     }
 
-    public function getEsiEmployeeAttribute(): float
+    public function tds(float $basicSalary): float
     {
-        return round($this->gross_salary * (float) $this->esi_employee_percentage / 100, 2);
+        return round($this->grossSalary($basicSalary) * (float) $this->tds_percentage / 100, 2);
     }
 
-    public function getEsiEmployerAttribute(): float
+    public function employerContributions(float $basicSalary): float
     {
-        return round($this->gross_salary * (float) $this->esi_employer_percentage / 100, 2);
+        return round($this->pfEmployer($basicSalary) + $this->esiEmployer($basicSalary), 2);
     }
 
-    public function getTdsAttribute(): float
+    public function totalDeductions(float $basicSalary): float
     {
-        return round($this->gross_salary * (float) $this->tds_percentage / 100, 2);
+        return round($this->pfEmployee($basicSalary) + $this->esiEmployee($basicSalary) + $this->tds($basicSalary), 2);
     }
 
-    public function getEmployerContributionsAttribute(): float
+    public function netSalary(float $basicSalary): float
     {
-        return round($this->pf_employer + $this->esi_employer, 2);
+        return round($this->grossSalary($basicSalary) - $this->totalDeductions($basicSalary), 2);
     }
 
-    public function getTotalDeductionsAttribute(): float
+    public function ctc(float $basicSalary): float
     {
-        return round($this->deduction_components->sum('calculated_amount') + $this->pf_employee + $this->esi_employee + $this->tds, 2);
-    }
-
-    public function getNetSalaryAttribute(): float
-    {
-        return round($this->gross_salary - $this->total_deductions, 2);
-    }
-
-    public function getCtcAttribute(): float
-    {
-        return round($this->gross_salary + $this->employer_contributions, 2);
+        return round($this->grossSalary($basicSalary) + $this->employerContributions($basicSalary), 2);
     }
 }

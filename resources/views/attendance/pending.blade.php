@@ -3,9 +3,6 @@
 @section('page-title','Pending Attendance Regularisation')
 @section('page-subtitle','Review and approve employee regularisation requests')
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">

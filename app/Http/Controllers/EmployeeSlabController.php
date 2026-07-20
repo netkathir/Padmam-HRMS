@@ -95,7 +95,7 @@ class EmployeeSlabController extends Controller
         // configuration even if it was edited after this employee's salary
         // was last saved.
         $currentSalaryBreakdown = ($employee->currentSalary && $employee->currentSalary->slab)
-            ? app(EmployeeController::class)->buildSalarySlabBreakdown($employee->currentSalary->slab)
+            ? app(EmployeeController::class)->buildSalarySlabBreakdown($employee->currentSalary->slab, (float) $employee->currentSalary->basic_salary)
             : null;
 
         $formData = app(EmployeeController::class)->formData($employee);

@@ -66,13 +66,17 @@
                                     </span>
                                 </td>
                                 <td>
+                                    <a href="{{ route('masters.generic.show', ['module' => 'branches', 'id' => $branch->id]) }}"
+                                        class="btn btn-sm btn-outline-secondary" title="View">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
                                     <a href="{{ route('masters.branches.edit', $branch) }}"
                                         class="btn btn-sm btn-outline-primary" title="Edit">
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     @if ($branch->is_active)
                                         <form action="{{ route('masters.branches.deactivate', $branch) }}" method="POST"
-                                            class="d-inline" onsubmit="return confirm('Deactivate this branch? Historical data stays available; new transactions will be blocked.')">
+                                            class="d-inline" data-confirm-delete="Deactivate this branch? Historical data stays available; new transactions will be blocked.">
                                             @csrf
                                             <button type="submit" class="btn btn-sm btn-outline-warning" title="Deactivate"><i
                                                     class="bi bi-slash-circle"></i></button>
@@ -86,7 +90,7 @@
                                         </form>
                                     @endif
                                     <form action="{{ route('masters.branches.destroy', $branch) }}" method="POST"
-                                        class="d-inline" onsubmit="return confirm('Delete this branch?')">
+                                        class="d-inline" data-confirm-delete="Delete this branch?">
                                         @csrf @method('DELETE')
                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i
                                                 class="bi bi-trash"></i></button>

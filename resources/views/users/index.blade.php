@@ -287,7 +287,7 @@
                                         </form>
                                     @endif
                                     @if ($user->is_active)
-                                        <form action="{{ route('users.deactivate', $user) }}" method="POST" class="m-0 p-0" onsubmit="return confirm('Deactivate this user?')">
+                                        <form action="{{ route('users.deactivate', $user) }}" method="POST" class="m-0 p-0" data-confirm-delete="Deactivate this user?">
                                             @csrf
                                             <button type="submit" class="um-btn um-btn-edit" title="Deactivate"><i class="bi bi-slash-circle"></i></button>
                                         </form>
@@ -300,7 +300,7 @@
                                 @endif
                                 @if($user->id !== auth()->id())
                                 <form action="{{ route('users.destroy', $user) }}" method="POST"
-                                      onsubmit="return confirm('Delete user \'{{ addslashes($user->name) }}\'?')"
+                                      data-confirm-delete="Delete user '{{ addslashes($user->name) }}'?"
                                       class="m-0 p-0">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="um-btn um-btn-del" title="Delete user">

@@ -12,7 +12,7 @@ class Employee extends Model
     protected $table = 'employees';
 
     protected $fillable = [
-        'employee_code', 'biometric_id', 'branch_id', 'department_id', 'designation_id',
+        'employee_code', 'branch_id', 'department_id', 'designation_id',
         'employee_type_id', 'primary_employee_type', 'labour_type', 'contractor_id',
         'contractor_employee_number', 'work_order_number', 'labour_category', 'contractor_rate', 'contractor_remarks',
         'designation_employee_category', 'designation_employee_type', 'designation_contractor_id',
@@ -24,7 +24,7 @@ class Employee extends Model
         'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship',
         'address_line1', 'address_line2', 'city', 'district', 'state', 'pincode',
         'permanent_address_line1', 'permanent_address_line2', 'permanent_city', 'permanent_district', 'permanent_state', 'permanent_pincode',
-        'date_of_joining', 'date_of_confirmation', 'probation_end_date', 'contract_start_date', 'contract_end_date', 'status', 'is_draft',
+        'date_of_joining', 'date_of_confirmation', 'probation_end_date', 'contract_start_date', 'contract_end_date', 'status',
         'aadhaar_number', 'pan_number', 'uan_number', 'pf_number', 'esi_number',
         'passport_number', 'passport_expiry',
         'profile_photo', 'is_pf_applicable', 'is_esi_applicable', 'is_tds_applicable', 'is_ot_applicable',
@@ -45,7 +45,6 @@ class Employee extends Model
             'is_esi_applicable'      => 'boolean',
             'is_tds_applicable'      => 'boolean',
             'is_ot_applicable'       => 'boolean',
-            'is_draft'               => 'boolean',
             'contractor_rate'        => 'decimal:2',
         ];
     }

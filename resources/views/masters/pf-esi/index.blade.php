@@ -36,8 +36,9 @@
                         <td>₹{{ number_format($config->esi_ceiling, 0) }}</td>
                         <td><span class="badge bg-{{ $config->is_active ? 'success' : 'danger' }}-subtle text-{{ $config->is_active ? 'success' : 'danger' }}">{{ $config->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
+                            <a href="{{ route('masters.generic.show', ['module' => 'pf-esi', 'id' => $config->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
                             <a href="{{ route('masters.pf-esi.edit', $config) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                            <form action="{{ route('masters.pf-esi.destroy', $config) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this PF/ESI config?')">
+                            <form action="{{ route('masters.pf-esi.destroy', $config) }}" method="POST" class="d-inline" data-confirm-delete="Delete this PF/ESI config?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                             </form>

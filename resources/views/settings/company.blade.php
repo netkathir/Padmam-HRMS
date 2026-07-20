@@ -6,9 +6,6 @@
     <a href="{{ route('settings.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Settings</a>
 @endsection
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
 <div class="card">
     <div class="card-body">
         <form action="{{ route('settings.company.update') }}" method="POST" enctype="multipart/form-data">

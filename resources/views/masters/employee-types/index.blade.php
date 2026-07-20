@@ -32,8 +32,9 @@
                         <td>{{ $et->description ?? '—' }}</td>
                         <td><span class="badge bg-{{ $et->is_active ? 'success' : 'danger' }}-subtle text-{{ $et->is_active ? 'success' : 'danger' }}">{{ $et->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
+                            <a href="{{ route('masters.generic.show', ['module' => 'employee-types', 'id' => $et->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
                             <a href="{{ route('masters.employee-types.edit', $et) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                            <form action="{{ route('masters.employee-types.destroy', $et) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this employee type?')">
+                            <form action="{{ route('masters.employee-types.destroy', $et) }}" method="POST" class="d-inline" data-confirm-delete="Delete this employee type?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                             </form>

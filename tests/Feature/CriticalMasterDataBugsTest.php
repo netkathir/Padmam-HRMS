@@ -35,18 +35,15 @@ class CriticalMasterDataBugsTest extends TestCase
         $admin = $this->superAdmin();
 
         $response = $this->actingAs($admin)->post('http://localhost/masters/salary-slabs', [
-            'min_ctc' => 300000, 'max_ctc' => 600000,
+            'name' => 'Band A',
             'tds_percentage' => 0, 'pf_employee_percentage' => 0, 'pf_employer_percentage' => 0,
             'esi_employee_percentage' => 0, 'esi_employer_percentage' => 0,
-            'applicable_employee_types' => ['staff'],
-            'effective_from' => '2026-01-01',
             'is_active' => '1',
         ]);
 
         $response->assertRedirect(route('masters.salary-slabs.index'));
         $this->assertDatabaseHas('salary_slabs', [
-            'name' => SalarySlab::generateName(300000, 600000),
-            'min_ctc' => 300000, 'max_ctc' => 600000,
+            'name' => 'Band A',
         ]);
     }
 

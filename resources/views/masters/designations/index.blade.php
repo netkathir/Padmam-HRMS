@@ -41,8 +41,9 @@
                         <td>{{ $desig->grade ?? '—' }}</td>
                         <td><span class="badge bg-{{ $desig->is_active ? 'success' : 'danger' }}-subtle text-{{ $desig->is_active ? 'success' : 'danger' }}">{{ $desig->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
+                            <a href="{{ route('masters.generic.show', ['module' => 'designations', 'id' => $desig->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
                             <a href="{{ route('masters.designations.edit', $desig) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                            <form action="{{ route('masters.designations.destroy', $desig) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this designation?')">
+                            <form action="{{ route('masters.designations.destroy', $desig) }}" method="POST" class="d-inline" data-confirm-delete="Delete this designation?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                             </form>

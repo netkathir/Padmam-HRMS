@@ -21,8 +21,9 @@
                         <td>{{ $rate->description ?? '—' }}</td>
                         <td><span class="badge bg-{{ $rate->is_active ? 'success' : 'danger' }}-subtle text-{{ $rate->is_active ? 'success' : 'danger' }}">{{ $rate->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
+                            <a href="{{ route('masters.generic.show', ['module' => 'ot-rates', 'id' => $rate->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
                             <a href="{{ route('masters.ot-rates.edit', $rate) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                            <form action="{{ route('masters.ot-rates.destroy', $rate) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this OT rate?')">
+                            <form action="{{ route('masters.ot-rates.destroy', $rate) }}" method="POST" class="d-inline" data-confirm-delete="Delete this OT rate?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                             </form>

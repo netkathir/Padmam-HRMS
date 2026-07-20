@@ -99,7 +99,7 @@
                                 </a>
                                 <form action="{{ route('masters.contractors.workers.destroy', [$contractor, $w]) }}"
                                       method="POST" class="d-inline"
-                                      onsubmit="return confirm('Remove this worker?')">
+                                      data-confirm-delete="Remove this worker?">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-sm btn-outline-danger" title="Remove">
                                         <i class="bi bi-trash"></i>

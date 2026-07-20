@@ -3,9 +3,6 @@
 @section('page-title','Apply for Leave')
 @section('page-subtitle','Submit a new leave request')
 @section('content')
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle"></i> {{ session('success') }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-@endif
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card">

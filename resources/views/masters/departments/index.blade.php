@@ -42,8 +42,9 @@
                         <td>{{ $dept->branch->name ?? '—' }}</td>
                         <td><span class="badge bg-{{ $dept->is_active ? 'success' : 'danger' }}-subtle text-{{ $dept->is_active ? 'success' : 'danger' }}">{{ $dept->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
+                            <a href="{{ route('masters.generic.show', ['module' => 'departments', 'id' => $dept->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
                             <a href="{{ route('masters.departments.edit', $dept) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                            <form action="{{ route('masters.departments.destroy', $dept) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this department?')">
+                            <form action="{{ route('masters.departments.destroy', $dept) }}" method="POST" class="d-inline" data-confirm-delete="Delete this department?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                             </form>

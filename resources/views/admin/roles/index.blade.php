@@ -68,7 +68,7 @@
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 <form action="{{ route('admin.roles.destroy', $role) }}" method="POST"
-                                      onsubmit="return confirm('Delete role \'{{ $role->display_name }}\'?')">
+                                      data-confirm-delete="Delete role '{{ $role->display_name }}'?">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-sm btn-danger" title="Delete">
                                         <i class="bi bi-trash"></i>

@@ -80,7 +80,7 @@
                                         <a href="{{ route('employee-slab.show', $emp) }}" class="btn btn-sm btn-outline-info" title="View"><i class="bi bi-eye"></i></a>
                                         <a href="{{ route('employee-slab.edit', $emp) }}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
                                         @can('employees.full')
-                                        <form action="{{ route('employees.destroy', $emp) }}" method="POST" class="d-inline" onsubmit="return confirm('Remove this employee?');">
+                                        <form action="{{ route('employees.destroy', $emp) }}" method="POST" class="d-inline" data-confirm-delete="Remove this employee?">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
                                         </form>

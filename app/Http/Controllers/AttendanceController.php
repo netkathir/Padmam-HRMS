@@ -14,7 +14,6 @@ use App\Models\Employee;
 use App\Models\EmployeeType;
 use App\Models\Holiday;
 use App\Models\LeaveType;
-use App\Models\Setting;
 use App\Models\Shift;
 use App\Services\BiometricUploadService;
 use App\Support\BranchAdminPermissions;
@@ -280,50 +279,66 @@ class AttendanceController extends Controller
 
     // ── 11.2 Biometric Excel Upload ───────────────────────────────────────
 
+    /**
+     * Straight file-picker upload — no Branch/Period form. Branch is always
+     * the currently active one (Branch Switcher / the user's own branch);
+     * Period is derived silently from the file's own punch times in
+     * upload() below, since this is a bulk dump of raw punches, not
+     * something scoped to a reporting period by the user.
+     */
     public function uploadForm()
     {
-        $currentBranchId = BranchScope::currentBranchId();
-        $branches = $currentBranchId ? Branch::where('id', $currentBranchId)->get() : Branch::active()->orderBy('name')->get();
-        return view('attendance.upload', compact('branches', 'currentBranchId'));
+        return view('attendance.upload', ['upload' => null, 'sheetNames' => [], 'selectedSheet' => null, 'preview' => null]);
     }
 
     public function upload(Request $request, BiometricUploadService $service)
     {
+        $branchId = BranchScope::currentBranch()?->id;
+        abort_unless($branchId, 422, 'Select a branch (via the Branch Switcher) before uploading biometric data.');
+
         $data = $request->validate([
-            'branch_id'   => ['required', 'exists:branches,id'],
-            'period_from' => ['required', 'date'],
-            'period_to'   => ['required', 'date', 'after_or_equal:period_from'],
-            'file'        => ['required', 'file', 'mimes:xls,xlsx'],
-            'remarks'     => ['nullable', 'string', 'max:255'],
+            'file' => ['required', 'file', 'mimes:xls,xlsx,csv,txt'],
         ]);
 
-        BranchScope::assertBranchAccess($data['branch_id']);
-
         $path = $request->file('file')->store('biometric-uploads');
+        $absolutePath = Storage::path($path);
+
+        $sheetNames = $service->sheetNames($absolutePath);
+        $sheetName = $sheetNames[0] ?? null;
+        [$periodFrom, $periodTo] = $sheetName ? $service->derivePeriod($absolutePath, $sheetName) : [null, null];
 
         $upload = BiometricUpload::create([
-            'branch_id'         => $data['branch_id'],
-            'period_from'       => $data['period_from'],
-            'period_to'         => $data['period_to'],
+            'branch_id'         => $branchId,
+            'period_from'       => $periodFrom ?? now()->toDateString(),
+            'period_to'         => $periodTo ?? now()->toDateString(),
             'file_path'         => $path,
             'original_filename' => $request->file('file')->getClientOriginalName(),
-            'remarks'           => $data['remarks'] ?? null,
+            'sheet_name'        => $sheetName,
             'uploaded_by'       => auth()->id(),
             'status'            => 'mapping',
         ]);
 
         // FSD 11.2 — "Users shall be warned before re-uploading data for an
         // already processed period." Non-blocking — upload still proceeds.
-        $alreadyProcessed = Attendance::whereHas('employee', fn($q) => $q->where('branch_id', $data['branch_id']))
-            ->whereBetween('date', [$data['period_from'], $data['period_to']])
+        $alreadyProcessed = $periodFrom && $periodTo && Attendance::whereHas('employee', fn($q) => $q->where('branch_id', $branchId))
+            ->whereBetween('date', [$periodFrom, $periodTo])
             ->exists();
 
-        return redirect()->route('attendance.upload.mapping', $upload)
-            ->with($alreadyProcessed ? 'warning' : 'success', $alreadyProcessed
-                ? 'Attendance already exists for part of this period — re-uploading may create duplicate punches for review.'
-                : 'File uploaded. Confirm the sheet and column mapping below.');
+        if ($alreadyProcessed) {
+            session()->flash('warning', 'Attendance already exists for part of this period — re-uploading may create duplicate punches for review.');
+        }
+
+        return redirect()->route('attendance.upload.mapping', $upload);
     }
 
+    /**
+     * Preview/confirmation popup, shown on top of the same upload page — the
+     * device export's column layout is fixed (Person ID, Name, Department,
+     * Time, Attendance Status, Attendance Check Point, ...), so there's no
+     * column mapping to choose anymore; this just lets the user pick the
+     * sheet (if the workbook has more than one) and confirm before the
+     * actual import runs.
+     */
     public function mappingForm(Request $request, BiometricUpload $upload, BiometricUploadService $service)
     {
         BranchScope::assertBranchAccess($upload->branch_id);
@@ -332,11 +347,13 @@ class AttendanceController extends Controller
         $sheetNames = $service->sheetNames($absolutePath);
         $selectedSheet = $request->input('sheet_name', $upload->sheet_name ?: ($sheetNames[0] ?? null));
 
-        $headerRow = $selectedSheet ? $service->headerRow($absolutePath, $selectedSheet) : [];
-        $defaultLabels = json_decode(Setting::get('attendance', 'default_excel_column_mapping', '{}'), true) ?: [];
-        $guessedMapping = $service->guessMapping($headerRow, $defaultLabels);
+        // Not persisted here — only used in-memory so preview() reads the
+        // sheet the user actually has selected right now; confirmMapping()
+        // is what actually saves this once the user clicks Confirm.
+        $upload->sheet_name = $selectedSheet;
+        $preview = $selectedSheet ? $service->preview($upload) : null;
 
-        return view('attendance.upload-mapping', compact('upload', 'sheetNames', 'selectedSheet', 'headerRow', 'guessedMapping'));
+        return view('attendance.upload', compact('upload', 'sheetNames', 'selectedSheet', 'preview'));
     }
 
     public function confirmMapping(Request $request, BiometricUpload $upload, BiometricUploadService $service)
@@ -345,25 +362,28 @@ class AttendanceController extends Controller
 
         $data = $request->validate([
             'sheet_name' => ['required', 'string'],
-            'mapping'    => ['required', 'array'],
-            'mapping.employee_number' => ['nullable', 'string'],
-            'mapping.biometric_id'    => ['nullable', 'string'],
-            'mapping.punch_date'      => ['required', 'string'],
-            'mapping.punch_time'      => ['required', 'string'],
         ]);
 
-        if (empty($data['mapping']['employee_number']) && empty($data['mapping']['biometric_id'])) {
-            return back()->withErrors(['mapping' => 'Map at least one of Employee Number or Biometric ID.'])->withInput();
-        }
+        $upload->update(['sheet_name' => $data['sheet_name'], 'status' => 'processing']);
 
-        $upload->update(['sheet_name' => $data['sheet_name'], 'column_mapping' => $data['mapping'], 'status' => 'processing']);
-
-        [$counts, $errors] = $service->validateAndImport($upload, $data['mapping']);
+        [$counts, $errors] = $service->validateAndImport($upload);
         $errorFilePath = $service->generateErrorFile($upload, $errors);
 
         $upload->update(array_merge($counts, ['error_file_path' => $errorFilePath, 'status' => 'completed']));
 
-        return redirect()->route('attendance.upload.summary', $upload)->with('success', 'Upload processed.');
+        // No separate "Process Attendance" step anymore — compute daily
+        // Attendance rows immediately, for exactly the employees/dates this
+        // upload actually imported (not the whole branch), using the file's
+        // own date range (period_from/period_to, already derived from its
+        // punch times in upload()).
+        $importedLogs = AttendanceLog::where('biometric_upload_id', $upload->id)->get();
+        if ($importedLogs->isNotEmpty()) {
+            $employees = Employee::whereIn('id', $importedLogs->pluck('employee_id')->unique())->get();
+            $period = \Carbon\CarbonPeriod::create($upload->period_from, $upload->period_to);
+            $this->computeAttendanceForEmployees($employees, $period);
+        }
+
+        return redirect()->route('attendance.upload.summary', $upload)->with('success', 'Upload processed and attendance computed.');
     }
 
     public function uploadSummary(BiometricUpload $upload)
@@ -379,54 +399,31 @@ class AttendanceController extends Controller
         return Storage::download($upload->error_file_path, 'upload-' . $upload->id . '-errors.csv');
     }
 
-    // ── 11.3 Attendance Processing ────────────────────────────────────────
+    // ── 11.3 Attendance Computation ───────────────────────────────────────
+    // There is no separate "Process Attendance" screen/step anymore —
+    // biometric-sourced attendance is computed automatically, right after
+    // Confirm & Save on the upload screen, for exactly the employees/dates
+    // found in that file. computeAttendanceForEmployees() below is the same
+    // per-employee/per-date computation the old manual Process Attendance
+    // screen used to run on demand.
 
-    public function processForm()
+    /**
+     * Computes daily Attendance rows (in/out time, work hours, status,
+     * late/OT) for the given employees across the given period, from
+     * whichever AttendanceLog rows already exist for them. Always
+     * recalculates (biometric upload is the only caller now, and a fresh
+     * upload's own newly-imported logs should always win over whatever was
+     * there before for that date).
+     *
+     * @return array{processed:int, skipped:int}
+     */
+    private function computeAttendanceForEmployees(\Illuminate\Support\Collection $employees, \Carbon\CarbonPeriod $period): array
     {
-        $currentBranchId = BranchScope::currentBranchId();
-        $branches = $currentBranchId ? Branch::where('id', $currentBranchId)->get() : Branch::active()->orderBy('name')->get();
-        $employeeTypes = EmployeeType::where('is_active', true)->get();
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get();
-        $shifts = Shift::where('is_active', true)->get();
-        $canRecalculate = ! BranchScope::isBranchScopedUser() || BranchAdminPermissions::can(auth()->user(), 'attendance', 'process');
-
-        return view('attendance.process', compact('branches', 'currentBranchId', 'employeeTypes', 'contractors', 'shifts', 'canRecalculate'));
-    }
-
-    public function process(Request $request)
-    {
-        $data = $request->validate([
-            'branch_id'             => ['required', 'exists:branches,id'],
-            'period_from'           => ['required', 'date'],
-            'period_to'             => ['required', 'date', 'after_or_equal:period_from'],
-            'employee_type_id'      => ['nullable', 'exists:employee_types,id'],
-            'labour_type'           => ['nullable', 'in:company_labour,contract_labour'],
-            'contractor_id'         => ['nullable', 'exists:contractors,id'],
-            'shift_id'              => ['nullable', 'exists:shifts,id'],
-            'recalculate_existing'  => ['boolean'],
-            'remarks'               => ['nullable', 'string', 'max:255'],
-        ]);
-
-        BranchScope::assertBranchAccess($data['branch_id']);
-        $recalculate = $request->boolean('recalculate_existing');
-
-        // FSD 11.3 — "Attendance recalculation requires permission."
-        if ($recalculate && BranchScope::isBranchScopedUser() && ! BranchAdminPermissions::can(auth()->user(), 'attendance', 'process')) {
-            abort(403, 'You do not have the "Process" permission for Attendance in Branch Administration.');
-        }
-
-        $branch = Branch::find($data['branch_id']);
-        $employees = Employee::where('branch_id', $data['branch_id'])->where('status', 'active')
-            ->when($data['employee_type_id'] ?? null, fn($q, $v) => $q->where('employee_type_id', $v))
-            ->when($data['labour_type'] ?? null, fn($q, $v) => $q->where('labour_type', $v))
-            ->when($data['contractor_id'] ?? null, fn($q, $v) => $q->where('contractor_id', $v))
-            ->when($data['shift_id'] ?? null, fn($q, $v) => $q->where('shift_id', $v))
-            ->get();
-
         $processed = $skipped = 0;
-        $period = \Carbon\CarbonPeriod::create($data['period_from'], $data['period_to']);
 
         foreach ($employees as $employee) {
+            $branch = $employee->branch;
+
             foreach ($period as $date) {
                 $dateStr = $date->toDateString();
 
@@ -436,11 +433,9 @@ class AttendanceController extends Controller
                 if ($exit && $exit->last_working_date && $date->gt($exit->last_working_date)) { $skipped++; continue; }
 
                 $existing = Attendance::where('employee_id', $employee->id)->where('date', $dateStr)->first();
-                if ($existing && ! $recalculate) { $skipped++; continue; }
-
                 $oldValues = $existing ? $existing->toArray() : null;
 
-                $holidayStatus = $this->resolveHolidayOrWeeklyOffStatus($employee, $branch, $date);
+                $holidayStatus = $branch ? $this->resolveHolidayOrWeeklyOffStatus($employee, $branch, $date) : null;
 
                 $attendance = $existing ?: new Attendance(['employee_id' => $employee->id, 'date' => $dateStr]);
                 $attendance->shift_id = $attendance->shift_id ?: $employee->shift_id;
@@ -458,16 +453,23 @@ class AttendanceController extends Controller
                         ->orderBy('punch_time')->get();
 
                     if ($logs->isEmpty()) {
-                        // FSD 11.3 — "shall not be processed without valid
-                        // biometric data unless manual attendance entry is
-                        // permitted" — no punches, nothing to compute; the
-                        // existing manual()/mark() screens remain available.
                         if (! $existing) { $skipped++; }
                         continue;
                     }
 
                     $attendance->in_time  = $logs->first()->punch_time;
                     $attendance->out_time = $logs->count() > 1 ? $logs->last()->punch_time : null;
+
+                    // Biometric Bulk Upload FSD point 5 — "if punch-out
+                    // record is missing, apply the default shift end time."
+                    // Only for a genuinely past day (today's shift may
+                    // simply not be over yet) and only when a shift is
+                    // actually assigned to fall back to.
+                    $shiftForFallback = $attendance->shift_id ? Shift::find($attendance->shift_id) : null;
+                    if (! $attendance->out_time && $shiftForFallback && $date->lt(now()->startOfDay())) {
+                        $attendance->out_time = $date->copy()->setTimeFromTimeString($shiftForFallback->end_time);
+                    }
+
                     $attendance->is_manual_entry = false;
                     $attendance->source = 'biometric';
                     $attendance->biometric_upload_id = $logs->first()->biometric_upload_id;
@@ -475,8 +477,7 @@ class AttendanceController extends Controller
                     // recalculate() only OVERRIDES status when an
                     // AttendanceRule resolves for this employee/date — with
                     // no rule configured it leaves status untouched, so a
-                    // baseline must be set here (unlike mark()/manual(),
-                    // process() has no human-entered status to start from).
+                    // baseline must be set here.
                     $attendance->status = $attendance->out_time ? 'present' : 'missing_punch';
                     $attendance->save();
 
@@ -486,16 +487,15 @@ class AttendanceController extends Controller
 
                 $this->applyDailyLopEligibility($attendance->fresh(), $employee);
 
-                if ($existing && $recalculate) {
-                    AuditLog::write(auth()->id(), 'recalculate', 'attendance', $attendance->id, $oldValues, $attendance->fresh()->toArray(), $employee->branch_id, $data['remarks'] ?? null);
+                if ($existing) {
+                    AuditLog::write(auth()->id(), 'recalculate', 'attendance', $attendance->id, $oldValues, $attendance->fresh()->toArray(), $employee->branch_id, 'Auto-computed from biometric upload');
                 }
 
                 $processed++;
             }
         }
 
-        return redirect()->route('attendance.index', ['from_date' => $data['period_from'], 'to_date' => $data['period_to']])
-            ->with('success', "Attendance processed: {$processed} day(s) computed, {$skipped} skipped.");
+        return ['processed' => $processed, 'skipped' => $skipped];
     }
 
     /** FSD 11.3 — "Apply holiday and weekly off rules" (employee-specific or branch rule). */
@@ -830,7 +830,11 @@ class AttendanceController extends Controller
                     $updates['late_minutes'] = $lateMin;
                     $updates['is_early_exit'] = $earlyMin > 0;
                     $updates['early_exit_minutes'] = $earlyMin;
-                    $updates['ot_minutes'] = max(0, $outMin - $shiftEndMin);
+                    // Biometric Bulk Upload FSD point 4 — "check if OT is
+                    // applicable" before recording it; an employee with
+                    // is_ot_applicable = false never accrues OT minutes,
+                    // regardless of how late they punched out.
+                    $updates['ot_minutes'] = $employee?->is_ot_applicable ? max(0, $outMin - $shiftEndMin) : 0;
                 }
 
                 $workHours = $work / 60;

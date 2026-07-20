@@ -34,8 +34,9 @@
                         <td class="text-center"><i class="bi bi-{{ $lt->is_paid ? 'check-circle-fill text-success' : 'x-circle text-danger' }}"></i></td>
                         <td><span class="badge bg-{{ $lt->is_active ? 'success' : 'danger' }}-subtle text-{{ $lt->is_active ? 'success' : 'danger' }}">{{ $lt->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
+                            <a href="{{ route('masters.generic.show', ['module' => 'leave-types', 'id' => $lt->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
                             <a href="{{ route('masters.leave-types.edit', $lt) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                            <form action="{{ route('masters.leave-types.destroy', $lt) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this leave type?')">
+                            <form action="{{ route('masters.leave-types.destroy', $lt) }}" method="POST" class="d-inline" data-confirm-delete="Delete this leave type?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                             </form>

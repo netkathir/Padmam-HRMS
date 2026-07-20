@@ -360,6 +360,8 @@
     $isDashboard = request()->routeIs('dashboard');
     $isBranchDashboard = request()->routeIs('dashboard.branch');
     $isEmployees = request()->routeIs('employees.*');
+    $isEmployeeSlab = request()->routeIs('employee-slab.*');
+    $isEmployeeDocument = request()->routeIs('employee-document.*');
     $isAttendance = request()->routeIs('attendance.*');
     $isLeaves = request()->routeIs('leaves.*');
     $isPayroll = request()->routeIs('payroll.*');
@@ -713,7 +715,15 @@ $showBranchAdmin =
             <div class="sb-section-label"><i class="bi bi-people-fill"></i> People</div>
             <a href="{{ route('employees.index') }}" class="sb-link {{ $isEmployees ? 'active' : '' }}">
                 <i class="bi bi-person-vcard"></i>
-                <span>Employees</span>
+                <span>Create Employee</span>
+            </a>
+            <a href="{{ route('employee-slab.index') }}" class="sb-link {{ $isEmployeeSlab ? 'active' : '' }}">
+                <i class="bi bi-layers"></i>
+                <span>Employee Slab</span>
+            </a>
+            <a href="{{ route('employee-document.index') }}" class="sb-link {{ $isEmployeeDocument ? 'active' : '' }}">
+                <i class="bi bi-file-earmark-text"></i>
+                <span>Employee Document</span>
             </a>
         @endif
 

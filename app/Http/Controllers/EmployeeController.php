@@ -63,15 +63,9 @@ class EmployeeController extends Controller
 
     public function create()
     {
-        $activeTab = 1;
-        // Tabs 8-10 (Bank/Salary/Documents) are directly fillable on Create
-        // too, so this needs the same reference data edit() already passes
-        // for those tabs.
-        $salarySlabs = \App\Models\SalarySlab::where('is_active', true)->get();
+        $activeTab = 2;
 
-        return view('employees.create', $this->formData() + compact(
-            'activeTab', 'salarySlabs'
-        ));
+        return view('employees.create', $this->formData() + compact('activeTab'));
     }
 
     /**
@@ -149,7 +143,7 @@ class EmployeeController extends Controller
      * to null) to regenerate a fresh candidate if the first one collides at
      * insert time.
      */
-    private function resolveEmployeeCode(array $data, string $primaryType, ?string $labourType): ?string
+    private function resolveEmployeeCode(array $data, ?string $primaryType, ?string $labourType): ?string
     {
         $generator = app(EmployeeNumberGenerator::class);
         // Contractor-wise numbering: resolved using the contractor now
@@ -216,6 +210,38 @@ class EmployeeController extends Controller
     }
 
     /**
+     * users.username (and users.name — FSD 15.1, "User Name... unique") are
+     * both NOT NULL/unique with nothing else in this "Create Login User"
+     * flow ever populating them. Derives a username from the email's local
+     * part (before the @), appending a numeric suffix until it's unique.
+     */
+    private function generateUniqueUsername(string $email): string
+    {
+        $base = \Illuminate\Support\Str::slug(explode('@', $email)[0], '.') ?: 'user';
+
+        return $this->makeUnique($base, 'username');
+    }
+
+    /** users.name is also unique (FSD 15.1) — two employees can share a full name, so this needs the same disambiguation. */
+    private function generateUniqueDisplayName(string $fullName): string
+    {
+        return $this->makeUnique($fullName ?: 'User', 'name');
+    }
+
+    /** Appends a numeric suffix to $base until no users row has that value in $column. */
+    private function makeUnique(string $base, string $column): string
+    {
+        $value = $base;
+        $suffix = 1;
+
+        while (User::where($column, $value)->exists()) {
+            $value = $base . ' ' . $suffix++;
+        }
+
+        return $value;
+    }
+
+    /**
      * Creates the employee (and its login user, if requested) in a
      * transaction. The row lock in generateDefaultEmployeeCode()/the
      * Rule Engine's own counter lock make a collision here unlikely but not
@@ -223,7 +249,7 @@ class EmployeeController extends Controller
      * if employee_code was auto-generated and this still collides, a fresh
      * code is generated and the insert is retried.
      */
-    private function createEmployeeWithRetry(array $data, Request $request, bool $codeWasGenerated, string $primaryType, ?string $labourType): Employee
+    private function createEmployeeWithRetry(array $data, Request $request, bool $codeWasGenerated, ?string $primaryType, ?string $labourType): Employee
     {
         for ($attempt = 1; $attempt <= 5; $attempt++) {
             try {
@@ -233,7 +259,8 @@ class EmployeeController extends Controller
                     // Create login user if email provided
                     if ($request->filled('official_email') && $request->boolean('create_user')) {
                         User::create([
-                            'name'        => $emp->full_name,
+                            'name'        => $this->generateUniqueDisplayName($emp->full_name),
+                            'username'    => $this->generateUniqueUsername($emp->official_email),
                             'email'       => $emp->official_email,
                             'password'    => Hash::make('Welcome@' . now()->year),
                             'role_id'     => $request->input('role_id', 2),
@@ -332,7 +359,7 @@ class EmployeeController extends Controller
      */
     private function assertContractorForLabour(array $data): void
     {
-        if ($data['employee_category'] !== 'contract_labour') {
+        if (($data['employee_category'] ?? null) !== 'contract_labour') {
             return;
         }
 
@@ -411,6 +438,11 @@ class EmployeeController extends Controller
         unset($data['designation']);
         $data['created_by'] = auth()->id();
         $data['is_draft'] = $isDraft;
+        // Create Employee (Steps 1-3) no longer shows a Status field — it's
+        // set on the Employee Slab's Employment Information section instead.
+        if (empty($data['status'])) {
+            $data['status'] = 'active';
+        }
         $data = BranchScope::stampBranchId($data);
         BranchScope::assertBranchIsActive($data['branch_id']);
 
@@ -423,18 +455,23 @@ class EmployeeController extends Controller
         $data = $this->stripUnauthorizedRuleOverrides($data);
         $data = $this->stripUnauthorizedContractorRate($data);
 
+        // Create Employee (Steps 1-3) no longer collects Employee Category —
+        // that's filled in later via Employee Slab, which is what actually
+        // resolves the Employee Code (it requires a category to pick a
+        // numbering rule). Skip code generation entirely until then.
         $submittedCode = $data['employee_code'] ?? null;
-        $primaryType = $data['employee_category'] === 'staff' ? 'staff' : 'labour';
-        $labourType = self::LABOUR_TYPE_MAP[$data['employee_category']];
-        $data = $this->applyEmployeeNumberRule($data);
-        $codeWasGenerated = ($data['employee_code'] ?? null) !== $submittedCode;
+        $codeWasGenerated = false;
+        $primaryType = null;
+        $labourType = null;
+        if (! empty($data['employee_category'])) {
+            $primaryType = $data['employee_category'] === 'staff' ? 'staff' : 'labour';
+            $labourType = self::LABOUR_TYPE_MAP[$data['employee_category']];
+            $data = $this->applyEmployeeNumberRule($data);
+            $codeWasGenerated = ($data['employee_code'] ?? null) !== $submittedCode;
+        }
         unset($data['employee_category']);
 
-        if (empty($data['employee_code'])) {
-            return back()->withErrors(['employee_code' => 'Employee Code is required (no numbering rule is configured for this employee category).'])->withInput();
-        }
-
-        $this->assertDepartmentBelongsToBranch($data['department_id'], $data['branch_id']);
+        $this->assertDepartmentBelongsToBranch($data['department_id'] ?? null, $data['branch_id']);
         $this->assertDesignationBelongsToBranch($data['designation_id'] ?? null, $data['branch_id']);
         $this->assertDepartmentIsActive($data['department_id'] ?? null);
 
@@ -448,52 +485,19 @@ class EmployeeController extends Controller
 
         $employee = $this->createEmployeeWithRetry($data, $request, $codeWasGenerated, $primaryType, $labourType);
 
-        // FSD — Tabs 8-10 (Bank/Salary/Documents) are directly clickable and
-        // fillable on the Create wizard too, even though the employee itself
-        // is only created right here; each section is entirely optional
-        // (the user may leave any of them for later from Edit) and is
-        // processed with the exact same validation/persistence the
-        // standalone Tab 8/9/10 routes use.
-        // (Payment Mode was removed from this section — gate on whichever
-        // bank-identifying field the user actually filled in instead.)
-        if ($request->filled('bank_details.bank_id') || $request->filled('bank_details.bank_name') || $request->filled('bank_details.account_number')) {
-            $bankData = $request->validate($this->prefixRules('bank_details', $this->bankDetailRules()), [
-                'bank_details.ifsc_code.regex' => 'The IFSC code format is invalid (e.g. HDFC0001234).',
-                'bank_details.account_number_confirmation.same' => 'Account Number and Confirm Account Number must match.',
-            ])['bank_details'];
-            unset($bankData['account_number_confirmation']);
-            $employee->bankDetails()->create($bankData);
-        }
-        if ($request->filled('salary.salary_slab_id')) {
-            $salaryData = $request->validate($this->prefixRules('salary', $this->salaryRules()))['salary'];
-            $this->saveSalaryStructure($employee, $salaryData);
-        }
-        if ($request->has('documents')) {
-            $this->saveDocumentRows($employee, $this->documentRows($request));
-        }
-
         if ($isDraft) {
-            return redirect()->route('employees.edit', $employee)
-                ->with('success', 'Employee saved as draft. You can continue registration anytime from Edit.');
+            return redirect()->route('employees.index')
+                ->with('success', 'Employee saved as draft. Continue with Employee Slab and Employee Document whenever ready.');
         }
 
-        // Reaching this via the final tab's "Save Employee" button (clicked
-        // before Bank/Salary/Documents could exist yet, since the employee
-        // itself didn't) — the employee is now fully created, nothing left
-        // to finalize, go straight to the profile.
-        if ($request->boolean('finish')) {
-            return redirect()->route('employees.show', $employee)
-                ->with('success', 'Employee registered successfully.');
-        }
-
-        // Tabs 1-7 are complete — continue the wizard into whichever tab the
-        // user actually clicked (Tab 7's own "Save & Next", or directly
-        // clicking a Tab 8/9/10 header/action before the employee existed
-        // yet), now that it has a real id. Defaults to Tab 8 (Bank
-        // Information) for any caller that doesn't specify one.
-        $nextTab = (int) $request->input('next_tab', 8);
-        return redirect()->route('employees.edit', ['employee' => $employee, 'tab' => $nextTab])
-            ->with('success', 'Employee details saved. Continue with Bank, Salary, and Documents.');
+        // People Module Update — Create Employee now covers only Steps 1-3
+        // (Personal/Contact/Address). Employment Information, Bank Details,
+        // Designation & Salary, and Documents are filled in afterwards via
+        // the separate Employee Slab / Employee Document modules — so this
+        // always returns to the Create Employee list, never continues into
+        // a further tab.
+        return redirect()->route('employees.index')
+            ->with('success', 'Employee registered. Continue with Employee Slab to add Employment, Bank, and Salary details.');
     }
 
     public function show(Employee $employee)
@@ -517,30 +521,14 @@ class EmployeeController extends Controller
     public function edit(Employee $employee, Request $request)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
-        // Tab 1 (Employee Classification) was removed — the wizard now
-        // opens on Tab 2 (Personal Information) by default.
+        // Employment Information, Bank Information, Designation & Salary,
+        // and Employee Documents moved to the separate Employee Slab /
+        // Employee Document modules — this wizard only ever shows Steps
+        // 1-3 (Personal/Contact/Address) now.
         $activeTab = (int) $request->input('tab', 2);
-        $employee->load(['documents', 'bankDetails.bank', 'currentSalary.components']);
-
-        // Tabs 8-10 (Bank/Salary/Documents) live in the same wizard shell —
-        // the extra data the standalone salary()/documents() actions expose
-        // is folded in here too, so those tabs don't need a separate page load.
-        $mandatoryDocTypes = json_decode(Setting::get('employee', 'mandatory_document_types', '[]'), true) ?: [];
-        $missingMandatoryDocs = array_diff($mandatoryDocTypes, $employee->documents->pluck('document_type')->all());
-        $salarySlabs = \App\Models\SalarySlab::where('is_active', true)->get();
-        $salaryHistory = $employee->salaryHistory()->with('slab')->get();
-
-        // Always read from the Salary Slab currently assigned to the
-        // employee's salary record — never from the historical snapshot's
-        // own stored figures — so the tab shows the slab's ACTUAL current
-        // configuration even if it was edited after this employee's salary
-        // was last saved.
-        $currentSalaryBreakdown = ($employee->currentSalary && $employee->currentSalary->slab)
-            ? $this->buildSalarySlabBreakdown($employee->currentSalary->slab)
-            : null;
 
         return view('employees.edit', array_merge(
-            compact('employee', 'activeTab', 'missingMandatoryDocs', 'salarySlabs', 'salaryHistory', 'currentSalaryBreakdown'),
+            compact('employee', 'activeTab'),
             $this->formData($employee)
         ));
     }
@@ -583,12 +571,34 @@ class EmployeeController extends Controller
             $data['profile_photo'] = $request->file('profile_photo')->store('employee-photos', 'public');
         }
 
-        $category = $data['employee_category'];
-        $data['primary_employee_type'] = $category === 'staff' ? 'staff' : 'labour';
-        $data['labour_type'] = self::LABOUR_TYPE_MAP[$category];
+        // Create Employee's own edit form (Steps 1-3 only) no longer submits
+        // employee_category — that's set via Employee Slab instead. Only
+        // recompute the derived classification columns when a category was
+        // actually submitted (Employee Slab's Employment Information step).
+        if (! empty($data['employee_category'])) {
+            $category = $data['employee_category'];
+            $data['primary_employee_type'] = $category === 'staff' ? 'staff' : 'labour';
+            $data['labour_type'] = self::LABOUR_TYPE_MAP[$category];
+        }
         unset($data['employee_category']);
 
         $employee->update($data);
+
+        // Employee Slab's Employment Information section — "Create Login
+        // User" (moved here from the old Step 5, since Employment
+        // Information itself moved). Only creates one if the employee
+        // doesn't already have a linked user account.
+        if (! $isDraft && $request->boolean('create_user') && $employee->official_email && ! $employee->user) {
+            User::create([
+                'name'        => $this->generateUniqueDisplayName($employee->full_name),
+                'username'    => $this->generateUniqueUsername($employee->official_email),
+                'email'       => $employee->official_email,
+                'password'    => Hash::make('Welcome@' . now()->year),
+                'role_id'     => $request->input('role_id', 2),
+                'employee_id' => $employee->id,
+                'is_active'   => true,
+            ]);
+        }
 
         if ($isDraft) {
             return redirect()->route('employees.edit', $employee)
@@ -598,6 +608,14 @@ class EmployeeController extends Controller
         if ($request->filled('next_tab')) {
             return redirect()->route('employees.edit', ['employee' => $employee, 'tab' => $request->input('next_tab')])
                 ->with('success', 'Saved. Continue to the next section.');
+        }
+
+        // Employee Slab's own Employment Information form submits
+        // employee_category (Create Employee's Steps 1-3 edit form never
+        // does) — route it back to the Employee Slab screen it came from,
+        // not the Create Employee profile page.
+        if ($request->filled('employee_category')) {
+            return redirect()->route('employee-slab.edit', $employee)->with('success', 'Employment Information saved.');
         }
 
         return redirect()->route('employees.show', $employee)->with('success', 'Employee updated.');
@@ -890,7 +908,8 @@ class EmployeeController extends Controller
      * edited after an employee's salary was last saved (the Slab is always
      * the single source of truth, never a snapshot recalculation).
      */
-    private function buildSalarySlabBreakdown(\App\Models\SalarySlab $salarySlab): array
+    /** Public — also called by EmployeeSlabController for its single-step Designation & Salary section. */
+    public function buildSalarySlabBreakdown(\App\Models\SalarySlab $salarySlab): array
     {
         $salarySlab->load('components');
 
@@ -933,32 +952,27 @@ class EmployeeController extends Controller
         $data = $request->validate($this->salaryRules());
         $this->saveSalaryStructure($employee, $data);
 
-        // Biometric ID and the PF/ESI/TDS/OT applicability checkboxes now
-        // live on this same Designation & Salary tab (moved off the removed
-        // Employee Classification/Statutory Information tabs) — this is a
-        // standalone route/form on Edit (unlike Create, where they're part
-        // of the one combined Tabs-1-10 submission and already handled by
-        // the main rules()/store()), so they need their own validation and
-        // Employee-record update here.
+        // PF/ESI/TDS/OT applicability checkboxes live on this same
+        // Designation & Salary section — validated separately from
+        // salaryRules() since this is its own standalone form/route.
+        // Biometric ID itself is captured on Step 1 (Personal Information)
+        // and never resubmitted here (People Module Update) — it must NOT
+        // be required again, or this section can never be saved without
+        // re-entering it a second time.
         $extra = $request->validate($this->employeeTabExtraRules());
-        $this->assertBiometricIdUnique($extra['biometric_id'] ?? null, $employee->branch_id, $employee->id);
         $employee->update($extra);
 
         return $this->redirectAfterTabAction($employee, $request, 'Salary structure saved.');
     }
 
     /**
-     * Biometric ID (required, always manually entered — never
-     * auto-generated) and the PF/ESI/TDS/OT applicability checkboxes,
-     * relocated onto the Designation & Salary tab. Validated separately
-     * from salaryRules() since — on Edit — this tab is its own standalone
-     * form/route, distinct from the Tabs-1-7 form these fields used to
-     * belong to.
+     * PF/ESI/TDS/OT applicability checkboxes, saved from the Designation &
+     * Salary section. Validated separately from salaryRules() since this is
+     * its own standalone form/route.
      */
     private function employeeTabExtraRules(): array
     {
         return [
-            'biometric_id'      => ['required', 'string', 'max:50'],
             'is_pf_applicable'  => ['boolean'],
             'is_esi_applicable' => ['boolean'],
             'is_tds_applicable' => ['boolean'],
@@ -1170,7 +1184,8 @@ class EmployeeController extends Controller
         return Designation::firstOrCreate(['name' => $name], ['is_active' => true])->id;
     }
 
-    private function formData(?Employee $employee = null): array
+    /** Public — also called by EmployeeSlabController for its single-step form's reference data. */
+    public function formData(?Employee $employee = null): array
     {
         $currentBranchId = BranchScope::currentBranchId();
 
@@ -1266,10 +1281,21 @@ class EmployeeController extends Controller
         return $rules;
     }
 
-    private function rules(int $excludeId = 0, bool $isDraft = false): array
+    /**
+     * People Module Update — Create Employee (Steps 1-3: Personal/Contact/
+     * Address) no longer collects Employment Information; those fields
+     * (Department, Designation, Employee Type, Employee Category, Date of
+     * Joining) are now filled in later via the separate Employee Slab
+     * module. Passing $forSlab=true (used by EmployeeSlabController)
+     * restores the original `required` rules for exactly those fields;
+     * Create Employee itself always validates with $forSlab=false, leaving
+     * them nullable so a Steps-1-3-only submission is a valid row.
+     */
+    private function rules(int $excludeId = 0, bool $isDraft = false, bool $forSlab = false): array
     {
         $minAge = (int) Setting::get('employee', 'min_working_age', 18);
         $nameRegex = 'regex:/^[a-zA-Z .\'-]+$/';
+        $classificationRequired = $forSlab ? 'required' : 'nullable';
 
         $rules = [
             'first_name'       => ['required', 'string', 'max:100', $nameRegex],
@@ -1292,17 +1318,23 @@ class EmployeeController extends Controller
                     ->where(fn ($query) => $query->where('branch_id', BranchScope::currentBranchId() ?? request()->input('branch_id')))
                     ->ignore($excludeId),
             ],
+            // Biometric ID now lives on Step 1 (Personal Information) of
+            // Create Employee, next to Religion — always required there.
             'biometric_id'     => ['required', 'string', 'max:50'],
-            'employee_category' => ['required', 'in:staff,company_labour,contract_labour'],
+            // Employment Information (Employee Category/Department/
+            // Designation/Employee Type/Date of Joining) moved to the
+            // Employee Slab module — required there ($forSlab), nullable on
+            // Create Employee's own Steps 1-3.
+            'employee_category' => [$classificationRequired, 'in:staff,company_labour,contract_labour'],
             'branch_id'        => ['required', 'exists:branches,id'],
-            'department_id'    => ['required', 'exists:departments,id'],
+            'department_id'    => [$classificationRequired, 'exists:departments,id'],
             // Designation is no longer picked from the Masters module — the
             // user types it directly; resolveDesignationId() resolves it to
             // (or creates) the matching Designation record right after
             // validation, in both store() and update().
-            'designation'      => ['required', 'string', 'max:100'],
-            'employee_type_id' => ['required', 'exists:employee_types,id'],
-            'date_of_joining'  => ['required', 'date'],
+            'designation'      => [$classificationRequired, 'string', 'max:100'],
+            'employee_type_id' => [$classificationRequired, 'exists:employee_types,id'],
+            'date_of_joining'  => [$classificationRequired, 'date'],
             'date_of_confirmation' => ['nullable', 'date', 'after_or_equal:date_of_joining'],
             'probation_end_date'   => ['nullable', 'date', 'after:date_of_joining'],
             'contract_start_date'  => ['required_if:employee_category,contract_labour', 'nullable', 'date'],
@@ -1318,7 +1350,10 @@ class EmployeeController extends Controller
             'official_email'   => ['required', 'email', 'max:255', 'unique:employees,official_email,' . $excludeId],
             'phone'            => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
             'alternate_phone'  => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
-            'status'           => ['required', 'in:active,inactive,probation,terminated,resigned,retired'],
+            // Status now lives on the Employee Slab's Employment Information
+            // section, not Create Employee's own Steps 1-3 — nullable there
+            // (store() defaults it to 'active'), required for Employee Slab.
+            'status'           => [$classificationRequired, 'in:active,inactive,probation,terminated,resigned,retired'],
             'shift_id'         => ['nullable', 'exists:shifts,id'],
             'weekly_off_rule_id'  => ['nullable', 'exists:rules,id'],
             'attendance_rule_id'  => ['nullable', 'exists:rules,id'],

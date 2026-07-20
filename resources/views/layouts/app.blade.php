@@ -126,9 +126,15 @@
             <div class="d-flex align-items-center justify-content-between mb-4">
                 <div class="d-flex align-items-center gap-3">
                     @unless(Route::is('dashboard'))
+                    @hasSection('back-url')
+                    <a href="@yield('back-url')" class="btn-back" title="Go back">
+                        <i class="bi bi-arrow-left-short"></i> Back
+                    </a>
+                    @else
                     <button type="button" class="btn-back" onclick="history.back()" title="Go back">
                         <i class="bi bi-arrow-left-short"></i> Back
                     </button>
+                    @endif
                     @endunless
                     <div>
                         <h1 class="page-title">@yield('page-title')</h1>

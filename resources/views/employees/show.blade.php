@@ -3,13 +3,14 @@
 @section('title', $employee->full_name)
 @section('page-title', $employee->full_name)
 @section('page-subtitle', 'Employee #' . $employee->employee_code)
+@section('back-url', route('employees.index'))
 
 @section('page-actions')
     <a href="{{ route('employees.edit', $employee) }}" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i> Edit</a>
-    <a href="{{ route('employees.edit', ['employee' => $employee, 'tab' => 9]) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-cash"></i>
-        Designation &amp; Salary</a>
-    <a href="{{ route('employees.edit', ['employee' => $employee, 'tab' => 10]) }}" class="btn btn-outline-info btn-sm"><i class="bi bi-file-text"></i>
-        Documents</a>
+    <a href="{{ route('employee-slab.show', $employee) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-layers"></i>
+        Employee Slab</a>
+    <a href="{{ route('employee-document.show', $employee) }}" class="btn btn-outline-info btn-sm"><i class="bi bi-file-text"></i>
+        Employee Document</a>
     <a href="{{ route('employees.exit', $employee) }}" class="btn btn-outline-danger btn-sm"><i
             class="bi bi-box-arrow-right"></i> Exit</a>
 @endsection
@@ -37,10 +38,10 @@
             <div class="card mt-3">
                 <div class="card-header">Quick Links</div>
                 <div class="list-group list-group-flush">
-                    <a href="{{ route('employees.edit', ['employee' => $employee, 'tab' => 9]) }}" class="list-group-item list-group-item-action"><i
-                            class="bi bi-cash me-2"></i>Designation &amp; Salary</a>
-                    <a href="{{ route('employees.edit', ['employee' => $employee, 'tab' => 10]) }}"
-                        class="list-group-item list-group-item-action"><i class="bi bi-file-text me-2"></i>Documents</a>
+                    <a href="{{ route('employee-slab.show', $employee) }}" class="list-group-item list-group-item-action"><i
+                            class="bi bi-layers me-2"></i>Employee Slab</a>
+                    <a href="{{ route('employee-document.show', $employee) }}"
+                        class="list-group-item list-group-item-action"><i class="bi bi-file-text me-2"></i>Employee Document</a>
                     <a href="{{ route('employees.exit', $employee) }}" class="list-group-item list-group-item-action"><i
                             class="bi bi-box-arrow-right me-2"></i>Exit Management</a>
                 </div>
@@ -59,6 +60,7 @@
                         <div class="col-sm-6"><strong>Marital Status:</strong>
                             {{ ucfirst($employee->marital_status ?? '—') }}</div>
                         <div class="col-sm-6"><strong>Blood Group:</strong> {{ $employee->blood_group ?? '—' }}</div>
+                        <div class="col-sm-6"><strong>Biometric ID:</strong> {{ $employee->biometric_id ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Personal Email:</strong> {{ $employee->personal_email ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Official Email:</strong> {{ $employee->official_email ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Phone:</strong> {{ $employee->phone ?? '—' }}</div>

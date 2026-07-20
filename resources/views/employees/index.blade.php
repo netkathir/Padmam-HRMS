@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
-@section('title', 'Employees')
-@section('page-title', 'Employees')
+@section('title', 'Create Employee')
+@section('page-title', 'Create Employee')
 @section('page-subtitle', 'Manage all employees')
 
 @section('page-actions')

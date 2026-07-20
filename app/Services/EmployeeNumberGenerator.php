@@ -6,9 +6,13 @@ use App\Models\Branch;
 use App\Models\CompanyProfile;
 use App\Models\Contractor;
 use App\Models\BusinessRule;
+use App\Models\Employee;
+use App\Models\EmployeeType;
 use App\Models\RuleSequenceCounter;
 use App\Support\RuleEngine;
+use App\Support\SequentialCodeGenerator;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -156,5 +160,75 @@ class EmployeeNumberGenerator
         $parts[] = str_pad((string) $sequence, $detail->sequence_length, '0', STR_PAD_LEFT);
 
         return implode($detail->separator ?: '-', array_filter($parts, fn($p) => $p !== null && $p !== ''));
+    }
+
+    /**
+     * Decides the Employee Code to use for a new/updated employee: the
+     * applicable Employee Number Rule's generated value (unless manual
+     * override is both permitted and provided), or — when no rule is
+     * configured — the Employee-Type-prefixed default sequence. Shared by
+     * EmployeeController (employee creation and Employee Slab save) and the
+     * employees:backfill-codes command, so every caller follows the exact
+     * same resolution order.
+     */
+    public function resolveEmployeeCode(array $data, ?string $primaryType, ?string $labourType): ?string
+    {
+        $rule = $this->resolveRule($primaryType, $labourType, $data['branch_id'] ?? null, $data['contractor_id'] ?? null);
+
+        if ($rule) {
+            $detail = $rule->employeeNumberRule;
+            $canManuallyOverride = $detail->allow_manual_override && auth()->check() && auth()->user()->can('rule_engine.full');
+            if (! $canManuallyOverride || empty($data['employee_code'])) {
+                return $this->generate($rule, $data['branch_id'] ?? null, $data['contractor_id'] ?? null);
+            }
+            return $data['employee_code'] ?? null;
+        }
+
+        return ($data['employee_code'] ?? null) ?: $this->generateDefaultCode($data['employee_type_id'] ?? null);
+    }
+
+    /**
+     * Default Employee Code generator used when no Employee Number Rule is
+     * configured — prefixed with the first two letters of the selected
+     * Employee Type's name (e.g. "Permanent" -> "PE0001", "PE0002"...; a
+     * generic "EMP" prefix when even the Employee Type isn't known yet),
+     * continuing sequentially across every branch that has ever used that
+     * same prefix. A row lock on the latest matching employee serializes
+     * concurrent creations under the same prefix; the retry loop is a
+     * defensive fallback against the rare duplicate-key race the lock
+     * doesn't cover — the composite unique index on (branch_id,
+     * employee_code) is the actual guarantee.
+     */
+    public function generateDefaultCode(?int $employeeTypeId): string
+    {
+        $prefix = $this->typePrefix($employeeTypeId);
+
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            try {
+                return DB::transaction(function () use ($prefix) {
+                    $lastCode = Employee::where('employee_code', 'like', $prefix . '%')
+                        ->orderByDesc('id')
+                        ->lockForUpdate()
+                        ->value('employee_code');
+
+                    return SequentialCodeGenerator::next($lastCode, $prefix . '0001');
+                });
+            } catch (QueryException $e) {
+                $isDuplicate = (string) $e->getCode() === '23000';
+                if (! $isDuplicate || $attempt === 5) {
+                    throw $e;
+                }
+            }
+        }
+
+        throw new \RuntimeException('Unable to generate a unique Employee Code after several attempts.');
+    }
+
+    /** First two letters of the selected Employee Type's own name, uppercased — or "EMP" when no type is known yet. */
+    public function typePrefix(?int $employeeTypeId): string
+    {
+        $name = $employeeTypeId ? EmployeeType::find($employeeTypeId)?->name : null;
+
+        return $name ? strtoupper(substr($name, 0, 2)) : 'EMP';
     }
 }

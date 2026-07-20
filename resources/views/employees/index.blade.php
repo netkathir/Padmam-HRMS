@@ -61,11 +61,7 @@
                             <th>#</th>
                             <th>Code</th>
                             <th>Name</th>
-                            <th>Department</th>
-                            <th>Designation</th>
-                            <th>Category / Type</th>
                             <th>Branch</th>
-                            <th>Type</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -80,20 +76,7 @@
                                         {{ $emp->full_name }}
                                     </a>
                                 </td>
-                                <td>{{ $emp->department->name ?? '—' }}</td>
-                                <td>{{ $emp->designation->name ?? '—' }}</td>
-                                <td>
-                                    @if ($emp->designation_employee_category)
-                                        {{ ucfirst($emp->designation_employee_category) }} · {{ $emp->designation_employee_type_label ?? '—' }}
-                                        @if ($emp->designationContractor)
-                                            <div class="text-muted small">{{ $emp->designationContractor->name }}</div>
-                                        @endif
-                                    @else
-                                        —
-                                    @endif
-                                </td>
                                 <td>{{ $emp->branch->name ?? '—' }}</td>
-                                <td>{{ $emp->employeeType->name ?? '—' }}</td>
                                 <td>
                                     @php $colors = ['active'=>'success', 'inactive'=>'danger', 'probation'=>'warning', 'terminated'=>'secondary']; @endphp
                                     <span
@@ -110,7 +93,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-4">No employees found.</td>
+                                <td colspan="6" class="text-center text-muted py-4">No employees found.</td>
                             </tr>
                         @endforelse
                     </tbody>

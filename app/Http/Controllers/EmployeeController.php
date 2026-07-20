@@ -31,7 +31,7 @@ class EmployeeController extends Controller
 
     public function index(Request $request)
     {
-        $query = Employee::with(['branch', 'department', 'designation', 'employeeType', 'designationContractor'])
+        $query = Employee::with('branch')
             ->orderBy('first_name');
 
         $query = BranchScope::scopeQuery($query);
@@ -96,7 +96,7 @@ class EmployeeController extends Controller
             return response()->json(['code' => $generator->preview($rule, $branchId, $contractorId)]);
         }
 
-        $prefix = $this->employeeTypePrefix($request->integer('employee_type_id') ?: null);
+        $prefix = $generator->typePrefix($request->integer('employee_type_id') ?: null);
         $lastCode = Employee::where('employee_code', 'like', $prefix . '%')->orderByDesc('id')->value('employee_code');
 
         return response()->json(['code' => SequentialCodeGenerator::next($lastCode, $prefix . '0001')]);
@@ -115,98 +115,18 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Module 4 FSD 8.3 — resolve and apply the Employee Number Rule, if any,
-     * for this new hire's classification/branch. If no Employee Number Rule
-     * is configured in the Rule Engine, this falls back to a simple
-     * sequence prefixed by the selected Employee Type (one higher than the
-     * latest code already using that prefix) — Employee Code is no longer
-     * manually entered, on this form or as a bare fallback.
-     */
-    private function applyEmployeeNumberRule(array $data): array
-    {
-        $category = $data['employee_category'];
-        $primaryType = $category === 'staff' ? 'staff' : 'labour';
-        $labourType = self::LABOUR_TYPE_MAP[$category];
-        $data['primary_employee_type'] = $primaryType;
-        $data['labour_type'] = $labourType;
-
-        $data['employee_code'] = $this->resolveEmployeeCode($data, $primaryType, $labourType);
-
-        return $data;
-    }
-
-    /**
      * Decides the Employee Code to use: the applicable Employee Number
      * Rule's generated value (unless manual override is both permitted and
      * provided), or — when no rule is configured — the Employee-Type-prefixed
      * default sequence. Callable again on its own (with employee_code reset
      * to null) to regenerate a fresh candidate if the first one collides at
-     * insert time.
+     * insert time. Delegates to EmployeeNumberGenerator so store(), update(),
+     * and the employees:backfill-codes command all resolve a code the same
+     * way.
      */
     private function resolveEmployeeCode(array $data, ?string $primaryType, ?string $labourType): ?string
     {
-        $generator = app(EmployeeNumberGenerator::class);
-        // Contractor-wise numbering: resolved using the contractor now
-        // captured directly on this form for Contract Labour (FSD 10.8).
-        $rule = $generator->resolveRule($primaryType, $labourType, $data['branch_id'] ?? null, $data['contractor_id'] ?? null);
-
-        if ($rule) {
-            $detail = $rule->employeeNumberRule;
-            $canManuallyOverride = $detail->allow_manual_override && auth()->user()->can('rule_engine.full');
-            if (! $canManuallyOverride || empty($data['employee_code'])) {
-                return $generator->generate($rule, $data['branch_id'] ?? null, $data['contractor_id'] ?? null);
-            }
-            return $data['employee_code'] ?? null;
-        }
-
-        return ($data['employee_code'] ?? null) ?: $this->generateDefaultEmployeeCode($data['employee_type_id'] ?? null);
-    }
-
-    /**
-     * Default Employee Code generator used when no Employee Number Rule is
-     * configured — prefixed with the first two letters of the selected
-     * Employee Type's name (e.g. "Permanent" -> "PE0001", "PE0002"...;
-     * "Contract" -> "CO0001", "CO0002"...), continuing sequentially across
-     * every branch that has ever used that same prefix. Only codes already
-     * carrying that prefix are considered "the last one" — older codes from
-     * before this prefix existed (or with a different prefix) are ignored,
-     * so a brand new prefix cleanly starts at 0001. A row lock on the latest
-     * matching employee serializes concurrent creations under the same
-     * prefix; the retry loop is a defensive fallback against the rare
-     * duplicate-key race the lock doesn't cover — the composite unique index
-     * on (branch_id, employee_code) is the actual guarantee.
-     */
-    private function generateDefaultEmployeeCode(?int $employeeTypeId): string
-    {
-        $prefix = $this->employeeTypePrefix($employeeTypeId);
-
-        for ($attempt = 1; $attempt <= 5; $attempt++) {
-            try {
-                return DB::transaction(function () use ($prefix) {
-                    $lastCode = Employee::where('employee_code', 'like', $prefix . '%')
-                        ->orderByDesc('id')
-                        ->lockForUpdate()
-                        ->value('employee_code');
-
-                    return SequentialCodeGenerator::next($lastCode, $prefix . '0001');
-                });
-            } catch (QueryException $e) {
-                $isDuplicate = (string) $e->getCode() === '23000';
-                if (! $isDuplicate || $attempt === 5) {
-                    throw $e;
-                }
-            }
-        }
-
-        throw new \RuntimeException('Unable to generate a unique Employee Code after several attempts.');
-    }
-
-    /** First two letters of the selected Employee Type's own name, uppercased. */
-    private function employeeTypePrefix(?int $employeeTypeId): string
-    {
-        $name = $employeeTypeId ? EmployeeType::find($employeeTypeId)?->name : null;
-
-        return $name ? strtoupper(substr($name, 0, 2)) : 'EMP';
+        return app(EmployeeNumberGenerator::class)->resolveEmployeeCode($data, $primaryType, $labourType);
     }
 
     /**
@@ -243,8 +163,8 @@ class EmployeeController extends Controller
 
     /**
      * Creates the employee (and its login user, if requested) in a
-     * transaction. The row lock in generateDefaultEmployeeCode()/the
-     * Rule Engine's own counter lock make a collision here unlikely but not
+     * transaction. The row lock in EmployeeNumberGenerator::generateDefaultCode()/
+     * the Rule Engine's own counter lock make a collision here unlikely but not
      * provably impossible (the lock is released before this insert runs) —
      * if employee_code was auto-generated and this still collides, a fresh
      * code is generated and the insert is retried.
@@ -285,6 +205,34 @@ class EmployeeController extends Controller
         }
 
         throw new \RuntimeException('Unable to create the employee with a unique Employee Code after several attempts.');
+    }
+
+    /**
+     * Same collision-retry guarantee as createEmployeeWithRetry(), for the
+     * Employee Slab's Employment Information save — the first save after
+     * creation is the one that actually generates employee_code, so it can
+     * collide with a concurrently-generated code exactly like at creation.
+     */
+    private function updateEmployeeWithRetry(Employee $employee, array $data, bool $codeWasGenerated, ?string $primaryType, ?string $labourType): void
+    {
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            try {
+                $employee->update($data);
+                return;
+            } catch (QueryException $e) {
+                $isDuplicate = (string) $e->getCode() === '23000';
+                if (! $isDuplicate || ! $codeWasGenerated || $attempt === 5) {
+                    throw $e;
+                }
+                $data['employee_code'] = $this->resolveEmployeeCode(
+                    array_merge($data, ['employee_code' => null]),
+                    $primaryType,
+                    $labourType
+                );
+            }
+        }
+
+        throw new \RuntimeException('Unable to save the employee with a unique Employee Code after several attempts.');
     }
 
     /**
@@ -455,20 +403,25 @@ class EmployeeController extends Controller
         $data = $this->stripUnauthorizedRuleOverrides($data);
         $data = $this->stripUnauthorizedContractorRate($data);
 
-        // Create Employee (Steps 1-3) no longer collects Employee Category —
-        // that's filled in later via Employee Slab, which is what actually
-        // resolves the Employee Code (it requires a category to pick a
-        // numbering rule). Skip code generation entirely until then.
-        $submittedCode = $data['employee_code'] ?? null;
-        $codeWasGenerated = false;
+        // Employee Code is always auto-generated right here at creation —
+        // no extra step required. Create Employee (Steps 1-3) doesn't
+        // collect Employee Category (that's chosen later via Employee
+        // Slab), so when it's absent this still goes through the same
+        // Rule Engine / Employee-Type-prefixed sequence resolution, just
+        // falling further back to a generic branch-wide sequence when even
+        // the Employee Type isn't known yet. The code is never regenerated
+        // later — Employee Slab's own save (see update()) only fills it in
+        // for older employees who still don't have one.
         $primaryType = null;
         $labourType = null;
         if (! empty($data['employee_category'])) {
             $primaryType = $data['employee_category'] === 'staff' ? 'staff' : 'labour';
             $labourType = self::LABOUR_TYPE_MAP[$data['employee_category']];
-            $data = $this->applyEmployeeNumberRule($data);
-            $codeWasGenerated = ($data['employee_code'] ?? null) !== $submittedCode;
+            $data['primary_employee_type'] = $primaryType;
+            $data['labour_type'] = $labourType;
         }
+        $data['employee_code'] = $this->resolveEmployeeCode($data, $primaryType, $labourType);
+        $codeWasGenerated = true;
         unset($data['employee_category']);
 
         $this->assertDepartmentBelongsToBranch($data['department_id'] ?? null, $data['branch_id']);
@@ -537,7 +490,12 @@ class EmployeeController extends Controller
     {
         BranchScope::assertBranchAccess($employee->branch_id);
         $isDraft = $request->boolean('save_as_draft');
-        $data = $request->validate($this->rules($employee->id, $isDraft));
+        // Only the Employee Slab's Employment Information form submits
+        // employee_category (Create Employee's own Steps 1-3 edit form never
+        // does) — that's also the signal to enforce Employment Information
+        // as required server-side, not just via the form's HTML `required`.
+        $isSlabSubmission = $request->filled('employee_category');
+        $data = $request->validate($this->rules($employee->id, $isDraft, $isSlabSubmission));
         $data['designation_id'] = $this->resolveDesignationId($data['designation'] ?? null);
         unset($data['designation']);
         $data['is_draft'] = $isDraft;
@@ -575,14 +533,28 @@ class EmployeeController extends Controller
         // employee_category — that's set via Employee Slab instead. Only
         // recompute the derived classification columns when a category was
         // actually submitted (Employee Slab's Employment Information step).
+        $primaryType = null;
+        $labourType = null;
+        $codeWasGenerated = false;
         if (! empty($data['employee_category'])) {
             $category = $data['employee_category'];
-            $data['primary_employee_type'] = $category === 'staff' ? 'staff' : 'labour';
-            $data['labour_type'] = self::LABOUR_TYPE_MAP[$category];
+            $primaryType = $category === 'staff' ? 'staff' : 'labour';
+            $labourType = self::LABOUR_TYPE_MAP[$category];
+            $data['primary_employee_type'] = $primaryType;
+            $data['labour_type'] = $labourType;
+
+            // Employee Code is generated exactly once — the first time
+            // Employee Slab's Employment Information is saved (it needs the
+            // Employee Category to pick the right numbering rule/prefix).
+            // Once set, it's never regenerated on later saves.
+            if (empty($employee->employee_code)) {
+                $data['employee_code'] = $this->resolveEmployeeCode($data, $primaryType, $labourType);
+                $codeWasGenerated = true;
+            }
         }
         unset($data['employee_category']);
 
-        $employee->update($data);
+        $this->updateEmployeeWithRetry($employee, $data, $codeWasGenerated, $primaryType, $labourType);
 
         // Employee Slab's Employment Information section — "Create Login
         // User" (moved here from the old Step 5, since Employment

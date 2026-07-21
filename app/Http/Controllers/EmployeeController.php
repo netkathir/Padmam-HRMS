@@ -32,7 +32,7 @@ class EmployeeController extends Controller
     public function index(Request $request)
     {
         $query = Employee::with('branch')
-            ->orderBy('first_name');
+            ->orderByDesc('created_at');
 
         $query = BranchScope::scopeQuery($query);
 

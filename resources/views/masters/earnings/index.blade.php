@@ -22,18 +22,13 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>Order</th><th>Code</th><th>Name</th><th>Type</th><th>%</th><th>Taxable</th><th>PF</th><th>ESI</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Code</th><th>Name</th><th>Percentage</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($components as $comp)
                     <tr>
-                        <td>{{ $comp->sort_order ?? '—' }}</td>
                         <td><span class="badge bg-success-subtle text-success">{{ $comp->code }}</span></td>
                         <td>{{ $comp->name }}</td>
-                        <td>{{ ucfirst($comp->type) }}</td>
                         <td>{{ $comp->percentage ? $comp->percentage . '%' : '—' }}</td>
-                        <td><i class="bi bi-{{ $comp->is_taxable ? 'check-circle-fill text-success' : 'x-circle text-muted' }}"></i></td>
-                        <td><i class="bi bi-{{ $comp->is_pf_applicable ? 'check-circle-fill text-success' : 'x-circle text-muted' }}"></i></td>
-                        <td><i class="bi bi-{{ $comp->is_esi_applicable ? 'check-circle-fill text-success' : 'x-circle text-muted' }}"></i></td>
                         <td><span class="badge bg-{{ $comp->is_active ? 'success' : 'danger' }}-subtle text-{{ $comp->is_active ? 'success' : 'danger' }}">{{ $comp->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
                             <a href="{{ route('masters.generic.show', ['module' => 'earnings', 'id' => $comp->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
@@ -45,7 +40,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="10" class="text-center text-muted py-4">No earning components found.</td></tr>
+                    <tr><td colspan="5" class="text-center text-muted py-4">No earning components found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

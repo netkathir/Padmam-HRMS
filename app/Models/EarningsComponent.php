@@ -20,4 +20,13 @@ class EarningsComponent extends Model
             'is_active' => 'boolean',
         ];
     }
+
+    /** Generic Masters View screen — only Name + Percentage, matching the simplified Create/Edit form. */
+    public function masterViewFields(): array
+    {
+        return [
+            'Earning Component Name' => $this->name,
+            'Percentage' => $this->percentage !== null ? $this->percentage . '%' : '—',
+        ];
+    }
 }

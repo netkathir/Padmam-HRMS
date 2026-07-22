@@ -7,8 +7,6 @@
 
 @section('page-actions')
     <a href="{{ route('employees.edit', $employee) }}" class="btn btn-primary btn-sm"><i class="bi bi-pencil"></i> Edit</a>
-    <a href="{{ route('employee-slab.show', $employee) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-layers"></i>
-        Employee Slab</a>
     <a href="{{ route('employee-document.show', $employee) }}" class="btn btn-outline-info btn-sm"><i class="bi bi-file-text"></i>
         Employee Document</a>
     <a href="{{ route('employees.exit', $employee) }}" class="btn btn-outline-danger btn-sm"><i
@@ -38,8 +36,6 @@
             <div class="card mt-3">
                 <div class="card-header">Quick Links</div>
                 <div class="list-group list-group-flush">
-                    <a href="{{ route('employee-slab.show', $employee) }}" class="list-group-item list-group-item-action"><i
-                            class="bi bi-layers me-2"></i>Employee Slab</a>
                     <a href="{{ route('employee-document.show', $employee) }}"
                         class="list-group-item list-group-item-action"><i class="bi bi-file-text me-2"></i>Employee Document</a>
                     <a href="{{ route('employees.exit', $employee) }}" class="list-group-item list-group-item-action"><i
@@ -75,18 +71,13 @@
                         <div class="col-sm-6"><strong>Branch:</strong> {{ $employee->branch->name ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Department:</strong> {{ $employee->department->name ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Designation:</strong> {{ $employee->designation->name ?? '—' }}</div>
-                        <div class="col-sm-6"><strong>Employee Type:</strong> {{ $employee->employeeType->name ?? '—' }}
-                        </div>
-                        <div class="col-sm-6"><strong>Employee Category:</strong> {{ $employee->designation_employee_category ? ucfirst($employee->designation_employee_category) : '—' }}</div>
-                        <div class="col-sm-6"><strong>Type:</strong> {{ $employee->designation_employee_type_label ?? '—' }}</div>
+                        <div class="col-sm-6"><strong>Employee Category:</strong> {{ $employee->system_classification }}</div>
                         @if ($employee->designationContractor)
                         <div class="col-sm-6"><strong>Contractor Name:</strong> {{ $employee->designationContractor->name }}</div>
                         @endif
                         <div class="col-sm-6"><strong>Date of Joining:</strong>
                             {{ $employee->date_of_joining?->format('d-m-Y') ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Shift:</strong> {{ $employee->shift->name ?? '—' }}</div>
-                        <div class="col-sm-6"><strong>Reporting To:</strong> {{ $employee->reportingTo->full_name ?? '—' }}
-                        </div>
                         <div class="col-sm-6"><strong>Status:</strong> {{ ucfirst($employee->status) }}</div>
                         @can('rule_engine.full')
                         <div class="col-sm-6"><strong>Weekly Off Rule:</strong> {{ $employee->weeklyOffRuleOverride->name ?? 'Automatic' }}</div>
@@ -115,6 +106,7 @@
                         <div class="col-sm-6"><strong>PF Applicable:</strong> {{ $employee->is_pf_applicable ? 'Yes' : 'No' }}{{ $employee->pf_number ? ' (' . $maskStatutory($employee->pf_number) . ')' : '' }}</div>
                         <div class="col-sm-6"><strong>ESI Applicable:</strong> {{ $employee->is_esi_applicable ? 'Yes' : 'No' }}{{ $employee->esi_number ? ' (' . $maskStatutory($employee->esi_number) . ')' : '' }}</div>
                         <div class="col-sm-6"><strong>TDS Applicable:</strong> {{ $employee->is_tds_applicable ? 'Yes' : 'No' }}</div>
+                        <div class="col-sm-6"><strong>Earnings Applicable:</strong> {{ $employee->is_earnings_applicable ? 'Yes' : 'No' }}</div>
                     </div>
                 </div>
             </div>

@@ -120,11 +120,13 @@
 <body>
 
 <div class="layout-wrapper">
+    @unless (View::hasSection('hide-sidebar'))
     {{-- Sidebar --}}
     @include('partials._sidebar')
 
     {{-- Backdrop for mobile --}}
     <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+    @endunless
 
     {{-- Main --}}
     <div class="main-content">

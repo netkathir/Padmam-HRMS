@@ -31,7 +31,6 @@
                 <div class="card-header">Quick Links</div>
                 <div class="list-group list-group-flush">
                     <a href="{{ route('employees.show', $employee) }}" class="list-group-item list-group-item-action"><i class="bi bi-person-vcard me-2"></i>Create Employee</a>
-                    <a href="{{ route('employee-slab.show', $employee) }}" class="list-group-item list-group-item-action"><i class="bi bi-layers me-2"></i>Employee Slab</a>
                 </div>
             </div>
         </div>

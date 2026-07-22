@@ -5,25 +5,7 @@
 @section('page-subtitle', 'Upload and manage employee documents')
 
 @section('page-actions')
-    <div class="dropdown">
-        <button class="btn btn-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-plus-lg"></i> Add
-        </button>
-        <div class="dropdown-menu dropdown-menu-end p-3" style="min-width:320px;">
-            <form action="{{ route('employee-document.create') }}" method="GET">
-                <label class="form-label small">Select Employee (without documents yet)</label>
-                <select name="employee" class="form-select form-select-sm" data-searchable required>
-                    <option value="">Select</option>
-                    @forelse ($pickerEmployees as $emp)
-                        <option value="{{ $emp->id }}">{{ $emp->full_name }} @if($emp->employee_code) ({{ $emp->employee_code }}) @endif</option>
-                    @empty
-                        <option value="" disabled>All employees already have documents</option>
-                    @endforelse
-                </select>
-                <button type="submit" class="btn btn-primary btn-sm w-100 mt-2">Continue</button>
-            </form>
-        </div>
-    </div>
+    <a href="{{ route('employee-document.create') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add</a>
 @endsection
 
 @section('content')
@@ -94,51 +76,3 @@
         </div>
     </div>
 @endsection
-
-@push('scripts')
-<script>
-    (function () {
-        document.querySelectorAll('[data-searchable]').forEach(function (select) {
-            if (select.dataset.searchableInit) return;
-            select.dataset.searchableInit = '1';
-            const wrapper = document.createElement('div');
-            wrapper.className = 'position-relative';
-            select.parentNode.insertBefore(wrapper, select);
-            wrapper.appendChild(select);
-            select.classList.add('d-none');
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'form-select form-select-sm';
-            input.placeholder = 'Search…';
-            input.autocomplete = 'off';
-            wrapper.appendChild(input);
-            const list = document.createElement('div');
-            list.className = 'list-group position-absolute w-100 shadow-sm';
-            list.style.cssText = 'z-index:1000;max-height:220px;overflow-y:auto;display:none;';
-            wrapper.appendChild(list);
-            function optionsData() {
-                return Array.from(select.options).filter(o => o.value !== '').map(o => ({ value: o.value, label: o.textContent }));
-            }
-            function renderList(filter) {
-                const q = (filter || '').toLowerCase();
-                const matches = optionsData().filter(o => o.label.toLowerCase().includes(q));
-                list.innerHTML = matches.length
-                    ? matches.map(o => `<button type="button" class="list-group-item list-group-item-action" data-value="${o.value}">${o.label}</button>`).join('')
-                    : '<div class="list-group-item text-muted">No matches</div>';
-                list.style.display = 'block';
-                list.querySelectorAll('[data-value]').forEach(function (btn) {
-                    btn.addEventListener('mousedown', function (e) {
-                        e.preventDefault();
-                        select.value = btn.dataset.value;
-                        input.value = btn.textContent.trim();
-                        list.style.display = 'none';
-                    });
-                });
-            }
-            input.addEventListener('focus', function () { renderList(''); });
-            input.addEventListener('input', function () { renderList(input.value); });
-            input.addEventListener('blur', function () { setTimeout(function () { list.style.display = 'none'; }, 150); });
-        });
-    })();
-</script>
-@endpush

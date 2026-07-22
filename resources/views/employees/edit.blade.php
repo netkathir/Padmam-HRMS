@@ -12,6 +12,8 @@
                 <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="2" data-step-label="Personal Information">Personal Information</button></li>
                 <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="3" data-step-label="Contact Information">Contact Information</button></li>
                 <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="4" data-step-label="Address Information">Address Information</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="5" data-step-label="Employee Information">Employee Information</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-nav-tab="6" data-step-label="Statutory Details">Statutory Details</button></li>
             </ul>
 
             <form action="{{ route('employees.update', $employee) }}" method="POST" enctype="multipart/form-data" id="employeeWizardForm">
@@ -22,7 +24,6 @@
     </div>
 
     <div class="mt-3">
-        <a href="{{ route('employee-slab.edit', $employee) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-layers"></i> Go to Employee Slab</a>
         <a href="{{ route('employee-document.create', ['employee' => $employee->id]) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-text"></i> Go to Employee Document</a>
     </div>
 @endsection
@@ -35,7 +36,7 @@
 </script>
 <script>
     (function () {
-        const TOTAL_TABS = 4;
+        const TOTAL_TABS = 6;
         const sameAsCurrent = document.getElementById('same_as_current_address');
         const permanentFields = document.getElementById('permanent-address-fields');
         const dobInput = document.getElementById('date_of_birth');
@@ -125,6 +126,107 @@
                 showTab(Math.max(current - 1, 2));
             });
         });
+
+        // ── Tab 5: Employee Category drives Contract Labour fields / Bank Details visibility ──
+        const categorySelect = document.getElementById('employee_category');
+        const contractFields = document.getElementById('contract-labour-fields');
+        const bankFields = document.getElementById('bank-details-fields');
+        const contractorRequiredField = document.getElementById('contractor_id');
+        function refreshEmployeeCategoryFields() {
+            if (!categorySelect) return;
+            const isContractLabour = categorySelect.value === 'contract_labour';
+            if (contractFields) contractFields.style.display = isContractLabour ? '' : 'none';
+            if (bankFields) bankFields.style.display = isContractLabour ? 'none' : '';
+            if (contractorRequiredField) contractorRequiredField.toggleAttribute('required', isContractLabour);
+        }
+        if (categorySelect) {
+            categorySelect.addEventListener('change', refreshEmployeeCategoryFields);
+            refreshEmployeeCategoryFields();
+        }
+
+        // ── Tab 5: selecting a Contractor auto-fills Contract Start/End Date ──
+        const contractorSelect = document.getElementById('contractor_id');
+        const contractStartInput = document.getElementById('contract_start_date');
+        const contractEndInput = document.getElementById('contract_end_date');
+        function setDateValue(input, value) {
+            if (!input) return;
+            if (input._flatpickr) {
+                input._flatpickr.setDate(value || null, true);
+            } else {
+                input.value = value || '';
+            }
+        }
+        function refreshContractDatesFromContractor() {
+            if (!contractorSelect) return;
+            const opt = contractorSelect.options[contractorSelect.selectedIndex];
+            const hasSelection = opt && opt.value;
+            setDateValue(contractStartInput, hasSelection ? (opt.dataset.agreementStart || '') : '');
+            setDateValue(contractEndInput, hasSelection ? (opt.dataset.agreementEnd || '') : '');
+        }
+        if (contractorSelect) {
+            contractorSelect.addEventListener('change', refreshContractDatesFromContractor);
+        }
+
+        // ── Account Number / Confirm Account Number show/hide toggle ──
+        document.querySelectorAll('.masked-toggle-btn').forEach(function (btn) {
+            const field = btn.closest('.input-group').querySelector('.masked-toggle-field');
+            btn.addEventListener('click', function () {
+                const showing = field.type === 'text';
+                field.type = showing ? 'password' : 'text';
+                btn.querySelector('i').className = showing ? 'bi bi-eye' : 'bi bi-eye-slash';
+            });
+        });
+
+        // ── Searchable dropdowns (Department/Shift/Contractor/Bank) ──
+        function makeSearchable(select) {
+            if (!select || select.dataset.searchableInit) return;
+            select.dataset.searchableInit = '1';
+            const wrapper = document.createElement('div');
+            wrapper.className = 'position-relative';
+            select.parentNode.insertBefore(wrapper, select);
+            wrapper.appendChild(select);
+            select.classList.add('d-none');
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = (select.className || 'form-select').replace('d-none', '').trim();
+            input.placeholder = 'Search…';
+            input.autocomplete = 'off';
+            wrapper.appendChild(input);
+            const list = document.createElement('div');
+            list.className = 'list-group position-absolute w-100 shadow-sm';
+            list.style.cssText = 'z-index:1000;max-height:220px;overflow-y:auto;display:none;';
+            wrapper.appendChild(list);
+            function optionsData() {
+                return Array.from(select.options).filter(o => o.value !== '').map(o => ({ value: o.value, label: o.textContent }));
+            }
+            function syncInputFromSelect() {
+                const opt = select.options[select.selectedIndex];
+                input.value = (opt && opt.value !== '') ? opt.textContent.trim() : '';
+            }
+            function renderList(filter) {
+                const q = (filter || '').toLowerCase();
+                const matches = optionsData().filter(o => o.label.toLowerCase().includes(q));
+                list.innerHTML = matches.length
+                    ? matches.map(o => `<button type="button" class="list-group-item list-group-item-action" data-value="${o.value}">${o.label}</button>`).join('')
+                    : '<div class="list-group-item text-muted">No matches</div>';
+                list.style.display = 'block';
+                list.querySelectorAll('[data-value]').forEach(function (btn) {
+                    btn.addEventListener('mousedown', function (e) {
+                        e.preventDefault();
+                        select.value = btn.dataset.value;
+                        select.dispatchEvent(new Event('change', { bubbles: true }));
+                        syncInputFromSelect();
+                        list.style.display = 'none';
+                    });
+                });
+            }
+            input.addEventListener('focus', function () { renderList(input.value); });
+            input.addEventListener('click', function () { renderList(input.value); });
+            input.addEventListener('input', function () { renderList(input.value); });
+            input.addEventListener('blur', function () { setTimeout(function () { list.style.display = 'none'; syncInputFromSelect(); }, 150); });
+            syncInputFromSelect();
+        }
+        document.querySelectorAll('[data-searchable]').forEach(makeSearchable);
 
         const start = window.__employeeWizard.activeTab;
         showTab(start >= 2 && start <= TOTAL_TABS ? start : 2);

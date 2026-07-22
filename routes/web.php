@@ -4,7 +4,6 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\BranchDashboardController;
 use App\Http\Controllers\EmployeeController;
-use App\Http\Controllers\EmployeeSlabController;
 use App\Http\Controllers\EmployeeDocumentController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\LeaveController;
@@ -73,7 +72,7 @@ Route::middleware('guest')->group(function () {
 // blanket `.read` check, meaning a role granted only "read" could still
 // reach store/update/destroy directly by URL — this has been corrected
 // throughout).
-Route::middleware(['auth', 'force.password.change'])->group(function () {
+Route::middleware(['auth', 'force.password.change', 'require.branch'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
@@ -112,14 +111,6 @@ Route::middleware(['auth', 'force.password.change'])->group(function () {
     Route::get('/salary-slab-breakdown/{salarySlab}', [EmployeeController::class, 'salarySlabBreakdown'])->name('employees.salary-slab-breakdown')->middleware('permission:employees.read');
     Route::get('/employees/{employee}/exit',       [EmployeeController::class, 'exit'])->name('employees.exit')->middleware('permission:employees.read');
     Route::post('/employees/{employee}/exit',      [EmployeeController::class, 'processExit'])->name('employees.exit.store')->middleware('permission:employees.full');
-
-    // Employee Slab — Employment Information, Bank Information, and
-    // Designation & Salary, as one single-step form (not a wizard). Shares
-    // the Employees module's own permission (same "Create Employee" area).
-    Route::get('/employee-slab',           [EmployeeSlabController::class, 'index'])->name('employee-slab.index')->middleware('permission:employees.read');
-    Route::get('/employee-slab/create',    [EmployeeSlabController::class, 'create'])->name('employee-slab.create')->middleware('permission:employees.create');
-    Route::get('/employee-slab/{employee}', [EmployeeSlabController::class, 'show'])->name('employee-slab.show')->middleware('permission:employees.read');
-    Route::get('/employee-slab/{employee}/edit', [EmployeeSlabController::class, 'edit'])->name('employee-slab.edit')->middleware('permission:employees.full');
 
     // Employee Document — lists employees with an Action to add/view
     // documents; reuses the existing employees.documents(.upload) routes for

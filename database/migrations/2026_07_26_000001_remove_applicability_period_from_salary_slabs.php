@@ -25,7 +25,7 @@ return new class extends Migration
                 $table->dropColumn('applicable_employee_types');
             }
             if (! Schema::hasColumn('salary_slabs', 'basic_salary')) {
-                $table->decimal('basic_salary', 12, 2)->nullable()->after('max_ctc');
+                $table->decimal('basic_salary', 12, 2)->nullable();
             }
         });
     }

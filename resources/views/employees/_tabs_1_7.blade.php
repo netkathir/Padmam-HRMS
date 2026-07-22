@@ -1,12 +1,11 @@
 {{--
-    Create Employee wizard — Steps 1-3 only (Personal Information, Contact
-    Information, Address Information). Employment Information, Bank
-    Information, Designation & Salary, and Employee Documents were moved to
-    the separate Employee Slab / Employee Document modules (People Module
-    Update) — this file no longer renders them. Included by both
-    create.blade.php and edit.blade.php inside their Steps-1-3 form.
+    Employee wizard — 5 steps: Personal Information, Contact Information,
+    Address Information, Employee Information, Statutory Details. Employee
+    Documents remain a separate module (unchanged). Included by both
+    create.blade.php and edit.blade.php inside the single wizard form.
 
-    Expects: $employee (Employee|null — null on Create), $currentBranch, $states.
+    Expects: $employee (Employee|null — null on Create), $currentBranch,
+    $states, $departments, $contractors, $shifts, $banks, $primaryBankDetail.
 --}}
 {{-- FSD Rule 1 — Branch is never shown; it always follows the currently active branch. --}}
 <input type="hidden" name="branch_id" value="{{ $currentBranch->id ?? '' }}">
@@ -223,15 +222,203 @@
     </div>
     <div class="mt-4 d-flex gap-2">
         <button type="button" class="btn btn-outline-secondary wizard-prev">Previous</button>
-        <button type="submit" name="finish" value="1" class="btn btn-success">Save Employee</button>
+        <button type="button" class="btn btn-primary wizard-next">Save &amp; Next</button>
         <a href="{{ $employee ? route('employees.show', $employee) : route('employees.index') }}" class="btn btn-secondary">Cancel</a>
     </div>
 </div>
 
-{{--
-    Employment Information, Contract Labour Information, Bank Information,
-    Designation & Salary, and Employee Documents were moved out of this
-    wizard entirely — they now live in the separate Employee Slab / Employee
-    Document modules (see resources/views/employee-slab and
-    resources/views/employee-document), each its own single-step form.
---}}
+{{-- ── Tab 5: Employee Information ─────────────────────────────────── --}}
+<div class="tab-pane" data-tab-pane="5">
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">Date of Joining <span class="text-danger">*</span></label>
+            <input type="date" name="date_of_joining" id="date_of_joining" class="form-control @error('date_of_joining') is-invalid @enderror" value="{{ old('date_of_joining', $employee?->date_of_joining?->format('Y-m-d')) }}" required>
+            @error('date_of_joining')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Department <span class="text-danger">*</span></label>
+            <select name="department_id" class="form-select @error('department_id') is-invalid @enderror" data-searchable required>
+                <option value="">Select</option>
+                @foreach ($departments as $d)
+                    <option value="{{ $d->id }}" {{ old('department_id', $employee->department_id ?? '') == $d->id ? 'selected' : '' }}>{{ $d->name }}</option>
+                @endforeach
+            </select>
+            @error('department_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Designation <span class="text-danger">*</span></label>
+            <input type="text" name="designation" class="form-control @error('designation') is-invalid @enderror" value="{{ old('designation', $employee->designation->name ?? '') }}" required>
+            @error('designation')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Employee Category <span class="text-danger">*</span></label>
+            @php $currentCategory = old('employee_category', isset($employee) ? ($employee->primary_employee_type === 'staff' ? 'staff' : $employee->labour_type) : ''); @endphp
+            <select name="employee_category" id="employee_category" class="form-select @error('employee_category') is-invalid @enderror" required>
+                <option value="">Select</option>
+                <option value="staff" {{ $currentCategory == 'staff' ? 'selected' : '' }}>Company Staff</option>
+                <option value="company_labour" {{ $currentCategory == 'company_labour' ? 'selected' : '' }}>Company Labour</option>
+                <option value="contract_labour" {{ $currentCategory == 'contract_labour' ? 'selected' : '' }}>Contract Labour</option>
+            </select>
+            @error('employee_category')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Shift <span class="text-danger">*</span></label>
+            <select name="shift_id" class="form-select @error('shift_id') is-invalid @enderror" data-searchable required>
+                <option value="">Select</option>
+                @foreach ($shifts as $s)
+                    <option value="{{ $s->id }}" {{ old('shift_id', $employee->shift_id ?? '') == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
+                @endforeach
+            </select>
+            @error('shift_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+    </div>
+
+    {{-- Contract Labour Information — shown only for Contract Labour; hides Bank Details below. --}}
+    <div id="contract-labour-fields" class="row g-3 mt-1" style="display:none;">
+        <div class="col-12"><h6 class="fw-bold border-bottom pb-2 mt-2">Contract Labour Information</h6></div>
+        <div class="col-md-4">
+            <label class="form-label">Contractor <span class="text-danger">*</span></label>
+            <select name="contractor_id" id="contractor_id" class="form-select @error('contractor_id') is-invalid @enderror" data-searchable>
+                <option value="">Select</option>
+                @foreach ($contractors as $c)
+                    <option value="{{ $c->id }}"
+                        data-agreement-start="{{ $c->agreement_start_date?->format('Y-m-d') }}"
+                        data-agreement-end="{{ $c->agreement_end_date?->format('Y-m-d') }}"
+                        {{ old('contractor_id', $employee->contractor_id ?? '') == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+                @endforeach
+            </select>
+            @error('contractor_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Contract Start Date</label>
+            <input type="date" name="contract_start_date" id="contract_start_date" class="form-control @error('contract_start_date') is-invalid @enderror" value="{{ old('contract_start_date', $employee?->contract_start_date?->format('Y-m-d') ?? '') }}" readonly>
+            @error('contract_start_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            <div class="form-text">From the selected contractor's agreement — not editable here.</div>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Contract End Date</label>
+            <input type="date" name="contract_end_date" id="contract_end_date" class="form-control @error('contract_end_date') is-invalid @enderror" value="{{ old('contract_end_date', $employee?->contract_end_date?->format('Y-m-d') ?? '') }}" readonly>
+            @error('contract_end_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            <div class="form-text">From the selected contractor's agreement — not editable here.</div>
+        </div>
+    </div>
+
+    {{-- Bank Details — hidden entirely for Contract Labour. --}}
+    <div id="bank-details-fields" class="row g-3 mt-1">
+        <div class="col-12"><h6 class="fw-bold border-bottom pb-2 mt-2">Bank Details</h6></div>
+        <div class="col-md-3">
+            <label class="form-label">Bank Name</label>
+            <select name="bank_id" class="form-select" data-searchable>
+                <option value="">Select</option>
+                @foreach ($banks as $bank)
+                    <option value="{{ $bank->id }}" {{ old('bank_id', $primaryBankDetail->bank_id ?? '') == $bank->id ? 'selected' : '' }}>{{ $bank->name }}</option>
+                @endforeach
+            </select>
+            <div class="form-text">Not listed? Type it in "Other Bank Name" instead.</div>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Other Bank Name (if not listed above)</label>
+            <input type="text" name="bank_name" class="form-control" value="{{ old('bank_name', $primaryBankDetail->bank_name ?? '') }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Account Holder Name</label>
+            <input type="text" name="account_holder_name" class="form-control" value="{{ old('account_holder_name', $primaryBankDetail->account_holder_name ?? '') }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Account Type</label>
+            <select name="account_type" class="form-select">
+                <option value="">Select</option>
+                <option value="savings" {{ old('account_type', $primaryBankDetail->account_type ?? '') == 'savings' ? 'selected' : '' }}>Savings</option>
+                <option value="current" {{ old('account_type', $primaryBankDetail->account_type ?? '') == 'current' ? 'selected' : '' }}>Current</option>
+                <option value="salary" {{ old('account_type', $primaryBankDetail->account_type ?? '') == 'salary' ? 'selected' : '' }}>Salary</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Account Number</label>
+            <div class="input-group">
+                <input type="password" name="account_number" class="form-control masked-toggle-field @error('account_number') is-invalid @enderror" value="{{ old('account_number', $primaryBankDetail->account_number ?? '') }}" autocomplete="off">
+                <button type="button" class="btn btn-outline-secondary masked-toggle-btn" tabindex="-1"><i class="bi bi-eye"></i></button>
+                @error('account_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Confirm Account Number</label>
+            <div class="input-group">
+                <input type="password" name="account_number_confirmation" class="form-control masked-toggle-field @error('account_number_confirmation') is-invalid @enderror" value="{{ old('account_number_confirmation', $primaryBankDetail->account_number ?? '') }}" autocomplete="off">
+                <button type="button" class="btn btn-outline-secondary masked-toggle-btn" tabindex="-1"><i class="bi bi-eye"></i></button>
+                @error('account_number_confirmation')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">IFSC Code</label>
+            <input type="text" name="ifsc_code" class="form-control @error('ifsc_code') is-invalid @enderror" style="text-transform:uppercase" value="{{ old('ifsc_code', $primaryBankDetail->ifsc_code ?? '') }}">
+            @error('ifsc_code')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Bank Branch</label>
+            <input type="text" name="branch_name" class="form-control" value="{{ old('branch_name', $primaryBankDetail->branch_name ?? '') }}">
+        </div>
+    </div>
+
+    <div class="mt-4 d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary wizard-prev">Previous</button>
+        <button type="button" class="btn btn-primary wizard-next">Save &amp; Next</button>
+        <a href="{{ $employee ? route('employees.show', $employee) : route('employees.index') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</div>
+
+{{-- ── Tab 6: Statutory Details ────────────────────────────────────── --}}
+<div class="tab-pane" data-tab-pane="6">
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">PF (Provident Fund) <span class="text-danger">*</span></label>
+            @php $currentPf = old('is_pf_applicable', isset($employee) ? ($employee->is_pf_applicable ? 'yes' : 'no') : 'yes'); @endphp
+            <select name="is_pf_applicable" class="form-select @error('is_pf_applicable') is-invalid @enderror" required>
+                <option value="yes" {{ $currentPf == 'yes' ? 'selected' : '' }}>Yes</option>
+                <option value="no" {{ $currentPf == 'no' ? 'selected' : '' }}>No</option>
+            </select>
+            @error('is_pf_applicable')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">ESI (Employee State Insurance) <span class="text-danger">*</span></label>
+            @php $currentEsi = old('is_esi_applicable', isset($employee) ? ($employee->is_esi_applicable ? 'yes' : 'no') : 'yes'); @endphp
+            <select name="is_esi_applicable" class="form-select @error('is_esi_applicable') is-invalid @enderror" required>
+                <option value="yes" {{ $currentEsi == 'yes' ? 'selected' : '' }}>Yes</option>
+                <option value="no" {{ $currentEsi == 'no' ? 'selected' : '' }}>No</option>
+            </select>
+            @error('is_esi_applicable')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">TDS (Tax Deducted at Source) <span class="text-danger">*</span></label>
+            @php $currentTds = old('is_tds_applicable', isset($employee) ? ($employee->is_tds_applicable ? 'yes' : 'no') : 'no'); @endphp
+            <select name="is_tds_applicable" class="form-select @error('is_tds_applicable') is-invalid @enderror" required>
+                <option value="yes" {{ $currentTds == 'yes' ? 'selected' : '' }}>Yes</option>
+                <option value="no" {{ $currentTds == 'no' ? 'selected' : '' }}>No</option>
+            </select>
+            @error('is_tds_applicable')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Earnings <span class="text-danger">*</span></label>
+            @php $currentEarnings = old('is_earnings_applicable', isset($employee) ? ($employee->is_earnings_applicable ? 'yes' : 'no') : 'yes'); @endphp
+            <select name="is_earnings_applicable" class="form-select @error('is_earnings_applicable') is-invalid @enderror" required>
+                <option value="yes" {{ $currentEarnings == 'yes' ? 'selected' : '' }}>Yes</option>
+                <option value="no" {{ $currentEarnings == 'no' ? 'selected' : '' }}>No</option>
+            </select>
+            @error('is_earnings_applicable')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+    </div>
+
+    {{--
+        Designation & Salary (Salary Slab, Basic Salary, OT Applicable,
+        effective dates, read-only PF/ESI/TDS %) — commented out for now
+        pending confirmation on whether it belongs in this wizard. See
+        resources/views/employee-slab/edit.blade.php for the original
+        section this was ported from.
+    --}}
+
+    <div class="mt-4 d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary wizard-prev">Previous</button>
+        <button type="submit" name="finish" value="1" class="btn btn-success">Save Employee</button>
+        <a href="{{ $employee ? route('employees.show', $employee) : route('employees.index') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</div>

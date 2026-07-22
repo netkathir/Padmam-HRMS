@@ -11,10 +11,6 @@ class RoleSeeder extends Seeder
     {
         DB::table('roles')->insert([
             ['name' => 'super_admin', 'display_name' => 'Super Administrator', 'description' => 'Full system access'],
-            ['name' => 'admin',       'display_name' => 'Administrator',       'description' => 'Company-wide admin'],
-            ['name' => 'hr',          'display_name' => 'HR Manager',          'description' => 'Human resources operations'],
-            ['name' => 'manager',     'display_name' => 'Manager',             'description' => 'Team / department manager'],
-            ['name' => 'employee',    'display_name' => 'Employee',            'description' => 'Standard employee access'],
         ]);
     }
 }

@@ -7,6 +7,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeType;
 use App\Models\Role;
+use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -14,12 +15,12 @@ use Tests\TestCase;
 /**
  * Regression coverage for Employee Code generation.
  *
- * Employee Code is now auto-generated at employee creation itself
- * (EmployeeController::store()) — no Employee Slab step required. The
- * update()-time generation (Employee Slab's Employment Information save)
- * is kept purely as a backfill path for employees that predate this
- * behavior and still have a blank employee_code; it never regenerates a
- * code that's already set.
+ * Employee Code is auto-generated at employee creation (EmployeeController::
+ * store()) via the single 5-step wizard (Personal/Contact/Address/Employee
+ * Information/Statutory Details). The update()-time generation is kept
+ * purely as a backfill path for employees that predate this behavior and
+ * still have a blank employee_code; it never regenerates a code that's
+ * already set.
  */
 class EmployeeCodeGenerationTest extends TestCase
 {
@@ -41,11 +42,13 @@ class EmployeeCodeGenerationTest extends TestCase
         $seq++;
         $branch = Branch::create(['name' => "Main Branch $seq", 'code' => "MB$seq", 'is_active' => true]);
         $department = Department::create(['name' => "Manufacture $seq", 'code' => "MFG$seq", 'branch_id' => $branch->id, 'is_active' => true]);
+        $shift = Shift::create(['name' => "General Shift $seq", 'code' => "GEN$seq", 'is_active' => true]);
 
-        return [$branch, $department];
+        return [$branch, $department, $shift];
     }
 
-    private function stepsOneToThreePayload(array $overrides = []): array
+    /** Full 5-step wizard payload — every field the current rules() requires. */
+    private function wizardPayload(Department $department, Shift $shift, array $overrides = []): array
     {
         return array_merge([
             'first_name'              => 'Anitha',
@@ -62,16 +65,25 @@ class EmployeeCodeGenerationTest extends TestCase
             'state'                   => 'Andhra Pradesh',
             'pincode'                 => '604303',
             'same_as_current_address' => '1',
+            'employee_category'       => 'staff',
+            'department_id'           => $department->id,
+            'designation'             => 'Machine Operator',
+            'date_of_joining'         => now()->toDateString(),
+            'shift_id'                => $shift->id,
+            'is_pf_applicable'        => 'yes',
+            'is_esi_applicable'       => 'yes',
+            'is_tds_applicable'       => 'no',
+            'is_earnings_applicable'  => 'yes',
         ], $overrides);
     }
 
     public function test_employee_code_is_generated_immediately_on_creation_with_no_further_steps(): void
     {
         $admin = $this->superAdmin();
-        [$branch] = $this->branchAndDepartment();
+        [$branch, $department, $shift] = $this->branchAndDepartment();
         $this->withSession(['current_branch_id' => $branch->id]);
 
-        $response = $this->actingAs($admin)->post('http://localhost/employees', $this->stepsOneToThreePayload([
+        $response = $this->actingAs($admin)->post('http://localhost/employees', $this->wizardPayload($department, $shift, [
             'branch_id' => $branch->id,
         ]));
 
@@ -85,11 +97,11 @@ class EmployeeCodeGenerationTest extends TestCase
     public function test_employee_code_sequence_increments_across_consecutively_created_employees(): void
     {
         $admin = $this->superAdmin();
-        [$branch] = $this->branchAndDepartment();
+        [$branch, $department, $shift] = $this->branchAndDepartment();
         $this->withSession(['current_branch_id' => $branch->id]);
 
         foreach (['one@example.com', 'two@example.com', 'three@example.com'] as $email) {
-            $this->actingAs($admin)->post('http://localhost/employees', $this->stepsOneToThreePayload([
+            $this->actingAs($admin)->post('http://localhost/employees', $this->wizardPayload($department, $shift, [
                 'branch_id'       => $branch->id,
                 'official_email'  => $email,
                 'biometric_id'    => uniqid(),
@@ -101,46 +113,29 @@ class EmployeeCodeGenerationTest extends TestCase
         $this->assertSame(3, count(array_unique($codes)), 'Employee Codes must be unique — duplicates were generated.');
     }
 
-    public function test_employee_code_is_auto_generated_when_employee_slab_employment_info_is_saved(): void
+    public function test_employee_code_uses_employee_type_prefix_when_employee_type_id_set(): void
     {
         $admin = $this->superAdmin();
-        [$branch, $department] = $this->branchAndDepartment();
+        [$branch, $department, $shift] = $this->branchAndDepartment();
         $employeeType = EmployeeType::firstOrCreate(['name' => 'Permanent'], ['code' => 'PERM', 'is_active' => true]);
         $this->withSession(['current_branch_id' => $branch->id]);
 
-        $employee = Employee::create([
-            'branch_id' => $branch->id, 'first_name' => 'Anitha', 'last_name' => null,
-            'display_name' => 'Anitha', 'date_of_birth' => '1996-06-29', 'gender' => 'female',
-            'official_email' => 'anitha123@example.com', 'phone' => '9098789798',
-            'address_line1' => 'No 16 Kovil street', 'district' => 'Villupuram',
-            'state' => 'Andhra Pradesh', 'pincode' => '604303', 'biometric_id' => '78764567',
-            'status' => 'active',
-        ]);
-        $this->assertNull($employee->employee_code);
-
-        $response = $this->actingAs($admin)->put("http://localhost/employees/{$employee->id}", $this->stepsOneToThreePayload([
-            'branch_id'          => $branch->id,
-            'official_email'     => $employee->official_email,
-            'employee_category'  => 'staff',
-            'department_id'      => $department->id,
-            'designation'        => 'Machine Operator',
-            'employee_type_id'   => $employeeType->id,
-            'date_of_joining'    => now()->toDateString(),
-            'status'             => 'active',
+        $response = $this->actingAs($admin)->post('http://localhost/employees', $this->wizardPayload($department, $shift, [
+            'branch_id'        => $branch->id,
+            'employee_type_id' => $employeeType->id,
         ]));
 
-        $response->assertRedirect(route('employee-slab.edit', $employee));
-        $employee->refresh();
+        $response->assertRedirect(route('employees.index'));
+        $employee = Employee::where('official_email', 'anitha123@example.com')->firstOrFail();
 
-        $this->assertNotNull($employee->employee_code, 'Employee Code was not auto-generated when Employment Information was saved.');
-        $this->assertSame('PE0001', $employee->employee_code);
+        $this->assertNotNull($employee->employee_code);
         $this->assertSame('staff', $employee->primary_employee_type);
     }
 
-    public function test_employee_code_is_never_regenerated_on_a_later_employment_info_save(): void
+    public function test_employee_code_is_never_regenerated_on_a_later_update(): void
     {
         $admin = $this->superAdmin();
-        [$branch, $department] = $this->branchAndDepartment();
+        [$branch, $department, $shift] = $this->branchAndDepartment();
         $employeeType = EmployeeType::firstOrCreate(['name' => 'Permanent'], ['code' => 'PERM', 'is_active' => true]);
         $this->withSession(['current_branch_id' => $branch->id]);
 
@@ -155,50 +150,29 @@ class EmployeeCodeGenerationTest extends TestCase
             'primary_employee_type' => 'staff', 'status' => 'active',
         ]);
 
-        $this->actingAs($admin)->put("http://localhost/employees/{$employee->id}", $this->stepsOneToThreePayload([
-            'branch_id'          => $branch->id,
-            'official_email'     => $employee->official_email,
-            'employee_category'  => 'staff',
-            'department_id'      => $department->id,
-            'designation'        => 'Machine Operator',
-            'employee_type_id'   => $employeeType->id,
-            'date_of_joining'    => now()->toDateString(),
-            'status'             => 'inactive',
+        $this->actingAs($admin)->put("http://localhost/employees/{$employee->id}", $this->wizardPayload($department, $shift, [
+            'branch_id'      => $branch->id,
+            'official_email' => $employee->official_email,
         ]));
 
         $employee->refresh();
         $this->assertSame('PE0007', $employee->employee_code);
-        $this->assertSame('inactive', $employee->status);
     }
 
     public function test_employee_code_sequence_increments_per_employee_type_prefix(): void
     {
         $admin = $this->superAdmin();
-        [$branch, $department] = $this->branchAndDepartment();
+        [$branch, $department, $shift] = $this->branchAndDepartment();
         $employeeType = EmployeeType::firstOrCreate(['name' => 'Permanent'], ['code' => 'PERM', 'is_active' => true]);
         $this->withSession(['current_branch_id' => $branch->id]);
 
         foreach (['one@example.com', 'two@example.com'] as $email) {
-            $employee = Employee::create([
-                'branch_id' => $branch->id, 'first_name' => 'Test', 'last_name' => null,
-                'display_name' => 'Test', 'date_of_birth' => '1996-06-29', 'gender' => 'female',
-                'official_email' => $email, 'phone' => '9098789798',
-                'address_line1' => 'No 16 Kovil street', 'district' => 'Villupuram',
-                'state' => 'Andhra Pradesh', 'pincode' => '604303', 'biometric_id' => uniqid(),
-                'status' => 'active',
-            ]);
-
-            $this->actingAs($admin)->put("http://localhost/employees/{$employee->id}", $this->stepsOneToThreePayload([
-                'branch_id'          => $branch->id,
-                'official_email'     => $email,
-                'biometric_id'       => $employee->biometric_id,
-                'employee_category'  => 'staff',
-                'department_id'      => $department->id,
-                'designation'        => 'Machine Operator',
-                'employee_type_id'   => $employeeType->id,
-                'date_of_joining'    => now()->toDateString(),
-                'status'             => 'active',
-            ]));
+            $this->actingAs($admin)->post('http://localhost/employees', $this->wizardPayload($department, $shift, [
+                'branch_id'        => $branch->id,
+                'official_email'   => $email,
+                'biometric_id'     => uniqid(),
+                'employee_type_id' => $employeeType->id,
+            ]))->assertRedirect(route('employees.index'));
         }
 
         $codes = Employee::orderBy('id')->pluck('employee_code')->all();

@@ -1,8 +1,10 @@
 <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom px-4 py-2 sticky-top">
     <div class="d-flex align-items-center">
+        @unless (View::hasSection('hide-sidebar'))
         <button class="btn btn-link p-0 me-3 text-secondary" id="sidebarToggle" title="Toggle sidebar">
             <i class="bi bi-list fs-5"></i>
         </button>
+        @endunless
 
         {{-- Breadcrumbs --}}
         @if(isset($breadcrumbs))

@@ -64,8 +64,9 @@ class EmployeeController extends Controller
     public function create()
     {
         $activeTab = 2;
+        $primaryBankDetail = null;
 
-        return view('employees.create', $this->formData() + compact('activeTab'));
+        return view('employees.create', $this->formData() + compact('activeTab', 'primaryBankDetail'));
     }
 
     /**
@@ -354,8 +355,6 @@ class EmployeeController extends Controller
         $data['designation_id'] = $this->resolveDesignationId($data['designation'] ?? null);
         unset($data['designation']);
         $data['created_by'] = auth()->id();
-        // Create Employee (Steps 1-3) no longer shows a Status field — it's
-        // set on the Employee Slab's Employment Information section instead.
         if (empty($data['status'])) {
             $data['status'] = 'active';
         }
@@ -368,23 +367,17 @@ class EmployeeController extends Controller
         $data = $this->stripUnauthorizedRuleOverrides($data);
         $data = $this->stripUnauthorizedContractorRate($data);
 
-        // Employee Code is always auto-generated right here at creation —
-        // no extra step required. Create Employee (Steps 1-3) doesn't
-        // collect Employee Category (that's chosen later via Employee
-        // Slab), so when it's absent this still goes through the same
-        // Rule Engine / Employee-Type-prefixed sequence resolution, just
-        // falling further back to a generic branch-wide sequence when even
-        // the Employee Type isn't known yet. The code is never regenerated
-        // later — Employee Slab's own save (see update()) only fills it in
-        // for older employees who still don't have one.
-        $primaryType = null;
-        $labourType = null;
-        if (! empty($data['employee_category'])) {
-            $primaryType = $data['employee_category'] === 'staff' ? 'staff' : 'labour';
-            $labourType = self::LABOUR_TYPE_MAP[$data['employee_category']];
-            $data['primary_employee_type'] = $primaryType;
-            $data['labour_type'] = $labourType;
-        }
+        $bankData = $this->extractBankData($data);
+        $data['is_pf_applicable'] = $data['is_pf_applicable'] === 'yes';
+        $data['is_esi_applicable'] = $data['is_esi_applicable'] === 'yes';
+        $data['is_tds_applicable'] = $data['is_tds_applicable'] === 'yes';
+        $data['is_earnings_applicable'] = $data['is_earnings_applicable'] === 'yes';
+
+        // Employee Code is always auto-generated right here at creation.
+        $primaryType = $data['employee_category'] === 'staff' ? 'staff' : 'labour';
+        $labourType = self::LABOUR_TYPE_MAP[$data['employee_category']];
+        $data['primary_employee_type'] = $primaryType;
+        $data['labour_type'] = $labourType;
         $data['employee_code'] = $this->resolveEmployeeCode($data, $primaryType, $labourType);
         $codeWasGenerated = true;
         unset($data['employee_category']);
@@ -403,21 +396,44 @@ class EmployeeController extends Controller
 
         $employee = $this->createEmployeeWithRetry($data, $request, $codeWasGenerated, $primaryType, $labourType);
 
-        // People Module Update — Create Employee now covers only Steps 1-3
-        // (Personal/Contact/Address). Employment Information, Bank Details,
-        // Designation & Salary, and Documents are filled in afterwards via
-        // the separate Employee Slab / Employee Document modules — so this
-        // always returns to the Create Employee list, never continues into
-        // a further tab.
+        if ($bankData) {
+            $employee->bankDetails()->create($bankData);
+        }
+
         return redirect()->route('employees.index')
-            ->with('success', 'Employee registered. Continue with Employee Slab to add Employment, Bank, and Salary details.');
+            ->with('success', 'Employee created successfully.');
+    }
+
+    /**
+     * Bank Details (step 4) live on employee_bank_details, not employees —
+     * pull them out of the validated payload before Employee::create()/update().
+     * Not shown/submitted at all for Contract Labour, and only actually
+     * saved if at least one bank field was filled in.
+     */
+    private function extractBankData(array &$data): ?array
+    {
+        $fields = ['bank_id', 'bank_name', 'account_holder_name', 'account_number', 'ifsc_code', 'branch_name', 'account_type'];
+        $bankData = [];
+        foreach ($fields as $field) {
+            if (! empty($data[$field])) {
+                $bankData[$field] = $data[$field];
+            }
+            unset($data[$field]);
+        }
+        unset($data['account_number_confirmation']);
+
+        if (($data['employee_category'] ?? null) === 'contract_labour') {
+            return null;
+        }
+
+        return $bankData ?: null;
     }
 
     public function show(Employee $employee)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
-        $employee->load(['branch', 'department', 'designation', 'employeeType', 'contractor', 'designationContractor',
-            'shift', 'reportingTo', 'user', 'currentSalary', 'exitRecord',
+        $employee->load(['branch', 'department', 'designation', 'contractor', 'designationContractor',
+            'shift', 'user', 'currentSalary', 'exitRecord',
             'weeklyOffRuleOverride', 'attendanceRuleOverride', 'payrollRuleOverride']);
 
         // Module 11 (FSD 15.2) — statutory ID unmasking is gated by the
@@ -434,14 +450,12 @@ class EmployeeController extends Controller
     public function edit(Employee $employee, Request $request)
     {
         BranchScope::assertBranchAccess($employee->branch_id);
-        // Employment Information, Bank Information, Designation & Salary,
-        // and Employee Documents moved to the separate Employee Slab /
-        // Employee Document modules — this wizard only ever shows Steps
-        // 1-3 (Personal/Contact/Address) now.
         $activeTab = (int) $request->input('tab', 2);
+        $employee->load('bankDetails');
+        $primaryBankDetail = $employee->bankDetails->firstWhere('is_primary', true) ?? $employee->bankDetails->first();
 
         return view('employees.edit', array_merge(
-            compact('employee', 'activeTab'),
+            compact('employee', 'activeTab', 'primaryBankDetail'),
             $this->formData($employee)
         ));
     }
@@ -450,11 +464,9 @@ class EmployeeController extends Controller
     {
         BranchScope::assertBranchAccess($employee->branch_id);
         // Only the Employee Slab's Employment Information form submits
-        // employee_category (Create Employee's own Steps 1-3 edit form never
-        // does) — that's also the signal to enforce Employment Information
-        // as required server-side, not just via the form's HTML `required`.
-        $isSlabSubmission = $request->filled('employee_category');
-        $data = $request->validate($this->rules($employee->id, $isSlabSubmission));
+        // 5-step wizard — every step is always submitted together on Edit,
+        // same rules as Create.
+        $data = $request->validate($this->rules($employee->id));
         $data['designation_id'] = $this->resolveDesignationId($data['designation'] ?? null);
         unset($data['designation']);
         if (empty($data['employee_code'])) {
@@ -477,6 +489,12 @@ class EmployeeController extends Controller
         $data = $this->stripUnauthorizedRuleOverrides($data);
         $data = $this->stripUnauthorizedContractorRate($data);
 
+        $bankData = $this->extractBankData($data);
+        $data['is_pf_applicable'] = $data['is_pf_applicable'] === 'yes';
+        $data['is_esi_applicable'] = $data['is_esi_applicable'] === 'yes';
+        $data['is_tds_applicable'] = $data['is_tds_applicable'] === 'yes';
+        $data['is_earnings_applicable'] = $data['is_earnings_applicable'] === 'yes';
+
         if ($request->hasFile('profile_photo')) {
             if ($employee->profile_photo) {
                 Storage::disk('public')->delete($employee->profile_photo);
@@ -484,37 +502,33 @@ class EmployeeController extends Controller
             $data['profile_photo'] = $request->file('profile_photo')->store('employee-photos', 'public');
         }
 
-        // Create Employee's own edit form (Steps 1-3 only) no longer submits
-        // employee_category — that's set via Employee Slab instead. Only
-        // recompute the derived classification columns when a category was
-        // actually submitted (Employee Slab's Employment Information step).
-        $primaryType = null;
-        $labourType = null;
-        $codeWasGenerated = false;
-        if (! empty($data['employee_category'])) {
-            $category = $data['employee_category'];
-            $primaryType = $category === 'staff' ? 'staff' : 'labour';
-            $labourType = self::LABOUR_TYPE_MAP[$category];
-            $data['primary_employee_type'] = $primaryType;
-            $data['labour_type'] = $labourType;
+        $category = $data['employee_category'];
+        $primaryType = $category === 'staff' ? 'staff' : 'labour';
+        $labourType = self::LABOUR_TYPE_MAP[$category];
+        $data['primary_employee_type'] = $primaryType;
+        $data['labour_type'] = $labourType;
 
-            // Employee Code is generated exactly once — the first time
-            // Employee Slab's Employment Information is saved (it needs the
-            // Employee Category to pick the right numbering rule/prefix).
-            // Once set, it's never regenerated on later saves.
-            if (empty($employee->employee_code)) {
-                $data['employee_code'] = $this->resolveEmployeeCode($data, $primaryType, $labourType);
-                $codeWasGenerated = true;
-            }
+        // Employee Code is generated exactly once — the first time this
+        // employee's Employment Information (step 4) is saved. Once set,
+        // it's never regenerated on later saves.
+        $codeWasGenerated = false;
+        if (empty($employee->employee_code)) {
+            $data['employee_code'] = $this->resolveEmployeeCode($data, $primaryType, $labourType);
+            $codeWasGenerated = true;
         }
         unset($data['employee_category']);
 
         $this->updateEmployeeWithRetry($employee, $data, $codeWasGenerated, $primaryType, $labourType);
 
-        // Employee Slab's Employment Information section — "Create Login
-        // User" (moved here from the old Step 5, since Employment
-        // Information itself moved). Only creates one if the employee
-        // doesn't already have a linked user account.
+        if ($bankData) {
+            $primary = $employee->bankDetails()->where('is_primary', true)->first();
+            if ($primary) {
+                $primary->update($bankData);
+            } else {
+                $employee->bankDetails()->create($bankData + ['is_primary' => true]);
+            }
+        }
+
         if ($request->boolean('create_user') && $employee->official_email && ! $employee->user) {
             User::create([
                 'name'        => $this->generateUniqueDisplayName($employee->full_name),
@@ -525,19 +539,6 @@ class EmployeeController extends Controller
                 'employee_id' => $employee->id,
                 'is_active'   => true,
             ]);
-        }
-
-        if ($request->filled('next_tab')) {
-            return redirect()->route('employees.edit', ['employee' => $employee, 'tab' => $request->input('next_tab')])
-                ->with('success', 'Saved. Continue to the next section.');
-        }
-
-        // Employee Slab's own Employment Information form submits
-        // employee_category (Create Employee's Steps 1-3 edit form never
-        // does) — route it back to the Employee Slab screen it came from,
-        // not the Create Employee profile page.
-        if ($request->filled('employee_category')) {
-            return redirect()->route('employee-slab.edit', $employee)->with('success', 'Employment Information saved.');
         }
 
         return redirect()->route('employees.show', $employee)->with('success', 'Employee updated.');
@@ -1104,20 +1105,17 @@ class EmployeeController extends Controller
     }
 
     /**
-     * People Module Update — Create Employee (Steps 1-3: Personal/Contact/
-     * Address) no longer collects Employment Information; those fields
-     * (Department, Designation, Employee Type, Employee Category, Date of
-     * Joining) are now filled in later via the separate Employee Slab
-     * module. Passing $forSlab=true (used by EmployeeSlabController)
-     * restores the original `required` rules for exactly those fields;
-     * Create Employee itself always validates with $forSlab=false, leaving
-     * them nullable so a Steps-1-3-only submission is a valid row.
+     * 5-step Employee wizard (Personal/Contact/Address/Employee Information/
+     * Statutory Details) — Employment Information fields (Department,
+     * Designation, Employee Category, Date of Joining, Shift) are always
+     * collected on step 4, so they're always required (no more Create-vs-
+     * Employee-Slab nullable split).
      */
-    private function rules(int $excludeId = 0, bool $forSlab = false): array
+    private function rules(int $excludeId = 0): array
     {
         $minAge = (int) Setting::get('employee', 'min_working_age', 18);
         $nameRegex = 'regex:/^[a-zA-Z .\'-]+$/';
-        $classificationRequired = $forSlab ? 'required' : 'nullable';
+        $classificationRequired = 'required';
 
         $rules = [
             'first_name'       => ['required', 'string', 'max:100', $nameRegex],
@@ -1140,10 +1138,7 @@ class EmployeeController extends Controller
                     ->where(fn ($query) => $query->where('branch_id', BranchScope::currentBranchId() ?? request()->input('branch_id')))
                     ->ignore($excludeId),
             ],
-            // Employment Information (Employee Category/Department/
-            // Designation/Employee Type/Date of Joining) moved to the
-            // Employee Slab module — required there ($forSlab), nullable on
-            // Create Employee's own Steps 1-3.
+            // Employment Information — step 4 of the 5-step wizard.
             'employee_category' => [$classificationRequired, 'in:staff,company_labour,contract_labour'],
             'branch_id'        => ['required', 'exists:branches,id'],
             'department_id'    => [$classificationRequired, 'exists:departments,id'],
@@ -1157,7 +1152,7 @@ class EmployeeController extends Controller
             // nullable now; employees.employee_type_id stays in the schema,
             // just no longer set from any form.
             'employee_type_id' => ['nullable', 'exists:employee_types,id'],
-            'date_of_joining'  => [$classificationRequired, 'date'],
+            'date_of_joining'  => ['required', 'date'],
             'date_of_confirmation' => ['nullable', 'date', 'after_or_equal:date_of_joining'],
             'probation_end_date'   => ['nullable', 'date', 'after:date_of_joining'],
             'contract_start_date'  => ['required_if:employee_category,contract_labour', 'nullable', 'date'],
@@ -1173,11 +1168,10 @@ class EmployeeController extends Controller
             'official_email'   => ['required', 'email', 'max:255', 'unique:employees,official_email,' . $excludeId],
             'phone'            => ['required', 'digits:10'],
             'alternate_phone'  => ['nullable', 'digits:10'],
-            // Status now lives on the Employee Slab's Employment Information
-            // section, not Create Employee's own Steps 1-3 — nullable there
-            // (store() defaults it to 'active'), required for Employee Slab.
-            'status'           => [$classificationRequired, 'in:active,inactive,probation,terminated,resigned,retired'],
-            'shift_id'         => ['nullable', 'exists:shifts,id'],
+            // Status isn't one of the 5 wizard steps — store()/update() default
+            // it to 'active' when not present.
+            'status'           => ['nullable', 'in:active,inactive,probation,terminated,resigned,retired'],
+            'shift_id'         => ['required', 'exists:shifts,id'],
             'weekly_off_rule_id'  => ['nullable', 'exists:rules,id'],
             'attendance_rule_id'  => ['nullable', 'exists:rules,id'],
             'payroll_rule_id'     => ['nullable', 'exists:rules,id'],
@@ -1198,9 +1192,11 @@ class EmployeeController extends Controller
             'emergency_contact_phone' => ['nullable', 'digits:10'],
             'emergency_contact_relationship' => ['nullable', 'string', 'max:50'],
             'profile_photo'    => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
-            'is_pf_applicable' => ['boolean'],
-            'is_esi_applicable'=> ['boolean'],
-            'is_tds_applicable'=> ['boolean'],
+            // Statutory Details — step 5, rendered as Yes/No dropdowns.
+            'is_pf_applicable' => ['required', 'in:yes,no'],
+            'is_esi_applicable'=> ['required', 'in:yes,no'],
+            'is_tds_applicable'=> ['required', 'in:yes,no'],
+            'is_earnings_applicable' => ['required', 'in:yes,no'],
             'is_ot_applicable' => ['boolean'],
             'contractor_id'    => ['required_if:employee_category,contract_labour', 'nullable', 'exists:contractors,id'],
             'contractor_employee_number' => ['nullable', 'string', 'max:50'],
@@ -1208,6 +1204,17 @@ class EmployeeController extends Controller
             'labour_category'            => ['nullable', 'string', 'max:50'],
             'contractor_rate'            => ['nullable', 'numeric', 'min:0'],
             'contractor_remarks'         => ['nullable', 'string'],
+            // Bank Details — step 4, shown unless Employee Category is
+            // Contract Labour (contractor's own bank details are out of
+            // scope for this employee record).
+            'bank_id'              => ['nullable', 'exists:banks,id'],
+            'bank_name'            => ['nullable', 'string', 'max:100'],
+            'account_holder_name'  => ['nullable', 'string', 'max:100'],
+            'account_number'       => ['nullable', 'string', 'max:50'],
+            'account_number_confirmation' => ['nullable', 'same:account_number'],
+            'ifsc_code'            => ['nullable', 'string', 'regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'],
+            'branch_name'          => ['nullable', 'string', 'max:100'],
+            'account_type'         => ['nullable', 'in:savings,current,salary'],
         ];
 
         return $rules;

@@ -1,8 +1,13 @@
 @extends('layouts.app')
 
+@php $isFirstRun = \App\Models\Branch::count() === 0; @endphp
+
 @section('title', 'Create Branch')
 @section('page-title', 'Create Branch')
 @section('page-subtitle', 'Add a new branch (Super Admin only)')
+@if ($isFirstRun)
+    @section('hide-sidebar', true)
+@endif
 
 @section('content')
     <div class="card">
@@ -18,12 +23,10 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    {{-- Branch Code is auto-generated server-side (one higher than the
-                         latest existing code) — hidden here, not user-entered. --}}
-                    <div class="col-md-3 d-none">
-                        <label class="form-label">Branch Code</label>
+                    <div class="col-md-3">
+                        <label class="form-label">Branch Code <span class="text-danger">*</span></label>
                         <input type="text" name="code" class="form-control @error('code') is-invalid @enderror"
-                            value="{{ old('code') }}">
+                            value="{{ old('code') }}" required>
                         @error('code')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror

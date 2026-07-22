@@ -27,7 +27,7 @@ class Employee extends Model
         'date_of_joining', 'date_of_confirmation', 'probation_end_date', 'contract_start_date', 'contract_end_date', 'status',
         'aadhaar_number', 'pan_number', 'uan_number', 'pf_number', 'esi_number',
         'passport_number', 'passport_expiry',
-        'profile_photo', 'is_pf_applicable', 'is_esi_applicable', 'is_tds_applicable', 'is_ot_applicable',
+        'profile_photo', 'is_pf_applicable', 'is_esi_applicable', 'is_tds_applicable', 'is_earnings_applicable', 'is_ot_applicable',
         'created_by',
     ];
 
@@ -44,6 +44,7 @@ class Employee extends Model
             'is_pf_applicable'       => 'boolean',
             'is_esi_applicable'      => 'boolean',
             'is_tds_applicable'      => 'boolean',
+            'is_earnings_applicable' => 'boolean',
             'is_ot_applicable'       => 'boolean',
             'contractor_rate'        => 'decimal:2',
         ];
@@ -84,13 +85,13 @@ class Employee extends Model
     public function getSystemClassificationAttribute(): string
     {
         if ($this->primary_employee_type === 'staff') {
-            return 'Staff';
+            return 'Company Staff';
         }
 
         return match ($this->labour_type) {
             'company_labour' => 'Company Labour',
             'contract_labour' => 'Contract Labour',
-            default => 'Staff',
+            default => 'Company Staff',
         };
     }
 

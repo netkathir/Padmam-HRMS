@@ -18,7 +18,7 @@ return new class extends Migration
         Schema::dropIfExists('salary_slab_components');
 
         Schema::table('salary_slabs', function (Blueprint $table) {
-            $table->dropColumn(['min_ctc', 'max_ctc', 'basic_salary']);
+            $table->dropColumn(['min_ctc', 'max_ctc']);
         });
     }
 
@@ -27,7 +27,6 @@ return new class extends Migration
         Schema::table('salary_slabs', function (Blueprint $table) {
             $table->decimal('min_ctc', 12, 2)->nullable()->after('name');
             $table->decimal('max_ctc', 12, 2)->nullable()->after('min_ctc');
-            $table->decimal('basic_salary', 12, 2)->nullable()->after('max_ctc');
         });
 
         Schema::create('salary_slab_components', function (Blueprint $table) {

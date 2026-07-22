@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role'       => \App\Http\Middleware\CheckRole::class,
             'permission' => \App\Http\Middleware\CheckPermission::class,
             'force.password.change' => \App\Http\Middleware\ForcePasswordChange::class,
+            'require.branch' => \App\Http\Middleware\RequireBranchExists::class,
             'feature'    => \App\Http\Middleware\EnsureFeatureEnabled::class,
         ]);
     })

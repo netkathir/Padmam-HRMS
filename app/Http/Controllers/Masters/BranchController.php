@@ -6,10 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Branch;
 use App\Models\User;
-use App\Support\SequentialCodeGenerator;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class BranchController extends Controller
 {
@@ -69,10 +66,6 @@ class BranchController extends Controller
         $this->ensureSuperAdmin();
 
         $data = $this->validateBranch($request);
-        // Branch Code is auto-generated on create — hidden from the UI, and
-        // any value a caller submits directly is ignored so it can never be
-        // set to something other than the next generated code.
-        unset($data['code']);
         $data['created_by'] = auth()->id();
 
         // Structured address entry (Create Branch only — `address` above
@@ -84,42 +77,12 @@ class BranchController extends Controller
         $data['address_line1'] = $addressLines['address_line1'] ?? null;
         $data['address_line2'] = $addressLines['address_line2'] ?? null;
 
-        $branch = $this->createWithGeneratedCode($data);
+        $branch = Branch::create($data);
 
         AuditLog::write(auth()->id(), 'create', 'branches', $branch->id, null, $data, $branch->id);
 
         return redirect()->route('masters.branches.index')
             ->with('success', 'Branch created successfully.');
-    }
-
-    /**
-     * Generates the next Branch Code (one higher than the latest existing
-     * code, preserving its prefix/padding) and creates the branch with it.
-     * A row lock on the latest branch serializes concurrent creations, and
-     * the retry loop is a defensive fallback against the rare duplicate-key
-     * race the lock doesn't cover (e.g. two processes on different DB
-     * connections outside the lock's visibility) — the unique index on
-     * `code` is the actual guarantee against ever storing a collision.
-     */
-    private function createWithGeneratedCode(array $data): Branch
-    {
-        for ($attempt = 1; $attempt <= 5; $attempt++) {
-            try {
-                return DB::transaction(function () use ($data) {
-                    $lastCode = Branch::orderByDesc('id')->lockForUpdate()->value('code');
-                    $data['code'] = SequentialCodeGenerator::next($lastCode, 'BR0001');
-
-                    return Branch::create($data);
-                });
-            } catch (QueryException $e) {
-                $isDuplicate = (string) $e->getCode() === '23000';
-                if (! $isDuplicate || $attempt === 5) {
-                    throw $e;
-                }
-            }
-        }
-
-        throw new \RuntimeException('Unable to generate a unique Branch Code after several attempts.');
     }
 
     public function edit(Branch $branch)
@@ -190,12 +153,7 @@ class BranchController extends Controller
     {
         $data = $request->validate([
             'name'                     => ['required', 'string', 'max:100', 'unique:branches,name' . ($ignoreId ? ",$ignoreId" : '')],
-            // Auto-generated on create (hidden from the UI — see
-            // createWithGeneratedCode()); still required/unique/editable on
-            // update, preserving today's Edit Branch behavior exactly.
-            'code'                     => $ignoreId
-                ? ['required', 'string', 'max:20', 'unique:branches,code,' . $ignoreId]
-                : ['nullable', 'string', 'max:20'],
+            'code'                     => ['required', 'string', 'max:20', 'unique:branches,code' . ($ignoreId ? ",$ignoreId" : '')],
             'unit_type'                => ['nullable', 'string', 'max:50'],
             // Address is always visible/mandatory on the form now (no more
             // "Address Available" toggle).

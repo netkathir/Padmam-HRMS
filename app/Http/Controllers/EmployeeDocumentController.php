@@ -34,14 +34,7 @@ class EmployeeDocumentController extends Controller
 
         $employees = $query->paginate(20)->withQueryString();
 
-        // The Add button's employee picker only ever offers employees with
-        // no documents yet — same set the "not uploaded" filter shows.
-        $pickerEmployees = BranchScope::scopeQuery(Employee::query())
-            ->doesntHave('documents')
-            ->orderBy('first_name')
-            ->get();
-
-        return view('employee-document.index', compact('employees', 'notUploaded', 'pickerEmployees'));
+        return view('employee-document.index', compact('employees', 'notUploaded'));
     }
 
     /** Read-only Employee Document detail — the uploaded documents list, distinct from employees.documents' own view+upload page. */
@@ -53,16 +46,27 @@ class EmployeeDocumentController extends Controller
         return view('employee-document.show', compact('employee', 'documents'));
     }
 
-    /** Employee picker landed here with ?employee=ID — redirect straight into that employee's document upload page. */
+    /**
+     * Add flow: Add → dedicated search screen (this page) → pick an
+     * employee from the results → employees.documents upload page. Only
+     * employees with no documents yet are eligible to appear here, same set
+     * the index's "Not Uploaded" filter shows.
+     */
     public function create(Request $request)
     {
-        $employeeId = $request->integer('employee');
-        $employee = $employeeId ? Employee::findOrFail($employeeId) : null;
+        $employees = collect();
 
-        if (! $employee) {
-            return redirect()->route('employee-document.index');
+        if ($request->filled('search')) {
+            $s = '%' . $request->search . '%';
+            $employees = BranchScope::scopeQuery(Employee::query())
+                ->doesntHave('documents')
+                ->where(fn($q) => $q->where('first_name', 'like', $s)
+                    ->orWhere('last_name', 'like', $s)
+                    ->orWhere('employee_code', 'like', $s))
+                ->orderBy('first_name')
+                ->get();
         }
 
-        return redirect()->route('employees.documents', $employee);
+        return view('employee-document.create', compact('employees'));
     }
 }

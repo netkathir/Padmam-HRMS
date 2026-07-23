@@ -11,10 +11,11 @@ class LeaveType extends Model
 
     protected $table = 'leave_types';
     protected $fillable = [
-        'name', 'code', 'is_paid', 'applicable_employee_types', 'is_active',
+        'name', 'code', 'days_per_year', 'is_paid', 'applicable_employee_types', 'is_active',
     ];
     protected function casts(): array {
         return [
+            'days_per_year' => 'decimal:2',
             'is_paid' => 'boolean',
             'is_active' => 'boolean',
             'applicable_employee_types' => 'array',

@@ -9,8 +9,6 @@ use Illuminate\Validation\Rule;
 
 class LeaveTypeController extends Controller
 {
-    private const EMPLOYEE_TYPES = ['staff', 'company_labour', 'contract_labour'];
-
     public function index(Request $request)
     {
         $query = LeaveType::orderBy('name');
@@ -35,7 +33,8 @@ class LeaveTypeController extends Controller
             'name'                         => ['required', 'string', 'max:100', Rule::unique('leave_types', 'name')->ignore($leaveTypeId)],
             'code'                         => ['required', 'string', 'max:20', Rule::unique('leave_types', 'code')->ignore($leaveTypeId)],
             'applicable_employee_types'    => ['required', 'array', 'min:1'],
-            'applicable_employee_types.*'  => ['in:' . implode(',', self::EMPLOYEE_TYPES)],
+            'applicable_employee_types.*'  => ['in:' . implode(',', array_keys(config('employee_types')))],
+            'days_per_year'                => ['required', 'numeric', 'min:0', 'max:365'],
             'is_paid'                      => ['required', 'boolean'],
             'is_active'                    => ['required', 'boolean'],
         ];

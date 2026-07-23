@@ -22,13 +22,12 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>Code</th><th>Name</th><th>Percentage</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($components as $comp)
                     <tr>
                         <td><span class="badge bg-success-subtle text-success">{{ $comp->code }}</span></td>
                         <td>{{ $comp->name }}</td>
-                        <td>{{ $comp->percentage ? $comp->percentage . '%' : '—' }}</td>
                         <td><span class="badge bg-{{ $comp->is_active ? 'success' : 'danger' }}-subtle text-{{ $comp->is_active ? 'success' : 'danger' }}">{{ $comp->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
                             <a href="{{ route('masters.generic.show', ['module' => 'earnings', 'id' => $comp->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
@@ -40,7 +39,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="5" class="text-center text-muted py-4">No earning components found.</td></tr>
+                    <tr><td colspan="4" class="text-center text-muted py-4">No earning components found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

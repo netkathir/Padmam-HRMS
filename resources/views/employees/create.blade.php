@@ -105,6 +105,53 @@
         const navButtons = Array.from(document.querySelectorAll('[data-nav-tab]'));
         const panes = Array.from(document.querySelectorAll('[data-tab-pane]'));
 
+        /**
+         * Validates every [required] field within a wizard pane and returns
+         * true only if all pass.
+         *
+         * Two kinds of "hidden" fields need different handling:
+         *  - Toggled off entirely (display:none on an ancestor — e.g. a
+         *    PF/ESI/TDS/OT number field whose Yes/No is currently "No", or a
+         *    Contract-Labour-only field when Contract Labour isn't selected):
+         *    not currently applicable, so it's skipped outright.
+         *  - Wrapped by the searchable-dropdown helper (the real <select>
+         *    gets .d-none; a visible text-input proxy stands in for it): the
+         *    select itself is still the field whose value must be checked,
+         *    but reportValidity()/focus() must target the visible proxy
+         *    input instead, since you can't focus/report on a hidden field.
+         * Calling reportValidity() on a hidden field previously returned
+         * false with no visible tooltip at all — the wizard just silently
+         * refused to advance. Now the first real failure gets focused and a
+         * top-right toast names which field needs attention.
+         */
+        function validatePaneRequiredFields(pane) {
+            const requiredFields = pane.querySelectorAll('[required]');
+            for (const f of requiredFields) {
+                if (f.disabled) continue;
+
+                const wrapper = f.classList.contains('d-none') ? f.closest('.position-relative') : null;
+                const proxyInput = wrapper ? wrapper.querySelector('input[type="text"]') : null;
+                const visibleTarget = proxyInput || f;
+
+                if (!proxyInput && f.offsetParent === null) continue; // toggled off — not currently applicable
+
+                if (!f.checkValidity()) {
+                    const label = pane.querySelector(`label[for="${f.id}"]`)
+                        || (f.closest('.col-12, .col-md, [class*="col-"]')?.querySelector('label'));
+                    const fieldName = (label?.textContent || f.name || 'This field').replace('*', '').trim();
+                    window.showToast(`"${fieldName}" is required before you can continue.`, 'warning');
+                    if (visibleTarget === f) {
+                        f.reportValidity();
+                    } else {
+                        proxyInput.classList.add('is-invalid');
+                        proxyInput.focus();
+                    }
+                    return false;
+                }
+            }
+            return true;
+        }
+
         function showTab(n) {
             panes.forEach(function (p) {
                 p.style.display = (parseInt(p.dataset.tabPane, 10) === n) ? '' : 'none';
@@ -122,10 +169,7 @@
             btn.addEventListener('click', function () {
                 const pane = btn.closest('[data-tab-pane]');
                 const current = parseInt(pane.dataset.tabPane, 10);
-                const requiredFields = pane.querySelectorAll('[required]');
-                for (const f of requiredFields) {
-                    if (!f.reportValidity()) return;
-                }
+                if (!validatePaneRequiredFields(pane)) return;
                 showTab(Math.min(current + 1, TOTAL_TABS));
             });
         });
@@ -153,6 +197,20 @@
             categorySelect.addEventListener('change', refreshEmployeeCategoryFields);
             refreshEmployeeCategoryFields();
         }
+
+        // ── Tab 6: Statutory Details — PF/ESI/TDS/OT Yes/No toggles their number/rate field ──
+        function wireYesNoToggle(selectId, fieldId) {
+            const select = document.getElementById(selectId);
+            const field = document.getElementById(fieldId);
+            if (!select || !field) return;
+            function refresh() { field.style.display = select.value === 'yes' ? '' : 'none'; }
+            select.addEventListener('change', refresh);
+            refresh();
+        }
+        wireYesNoToggle('is_pf_applicable', 'pf-number-field');
+        wireYesNoToggle('is_esi_applicable', 'esi-number-field');
+        wireYesNoToggle('is_tds_applicable', 'tds-number-field');
+        wireYesNoToggle('is_ot_applicable', 'ot-rate-field');
 
         // ── Tab 5: selecting a Contractor auto-fills Contract Start/End Date ──
         const contractorSelect = document.getElementById('contractor_id');

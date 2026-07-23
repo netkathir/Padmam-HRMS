@@ -9,10 +9,7 @@ use App\Models\Shift;
 use App\Models\Holiday;
 use App\Models\LeaveType;
 use App\Models\EarningsComponent;
-use App\Models\DeductionsComponent;
-use App\Models\PfEsiConfig;
 use App\Models\Bank;
-use App\Models\Checkpoint;
 use Illuminate\Http\Request;
 
 class MasterController extends Controller
@@ -27,9 +24,7 @@ class MasterController extends Controller
             'holidayCount'     => Holiday::where(fn($q) => $q->whereYear('start_date', now()->year)->orWhereYear('end_date', now()->year))->count(),
             'leaveTypeCount'   => LeaveType::count(),
             'earningsCount'    => EarningsComponent::count(),
-            'deductionsCount'  => DeductionsComponent::count(),
             'bankCount'        => Bank::count(),
-            'checkpointCount'  => Checkpoint::count(),
         ]);
     }
 }

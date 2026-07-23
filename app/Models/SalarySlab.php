@@ -11,7 +11,7 @@ class SalarySlab extends Model
 
     protected $table = 'salary_slabs';
     protected $fillable = [
-        'name',
+        'name', 'salary_from', 'salary_to',
         'tds_percentage', 'pf_employee_percentage', 'pf_employer_percentage',
         'esi_employee_percentage', 'esi_employer_percentage',
         'is_active',
@@ -19,6 +19,8 @@ class SalarySlab extends Model
     protected function casts(): array
     {
         return [
+            'salary_from' => 'decimal:2',
+            'salary_to' => 'decimal:2',
             'tds_percentage' => 'decimal:2',
             'pf_employee_percentage' => 'decimal:2',
             'pf_employer_percentage' => 'decimal:2',
@@ -29,6 +31,8 @@ class SalarySlab extends Model
     }
     public function salaryStructures() { return $this->hasMany(EmployeeSalaryStructure::class, 'salary_slab_id'); }
     public function employees() { return $this->hasMany(Employee::class, 'salary_slab_id'); }
+    public function components() { return $this->hasMany(SalarySlabComponent::class); }
+    public function earningsComponents() { return $this->components()->where('component_type', 'earning'); }
 
     // ── Computed salary breakdown — Basic Salary is entered per-employee
     // (Employee Slab's Designation & Salary section), never stored on the

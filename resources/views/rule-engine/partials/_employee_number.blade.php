@@ -6,7 +6,7 @@
             <label class="form-label">Employee Category <span class="text-danger">*</span></label>
             <select name="employee_category" class="form-select">
                 <option value="">Select</option>
-                @foreach(['staff'=>'Staff','company_labour'=>'Company Labour','contract_labour'=>'Contract Labour'] as $val=>$label)
+                @foreach(config('employee_types') as $val=>$label)
                     <option value="{{ $val }}" {{ old('employee_category', $d->employee_category ?? '') == $val ? 'selected' : '' }}>{{ $label }}</option>
                 @endforeach
             </select>

@@ -27,7 +27,7 @@
                     <label class="form-label">Applicable Employee Types <span class="text-danger">*</span></label>
                     @php $selectedTypes = old('applicable_employee_types', $holiday->applicable_employee_types ?? ['staff','company_labour','contract_labour']); @endphp
                     <div class="border rounded p-2 @error('applicable_employee_types') is-invalid @enderror">
-                        @foreach(['staff'=>'Staff','company_labour'=>'Company Labour','contract_labour'=>'Contract Labour'] as $val=>$label)
+                        @foreach(config('employee_types') as $val=>$label)
                         <div class="form-check">
                             <input type="checkbox" name="applicable_employee_types[]" class="form-check-input" id="etype_{{ $val }}" value="{{ $val }}" {{ in_array($val, $selectedTypes) ? 'checked' : '' }}>
                             <label class="form-check-label" for="etype_{{ $val }}">{{ $label }}</label>

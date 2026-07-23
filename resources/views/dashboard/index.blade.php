@@ -316,7 +316,7 @@
     new Chart(document.getElementById('chartEmployeeType'), {
         type: 'doughnut',
         data: {
-            labels: ['Staff', 'Company Labour', 'Contract Labour'],
+            labels: @json(array_values(config('employee_types'))),
             datasets: [{ data: [empType.staff, empType.company_labour, empType.contract_labour], backgroundColor: ['#6366f1', '#0d9488', '#22d3ee'] }]
         }
     });

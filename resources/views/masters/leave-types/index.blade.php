@@ -22,14 +22,15 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Employee Type Applicability</th><th>Paid</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Days/Year</th><th>Employee Type Applicability</th><th>Paid</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
-                    @php $typeLabels = ['staff'=>'Staff','company_labour'=>'Company Labour','contract_labour'=>'Contract Labour']; @endphp
+                    @php $typeLabels = config('employee_types'); @endphp
                     @forelse($leaveTypes as $lt)
                     <tr>
                         <td>{{ $leaveTypes->firstItem() + $loop->index }}</td>
                         <td><span class="badge bg-secondary">{{ $lt->code }}</span></td>
                         <td>{{ $lt->name }}</td>
+                        <td>{{ $lt->days_per_year }}</td>
                         <td>{{ collect($lt->applicable_employee_types ?? [])->map(fn($t) => $typeLabels[$t] ?? $t)->join(', ') ?: '—' }}</td>
                         <td class="text-center"><i class="bi bi-{{ $lt->is_paid ? 'check-circle-fill text-success' : 'x-circle text-danger' }}"></i></td>
                         <td><span class="badge bg-{{ $lt->is_active ? 'success' : 'danger' }}-subtle text-{{ $lt->is_active ? 'success' : 'danger' }}">{{ $lt->is_active ? 'Active' : 'Inactive' }}</span></td>
@@ -43,7 +44,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="7" class="text-center text-muted py-4">No leave types found.</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-4">No leave types found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\BusinessRule;
 use App\Models\Contractor;
-use App\Models\DeductionsComponent;
 use App\Models\EarningsComponent;
 use App\Models\Shift;
 use App\Services\EmployeeNumberGenerator;
@@ -52,7 +51,6 @@ class RuleController extends Controller
             'contractors' => Contractor::where('is_active', true)->orderBy('name')->get(),
             'shifts' => Shift::where('is_active', true)->orderBy('name')->get(),
             'earningsComponents' => EarningsComponent::where('is_active', true)->orderBy('sort_order')->get(),
-            'deductionsComponents' => DeductionsComponent::where('is_active', true)->orderBy('sort_order')->get(),
             'categories' => BusinessRule::CATEGORIES,
         ];
     }

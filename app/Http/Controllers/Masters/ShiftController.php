@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Masters;
 
 use App\Http\Controllers\Controller;
-use App\Models\Branch;
 use App\Models\Shift;
 use App\Support\SequentialCodeGenerator;
 use Illuminate\Database\QueryException;
@@ -13,8 +12,6 @@ use Illuminate\Validation\Rule;
 
 class ShiftController extends Controller
 {
-    private const EMPLOYEE_TYPES = ['staff', 'company_labour', 'contract_labour'];
-
     public function index(Request $request)
     {
         $query = Shift::orderBy('name');
@@ -30,8 +27,7 @@ class ShiftController extends Controller
 
     public function create()
     {
-        $branches = Branch::active()->orderBy('name')->get();
-        return view('masters.shifts.create', compact('branches'));
+        return view('masters.shifts.create');
     }
 
     private function rules(?int $shiftId = null): array
@@ -43,16 +39,12 @@ class ShiftController extends Controller
             'name'                      => ['required', 'string', 'max:100', Rule::unique('shifts', 'name')->ignore($shiftId)],
             'start_time'                => ['required', 'date_format:H:i'],
             'end_time'                  => ['required', 'date_format:H:i'],
-            'break_minutes'             => ['nullable', 'integer', 'min:0', 'max:480'],
             'grace_late_entry_minutes'  => ['nullable', 'integer', 'min:0'],
             'grace_early_exit_minutes'  => ['nullable', 'integer', 'min:0'],
             'work_hours'                => ['nullable', 'numeric', 'min:0', 'max:24'],
-            'is_overnight'              => ['boolean'],
             'is_active'                 => ['required', 'boolean'],
-            'branch_ids'                => ['required', 'array', 'min:1'],
-            'branch_ids.*'              => ['exists:branches,id'],
             'applicable_employee_types'   => ['required', 'array', 'min:1'],
-            'applicable_employee_types.*' => ['in:' . implode(',', self::EMPLOYEE_TYPES)],
+            'applicable_employee_types.*' => ['in:' . implode(',', array_keys(config('employee_types')))],
         ];
     }
 
@@ -67,13 +59,10 @@ class ShiftController extends Controller
         $end = \Carbon\Carbon::createFromFormat('H:i', $data['end_time'])->hour * 60
             + \Carbon\Carbon::createFromFormat('H:i', $data['end_time'])->minute;
 
-        if (! empty($data['is_overnight']) && $end <= $start) {
-            $end += 24 * 60;
-        }
         $duration = $end - $start;
 
         if ($duration <= 0) {
-            abort(422, 'Shift End Time must result in a valid shift duration (enable Overnight Shift if it crosses midnight).');
+            abort(422, 'Shift End Time must result in a valid shift duration.');
         }
 
         $grace = (int) ($data['grace_late_entry_minutes'] ?? 0) + (int) ($data['grace_early_exit_minutes'] ?? 0);
@@ -118,8 +107,7 @@ class ShiftController extends Controller
         $data = $request->validate($this->rules());
         $this->assertGraceWithinDuration($data);
 
-        $shift = $this->createWithGeneratedCode($data);
-        $shift->branches()->sync($data['branch_ids']);
+        $this->createWithGeneratedCode($data);
 
         return redirect()->route('masters.shifts.index')
             ->with('success', 'Shift created successfully.');
@@ -127,9 +115,7 @@ class ShiftController extends Controller
 
     public function edit(Shift $shift)
     {
-        $branches = Branch::active()->orderBy('name')->get();
-        $shift->load('branches');
-        return view('masters.shifts.edit', compact('shift', 'branches'));
+        return view('masters.shifts.edit', compact('shift'));
     }
 
     public function update(Request $request, Shift $shift)
@@ -138,7 +124,6 @@ class ShiftController extends Controller
         $this->assertGraceWithinDuration($data);
 
         $shift->update($data);
-        $shift->branches()->sync($data['branch_ids']);
 
         return redirect()->route('masters.shifts.index')
             ->with('success', 'Shift updated successfully.');

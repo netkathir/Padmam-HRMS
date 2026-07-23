@@ -22,12 +22,13 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Slab Name</th><th>TDS%</th><th>PF Emp/Empr%</th><th>ESI Emp/Empr%</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Slab Name</th><th>Salary Range</th><th>TDS%</th><th>PF Emp/Empr%</th><th>ESI Emp/Empr%</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($slabs as $slab)
                     <tr>
                         <td>{{ $slabs->firstItem() + $loop->index }}</td>
                         <td>{{ $slab->name }}</td>
+                        <td>{{ $slab->salary_from !== null ? number_format($slab->salary_from) . ' - ' . number_format($slab->salary_to) : '—' }}</td>
                         <td>{{ $slab->tds_percentage ?? '—' }}</td>
                         <td>{{ $slab->pf_employee_percentage ?? '—' }} / {{ $slab->pf_employer_percentage ?? '—' }}</td>
                         <td>{{ $slab->esi_employee_percentage ?? '—' }} / {{ $slab->esi_employer_percentage ?? '—' }}</td>
@@ -42,7 +43,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="7" class="text-center text-muted py-4">No salary slabs found.</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-4">No salary slabs found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -26,14 +26,9 @@ use App\Http\Controllers\Masters\ContractWorkerController;
 use App\Http\Controllers\ContractAttendanceController;
 use App\Http\Controllers\ContractPayrollController;
 use App\Http\Controllers\Masters\EarningsComponentController;
-use App\Http\Controllers\Masters\DeductionsComponentController;
 use App\Http\Controllers\Masters\SalarySlabController;
-use App\Http\Controllers\Masters\OtRateController;
-use App\Http\Controllers\Masters\PfEsiConfigController;
 use App\Http\Controllers\Masters\BankController;
 use App\Http\Controllers\Masters\GenericMasterShowController;
-use App\Http\Controllers\Masters\CheckpointController;
-use App\Http\Controllers\Masters\EmployeeCheckpointController;
 use App\Http\Controllers\RuleEngine\RuleController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\RolePermissionController;
@@ -295,21 +290,6 @@ Route::middleware(['auth', 'force.password.change', 'require.branch'])->group(fu
         ->middlewareFor(['store'], 'permission:masters_earnings.create')
         ->middlewareFor(['update', 'destroy'], 'permission:masters_earnings.full');
 
-    Route::resource('masters/deductions', DeductionsComponentController::class, ['as' => 'masters', 'parameters' => ['deductions' => 'deductionsComponent']])->except('show')
-        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_deductions.read')
-        ->middlewareFor(['store'], 'permission:masters_deductions.create')
-        ->middlewareFor(['update', 'destroy'], 'permission:masters_deductions.full');
-
-    Route::resource('masters/ot-rates', OtRateController::class, ['as' => 'masters'])->except('show')
-        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_ot_rates.read')
-        ->middlewareFor(['store'], 'permission:masters_ot_rates.create')
-        ->middlewareFor(['update', 'destroy'], 'permission:masters_ot_rates.full');
-
-    Route::resource('masters/pf-esi', PfEsiConfigController::class, ['as' => 'masters', 'parameters' => ['pf-esi' => 'pfEsiConfig']])->except('show')
-        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_pf_esi.read')
-        ->middlewareFor(['store'], 'permission:masters_pf_esi.create')
-        ->middlewareFor(['update', 'destroy'], 'permission:masters_pf_esi.full');
-
     Route::resource('masters/contractors', ContractorController::class, ['as' => 'masters'])->except('show')
         ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_contractors.read')
         ->middlewareFor(['store'], 'permission:masters_contractors.create')
@@ -335,19 +315,6 @@ Route::middleware(['auth', 'force.password.change', 'require.branch'])->group(fu
         ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_banks.read')
         ->middlewareFor(['store'], 'permission:masters_banks.create')
         ->middlewareFor(['update', 'destroy'], 'permission:masters_banks.full');
-
-    // Biometric Bulk Upload rework — Checkpoint replaces the old free-text
-    // "door" concept; Employee-Checkpoint Mapping records which door-local
-    // ID an employee is registered under at each checkpoint.
-    Route::resource('masters/checkpoints', CheckpointController::class, ['as' => 'masters'])->except('show')
-        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_checkpoints.read')
-        ->middlewareFor(['store'], 'permission:masters_checkpoints.create')
-        ->middlewareFor(['update', 'destroy'], 'permission:masters_checkpoints.full');
-
-    Route::resource('masters/employee-checkpoints', EmployeeCheckpointController::class, ['as' => 'masters', 'parameters' => ['employee-checkpoints' => 'employeeCheckpoint']])->except('show')
-        ->middlewareFor(['index', 'create', 'edit'], 'permission:masters_employee_checkpoints.read')
-        ->middlewareFor(['store'], 'permission:masters_employee_checkpoints.create')
-        ->middlewareFor(['update', 'destroy'], 'permission:masters_employee_checkpoints.full');
 
     // Module 4 — Rule Engine (single screen, category-driven; Employee Number
     // Configuration is not a separate form per the FSD).

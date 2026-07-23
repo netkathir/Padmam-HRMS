@@ -27,13 +27,8 @@ class GenericMasterShowController extends Controller
         'leave-types'   => [\App\Models\LeaveType::class, 'masters_leave_types'],
         'salary-slabs'  => [\App\Models\SalarySlab::class, 'masters_salary_slabs'],
         'earnings'      => [\App\Models\EarningsComponent::class, 'masters_earnings'],
-        'deductions'    => [\App\Models\DeductionsComponent::class, 'masters_deductions'],
-        'ot-rates'      => [\App\Models\OtRate::class, 'masters_ot_rates'],
-        'pf-esi'        => [\App\Models\PfEsiConfig::class, 'masters_pf_esi'],
         'contractors'   => [\App\Models\Contractor::class, 'masters_contractors'],
         'banks'         => [\App\Models\Bank::class, 'masters_banks'],
-        'checkpoints'          => [\App\Models\Checkpoint::class, 'masters_checkpoints'],
-        'employee-checkpoints' => [\App\Models\EmployeeCheckpoint::class, 'masters_employee_checkpoints'],
     ];
 
     public function show(string $module, int $id)

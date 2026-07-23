@@ -87,21 +87,6 @@ return [
         'icon' => 'bi-graph-up-arrow',
         'section' => 'Masters',
     ],
-    'masters_deductions' => [
-        'label' => 'Deductions',
-        'icon' => 'bi-graph-down-arrow',
-        'section' => 'Masters',
-    ],
-    'masters_ot_rates' => [
-        'label' => 'OT Rates',
-        'icon' => 'bi-hourglass-split',
-        'section' => 'Masters',
-    ],
-    'masters_pf_esi' => [
-        'label' => 'PF & ESI',
-        'icon' => 'bi-shield-plus',
-        'section' => 'Masters',
-    ],
     'masters_contractors' => [
         'label' => 'Contractors',
         'icon' => 'bi-person-workspace',
@@ -110,16 +95,6 @@ return [
     'masters_banks' => [
         'label' => 'Banks',
         'icon' => 'bi-bank',
-        'section' => 'Masters',
-    ],
-    'masters_checkpoints' => [
-        'label' => 'Checkpoints',
-        'icon' => 'bi-geo-alt',
-        'section' => 'Masters',
-    ],
-    'masters_employee_checkpoints' => [
-        'label' => 'Employee Checkpoint Mapping',
-        'icon' => 'bi-person-lines-fill',
         'section' => 'Masters',
     ],
     'rule_engine' => [

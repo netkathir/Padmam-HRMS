@@ -14,11 +14,6 @@
                     @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Percentage (%) <span class="text-danger">*</span></label>
-                    <input type="number" step="0.01" name="percentage" class="form-control @error('percentage') is-invalid @enderror" value="{{ old('percentage') }}" min="0" max="100" required>
-                    @error('percentage')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-6">
                     <label class="form-label">Status <span class="text-danger">*</span></label>
                     <select name="is_active" class="form-select @error('is_active') is-invalid @enderror" required>
                         <option value="1" {{ old('is_active', '1') == '1' ? 'selected' : '' }}>Active</option>
@@ -28,7 +23,7 @@
                 </div>
             </div>
             <div class="mt-4 d-flex gap-2">
-                <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Submit</button>
                 <a href="{{ route('masters.earnings.index') }}" class="btn btn-secondary">Cancel</a>
             </div>
         </form>

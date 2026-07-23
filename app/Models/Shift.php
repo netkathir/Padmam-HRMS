@@ -9,14 +9,13 @@ class Shift extends Model
 {
     use SoftDeletes;
     protected $fillable = [
-        'name', 'code', 'start_time', 'end_time', 'break_minutes',
+        'name', 'code', 'start_time', 'end_time',
         'grace_late_entry_minutes', 'grace_early_exit_minutes',
-        'applicable_employee_types', 'work_hours', 'is_overnight', 'is_active',
+        'applicable_employee_types', 'work_hours', 'is_active',
     ];
     protected function casts(): array
     {
         return [
-            'is_overnight' => 'boolean',
             'is_active' => 'boolean',
             'work_hours' => 'decimal:2',
             'applicable_employee_types' => 'array',
@@ -41,17 +40,12 @@ class Shift extends Model
     }
 
     /**
-     * Total shift duration in minutes, overnight-aware (end time on the next
-     * day when is_overnight is set) — used to validate grace periods don't
+     * Total shift duration in minutes — used to validate grace periods don't
      * exceed the shift itself (FSD 7.2).
      */
     public function getDurationMinutesAttribute(): int
     {
-        $end = $this->end_minutes;
-        if ($this->is_overnight && $end <= $this->start_minutes) {
-            $end += 24 * 60;
-        }
-        return $end - $this->start_minutes;
+        return $this->end_minutes - $this->start_minutes;
     }
 
     public function appliesToEmployeeType(?string $primaryType, ?string $labourType = null): bool
@@ -63,11 +57,6 @@ class Shift extends Model
 
         $key = $primaryType === 'staff' ? 'staff' : $labourType;
         return $key !== null && in_array($key, $types, true);
-    }
-
-    public function branches()
-    {
-        return $this->belongsToMany(Branch::class, 'shift_branches');
     }
 
     public function employeeShiftAssignments()

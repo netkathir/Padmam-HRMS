@@ -25,9 +25,9 @@ class Employee extends Model
         'address_line1', 'address_line2', 'city', 'district', 'state', 'pincode',
         'permanent_address_line1', 'permanent_address_line2', 'permanent_city', 'permanent_district', 'permanent_state', 'permanent_pincode',
         'date_of_joining', 'date_of_confirmation', 'probation_end_date', 'contract_start_date', 'contract_end_date', 'status',
-        'aadhaar_number', 'pan_number', 'uan_number', 'pf_number', 'esi_number',
+        'aadhaar_number', 'pan_number', 'uan_number', 'pf_number', 'esi_number', 'tds_number',
         'passport_number', 'passport_expiry',
-        'profile_photo', 'is_pf_applicable', 'is_esi_applicable', 'is_tds_applicable', 'is_earnings_applicable', 'is_ot_applicable',
+        'profile_photo', 'is_pf_applicable', 'is_esi_applicable', 'is_tds_applicable', 'is_earnings_applicable', 'is_ot_applicable', 'ot_hourly_rate',
         'created_by',
     ];
 
@@ -47,6 +47,7 @@ class Employee extends Model
             'is_earnings_applicable' => 'boolean',
             'is_ot_applicable'       => 'boolean',
             'contractor_rate'        => 'decimal:2',
+            'ot_hourly_rate'         => 'decimal:2',
         ];
     }
 
@@ -84,15 +85,9 @@ class Employee extends Model
      */
     public function getSystemClassificationAttribute(): string
     {
-        if ($this->primary_employee_type === 'staff') {
-            return 'Company Staff';
-        }
+        $key = $this->primary_employee_type === 'staff' ? 'staff' : $this->labour_type;
 
-        return match ($this->labour_type) {
-            'company_labour' => 'Company Labour',
-            'contract_labour' => 'Contract Labour',
-            default => 'Company Staff',
-        };
+        return config("employee_types.$key", config('employee_types.staff'));
     }
 
     /** Employee Master — "Designation & Salary" section's Type field, display form. */

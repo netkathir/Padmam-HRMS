@@ -249,28 +249,6 @@ class EmployeeController extends Controller
     }
 
     /**
-     * FSD 10.3.3 — "Department, designation, and shift shall belong to the
-     * selected branch or be globally applicable." Mirrors
-     * assertDepartmentBelongsToBranch()/assertDesignationBelongsToBranch() —
-     * a Shift with no branch_branches rows is globally applicable (same
-     * NULL/empty-means-global convention used throughout this app); one
-     * with branch restrictions must include the employee's branch.
-     */
-    private function assertShiftBelongsToBranch(?int $shiftId, ?int $branchId): void
-    {
-        if ($shiftId === null || $branchId === null) {
-            return;
-        }
-
-        $shift = Shift::with('branches')->find($shiftId);
-        if ($shift && $shift->branches->isNotEmpty() && ! $shift->branches->contains('id', $branchId)) {
-            throw ValidationException::withMessages([
-                'shift_id' => 'The selected shift is not applicable to the selected branch.',
-            ]);
-        }
-    }
-
-    /**
      * FSD 10.8 — Contract Labour: contractor mandatory, must be active, and
      * contract dates (if the contractor has an agreement period configured)
      * must fall within it. Contractor is a global master (no branch
@@ -362,7 +340,6 @@ class EmployeeController extends Controller
         BranchScope::assertBranchIsActive($data['branch_id']);
 
         $this->assertContractorForLabour($data);
-        $this->assertShiftBelongsToBranch($data['shift_id'] ?? null, $data['branch_id']);
         $data = $this->applySameAsCurrentAddress($request, $data);
         $data = $this->stripUnauthorizedRuleOverrides($data);
         $data = $this->stripUnauthorizedContractorRate($data);
@@ -372,6 +349,7 @@ class EmployeeController extends Controller
         $data['is_esi_applicable'] = $data['is_esi_applicable'] === 'yes';
         $data['is_tds_applicable'] = $data['is_tds_applicable'] === 'yes';
         $data['is_earnings_applicable'] = $data['is_earnings_applicable'] === 'yes';
+        $data['is_ot_applicable'] = $data['is_ot_applicable'] === 'yes';
 
         // Employee Code is always auto-generated right here at creation.
         $primaryType = $data['employee_category'] === 'staff' ? 'staff' : 'labour';
@@ -483,7 +461,6 @@ class EmployeeController extends Controller
         $this->assertDesignationBelongsToBranch($data['designation_id'] ?? null, $data['branch_id']);
         $this->assertDepartmentIsActive($data['department_id'], $employee);
         $this->assertContractorForLabour($data);
-        $this->assertShiftBelongsToBranch($data['shift_id'] ?? null, $data['branch_id']);
         $this->assertReportingToIsNotSelf($data['reporting_to'] ?? null, $employee->id);
         $data = $this->applySameAsCurrentAddress($request, $data);
         $data = $this->stripUnauthorizedRuleOverrides($data);
@@ -494,6 +471,7 @@ class EmployeeController extends Controller
         $data['is_esi_applicable'] = $data['is_esi_applicable'] === 'yes';
         $data['is_tds_applicable'] = $data['is_tds_applicable'] === 'yes';
         $data['is_earnings_applicable'] = $data['is_earnings_applicable'] === 'yes';
+        $data['is_ot_applicable'] = $data['is_ot_applicable'] === 'yes';
 
         if ($request->hasFile('profile_photo')) {
             if ($employee->profile_photo) {
@@ -1194,10 +1172,15 @@ class EmployeeController extends Controller
             'profile_photo'    => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
             // Statutory Details — step 5, rendered as Yes/No dropdowns.
             'is_pf_applicable' => ['required', 'in:yes,no'],
+            'pf_number'        => ['nullable', 'required_if:is_pf_applicable,yes', 'string', 'max:30'],
+            'uan_number'       => ['nullable', 'string', 'max:30'],
             'is_esi_applicable'=> ['required', 'in:yes,no'],
+            'esi_number'       => ['nullable', 'required_if:is_esi_applicable,yes', 'string', 'max:30'],
             'is_tds_applicable'=> ['required', 'in:yes,no'],
+            'tds_number'       => ['nullable', 'required_if:is_tds_applicable,yes', 'string', 'max:30'],
             'is_earnings_applicable' => ['required', 'in:yes,no'],
-            'is_ot_applicable' => ['boolean'],
+            'is_ot_applicable' => ['required', 'in:yes,no'],
+            'ot_hourly_rate'   => ['nullable', 'required_if:is_ot_applicable,yes', 'numeric', 'min:0'],
             'contractor_id'    => ['required_if:employee_category,contract_labour', 'nullable', 'exists:contractors,id'],
             'contractor_employee_number' => ['nullable', 'string', 'max:50'],
             'work_order_number'          => ['nullable', 'string', 'max:50'],

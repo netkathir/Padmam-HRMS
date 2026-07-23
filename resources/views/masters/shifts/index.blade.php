@@ -22,7 +22,7 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Start</th><th>End</th><th>Break</th><th>Grace (Late/Early)</th><th>Overnight</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Start</th><th>End</th><th>Grace (Late/Early)</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($shifts as $shift)
                     <tr>
@@ -31,9 +31,7 @@
                         <td>{{ $shift->name }}</td>
                         <td>{{ $shift->start_time }}</td>
                         <td>{{ $shift->end_time }}</td>
-                        <td>{{ $shift->break_minutes ?? 0 }} min</td>
                         <td>{{ $shift->grace_late_entry_minutes ?? 0 }} / {{ $shift->grace_early_exit_minutes ?? 0 }} min</td>
-                        <td><span class="badge bg-{{ $shift->is_overnight ? 'warning' : 'light' }} text-{{ $shift->is_overnight ? 'dark' : 'muted' }}">{{ $shift->is_overnight ? 'Yes' : 'No' }}</span></td>
                         <td><span class="badge bg-{{ $shift->is_active ? 'success' : 'danger' }}-subtle text-{{ $shift->is_active ? 'success' : 'danger' }}">{{ $shift->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
                             <a href="{{ route('masters.generic.show', ['module' => 'shifts', 'id' => $shift->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
@@ -45,7 +43,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="10" class="text-center text-muted py-4">No shifts found.</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-4">No shifts found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

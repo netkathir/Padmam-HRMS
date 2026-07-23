@@ -586,7 +586,7 @@ $showBranchAdmin =
                         @endif
 
                         {{-- HR Policy --}}
-                        @if ($can['masters_shifts'] || $can['masters_holidays'] || $can['masters_leave_types'] || $can['masters_checkpoints'] || $can['masters_employee_checkpoints'])
+                        @if ($can['masters_shifts'] || $can['masters_holidays'] || $can['masters_leave_types'])
                             <div class="sb-sub-group-label">HR Policy</div>
                         @endif
                         @if ($can['masters_shifts'])
@@ -607,26 +607,10 @@ $showBranchAdmin =
                                 <i class="bi bi-calendar-minus"></i><span>Leave Types</span>
                             </a>
                         @endif
-                        @if ($can['masters_checkpoints'])
-                            <a href="{{ route('masters.checkpoints.index') }}"
-                                class="sb-link sb-sub-link {{ request()->routeIs('masters.checkpoints.*') ? 'active' : '' }}">
-                                <i class="bi bi-geo-alt"></i><span>Checkpoints</span>
-                            </a>
-                        @endif
-                        @if ($can['masters_employee_checkpoints'])
-                            <a href="{{ route('masters.employee-checkpoints.index') }}"
-                                class="sb-link sb-sub-link {{ request()->routeIs('masters.employee-checkpoints.*') ? 'active' : '' }}">
-                                <i class="bi bi-person-lines-fill"></i><span>Employee Checkpoint Mapping</span>
-                            </a>
-                        @endif
-
                         {{-- Payroll --}}
                         @if (
                             $can['masters_salary_slabs'] ||
                                 $can['masters_earnings'] ||
-                                $can['masters_deductions'] ||
-                                $can['masters_ot_rates'] ||
-                                $can['masters_pf_esi'] ||
                                 $can['masters_banks']
                         )
                             <div class="sb-sub-group-label">Payroll</div>
@@ -649,25 +633,6 @@ $showBranchAdmin =
                                 <i class="bi bi-graph-up-arrow"></i><span>Earnings</span>
                             </a>
                         @endif
-                        @if ($can['masters_deductions'])
-                            <a href="{{ route('masters.deductions.index') }}"
-                                class="sb-link sb-sub-link {{ request()->routeIs('masters.deductions.*') ? 'active' : '' }}">
-                                <i class="bi bi-graph-down-arrow"></i><span>Deductions</span>
-                            </a>
-                        @endif
-                        @if ($can['masters_ot_rates'])
-                            <a href="{{ route('masters.ot-rates.index') }}"
-                                class="sb-link sb-sub-link {{ request()->routeIs('masters.ot-rates.*') ? 'active' : '' }}">
-                                <i class="bi bi-hourglass-split"></i><span>OT Rates</span>
-                            </a>
-                        @endif
-                        @if ($can['masters_pf_esi'])
-                            <a href="{{ route('masters.pf-esi.index') }}"
-                                class="sb-link sb-sub-link {{ request()->routeIs('masters.pf-esi.*') ? 'active' : '' }}">
-                                <i class="bi bi-shield-plus"></i><span>PF & ESI</span>
-                            </a>
-                        @endif
-
                         {{-- Operations --}}
                         @if ($can['masters_contractors'])
                             <div class="sb-sub-group-label">Operations</div>

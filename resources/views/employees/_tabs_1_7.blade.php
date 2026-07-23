@@ -369,52 +369,79 @@
 
 {{-- ── Tab 6: Statutory Details ────────────────────────────────────── --}}
 <div class="tab-pane" data-tab-pane="6">
-    <div class="row g-3">
-        <div class="col-md-3">
+    @php
+        $currentPf = old('is_pf_applicable', isset($employee) ? ($employee->is_pf_applicable ? 'yes' : 'no') : 'yes');
+        $currentEsi = old('is_esi_applicable', isset($employee) ? ($employee->is_esi_applicable ? 'yes' : 'no') : 'yes');
+        $currentTds = old('is_tds_applicable', isset($employee) ? ($employee->is_tds_applicable ? 'yes' : 'no') : 'no');
+        $currentEarnings = old('is_earnings_applicable', isset($employee) ? ($employee->is_earnings_applicable ? 'yes' : 'no') : 'yes');
+        $currentOt = old('is_ot_applicable', isset($employee) ? ($employee->is_ot_applicable ? 'yes' : 'no') : 'no');
+    @endphp
+    <div class="row row-cols-1 row-cols-md-5 g-3">
+        {{-- Row 1: the five Yes/No applicability fields, one per column --}}
+        <div class="col">
             <label class="form-label">PF (Provident Fund) <span class="text-danger">*</span></label>
-            @php $currentPf = old('is_pf_applicable', isset($employee) ? ($employee->is_pf_applicable ? 'yes' : 'no') : 'yes'); @endphp
-            <select name="is_pf_applicable" class="form-select @error('is_pf_applicable') is-invalid @enderror" required>
+            <select name="is_pf_applicable" id="is_pf_applicable" class="form-select @error('is_pf_applicable') is-invalid @enderror" required>
                 <option value="yes" {{ $currentPf == 'yes' ? 'selected' : '' }}>Yes</option>
                 <option value="no" {{ $currentPf == 'no' ? 'selected' : '' }}>No</option>
             </select>
             @error('is_pf_applicable')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
-        <div class="col-md-3">
+        <div class="col">
             <label class="form-label">ESI (Employee State Insurance) <span class="text-danger">*</span></label>
-            @php $currentEsi = old('is_esi_applicable', isset($employee) ? ($employee->is_esi_applicable ? 'yes' : 'no') : 'yes'); @endphp
-            <select name="is_esi_applicable" class="form-select @error('is_esi_applicable') is-invalid @enderror" required>
+            <select name="is_esi_applicable" id="is_esi_applicable" class="form-select @error('is_esi_applicable') is-invalid @enderror" required>
                 <option value="yes" {{ $currentEsi == 'yes' ? 'selected' : '' }}>Yes</option>
                 <option value="no" {{ $currentEsi == 'no' ? 'selected' : '' }}>No</option>
             </select>
             @error('is_esi_applicable')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
-        <div class="col-md-3">
+        <div class="col">
             <label class="form-label">TDS (Tax Deducted at Source) <span class="text-danger">*</span></label>
-            @php $currentTds = old('is_tds_applicable', isset($employee) ? ($employee->is_tds_applicable ? 'yes' : 'no') : 'no'); @endphp
-            <select name="is_tds_applicable" class="form-select @error('is_tds_applicable') is-invalid @enderror" required>
+            <select name="is_tds_applicable" id="is_tds_applicable" class="form-select @error('is_tds_applicable') is-invalid @enderror" required>
                 <option value="yes" {{ $currentTds == 'yes' ? 'selected' : '' }}>Yes</option>
                 <option value="no" {{ $currentTds == 'no' ? 'selected' : '' }}>No</option>
             </select>
             @error('is_tds_applicable')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
-        <div class="col-md-3">
+        <div class="col">
             <label class="form-label">Earnings <span class="text-danger">*</span></label>
-            @php $currentEarnings = old('is_earnings_applicable', isset($employee) ? ($employee->is_earnings_applicable ? 'yes' : 'no') : 'yes'); @endphp
             <select name="is_earnings_applicable" class="form-select @error('is_earnings_applicable') is-invalid @enderror" required>
                 <option value="yes" {{ $currentEarnings == 'yes' ? 'selected' : '' }}>Yes</option>
                 <option value="no" {{ $currentEarnings == 'no' ? 'selected' : '' }}>No</option>
             </select>
             @error('is_earnings_applicable')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
-    </div>
+        <div class="col">
+            <label class="form-label">OT (Overtime) Applicable <span class="text-danger">*</span></label>
+            <select name="is_ot_applicable" id="is_ot_applicable" class="form-select @error('is_ot_applicable') is-invalid @enderror" required>
+                <option value="yes" {{ $currentOt == 'yes' ? 'selected' : '' }}>Yes</option>
+                <option value="no" {{ $currentOt == 'no' ? 'selected' : '' }}>No</option>
+            </select>
+            @error('is_ot_applicable')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
 
-    {{--
-        Designation & Salary (Salary Slab, Basic Salary, OT Applicable,
-        effective dates, read-only PF/ESI/TDS %) — commented out for now
-        pending confirmation on whether it belongs in this wizard. See
-        resources/views/employee-slab/edit.blade.php for the original
-        section this was ported from.
-    --}}
+        {{-- Row 2: each column's conditional input, directly under its own Yes/No field above --}}
+        <div class="col" id="pf-number-field">
+            <label class="form-label">PF Number</label>
+            <input type="text" name="pf_number" class="form-control @error('pf_number') is-invalid @enderror" value="{{ old('pf_number', $employee->pf_number ?? '') }}">
+            @error('pf_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col" id="esi-number-field">
+            <label class="form-label">ESI Number</label>
+            <input type="text" name="esi_number" class="form-control @error('esi_number') is-invalid @enderror" value="{{ old('esi_number', $employee->esi_number ?? '') }}">
+            @error('esi_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col" id="tds-number-field">
+            <label class="form-label">TDS Number</label>
+            <input type="text" name="tds_number" class="form-control @error('tds_number') is-invalid @enderror" value="{{ old('tds_number', $employee->tds_number ?? '') }}">
+            @error('tds_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col"></div>
+        <div class="col" id="ot-rate-field">
+            <label class="form-label">OT Rate (per hour)</label>
+            <input type="number" step="0.01" name="ot_hourly_rate" class="form-control @error('ot_hourly_rate') is-invalid @enderror" value="{{ old('ot_hourly_rate', $employee->ot_hourly_rate ?? '') }}" min="0">
+            @error('ot_hourly_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+    </div>
 
     <div class="mt-4 d-flex gap-2">
         <button type="button" class="btn btn-outline-secondary wizard-prev">Previous</button>

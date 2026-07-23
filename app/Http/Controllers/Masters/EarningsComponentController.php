@@ -30,18 +30,16 @@ class EarningsComponentController extends Controller
     }
 
     /**
-     * Earnings Component only collects Name + Percentage + Status now —
-     * Code is auto-generated (see createWithGeneratedCode(), mirrors
+     * Earnings Component only collects Name + Status now — Code is
+     * auto-generated (see createWithGeneratedCode(), mirrors
      * BranchController/ShiftController's own pattern) and Type always
-     * defaults to 'percentage' since that's the only calculation mode this
-     * simplified form supports. Calculation Base/Taxable/PF/ESI/Sort Order
+     * defaults to 'percentage'. Calculation Base/Taxable/PF/ESI/Sort Order
      * keep their DB column defaults, un-set by the form.
      */
     private function rules(): array
     {
         return [
             'name'       => ['required', 'string', 'max:100'],
-            'percentage' => ['required', 'numeric', 'min:0', 'max:100'],
             'is_active'  => ['required', 'boolean'],
         ];
     }

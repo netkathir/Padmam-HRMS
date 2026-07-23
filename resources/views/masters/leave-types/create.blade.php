@@ -18,6 +18,11 @@
                     <input type="text" name="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code') }}" required>
                     @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
+                <div class="col-md-3">
+                    <label class="form-label">Days Per Year <span class="text-danger">*</span></label>
+                    <input type="number" step="0.01" name="days_per_year" class="form-control @error('days_per_year') is-invalid @enderror" value="{{ old('days_per_year') }}" min="0" max="365" required>
+                    @error('days_per_year')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
                 <div class="col-md-3 d-flex align-items-end">
                     <div class="form-check">
                         <input type="hidden" name="is_active" value="0">
@@ -37,7 +42,7 @@
                 <div class="col-md-6">
                     <label class="form-label">Employee Type Applicability <span class="text-danger">*</span></label>
                     <div class="border rounded p-2 @error('applicable_employee_types') is-invalid @enderror">
-                        @foreach(['staff'=>'Staff','company_labour'=>'Company Labour','contract_labour'=>'Contract Labour'] as $val=>$label)
+                        @foreach(config('employee_types') as $val=>$label)
                         <div class="form-check">
                             <input type="checkbox" name="applicable_employee_types[]" class="form-check-input" id="etype_{{ $val }}" value="{{ $val }}" {{ in_array($val, old('applicable_employee_types', ['staff','company_labour','contract_labour'])) ? 'checked' : '' }}>
                             <label class="form-check-label" for="etype_{{ $val }}">{{ $label }}</label>
@@ -48,7 +53,7 @@
                 </div>
             </div>
             <div class="mt-4 d-flex gap-2">
-                <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Submit</button>
                 <a href="{{ route('masters.leave-types.index') }}" class="btn btn-secondary">Cancel</a>
             </div>
         </form>

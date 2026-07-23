@@ -19,7 +19,6 @@ use App\Models\Contractor;
 use App\Models\EmployeeType;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
-use App\Models\PfEsiConfig;
 use App\Models\SalarySlab;
 use App\Models\Setting;
 use App\Support\BranchAdminPermissions;
@@ -83,8 +82,7 @@ class PayrollController extends Controller
         // FSD 13.2/13.4 — Payroll Preconditions, shown as informational
         // "System" status indicators (not hard gates — PF/ESI/TDS/earnings-
         // deduction rule availability is already guaranteed by the existing
-        // Rule-Engine -> SalarySlab -> PfEsiConfig fallback chain, which
-        // never hard-fails).
+        // Rule-Engine -> SalarySlab fallback chain, which never hard-fails).
         $month = (int) $request->input('month', now()->month);
         $year  = (int) $request->input('year', now()->year);
         $currentBranchId = BranchScope::currentBranchId();
@@ -170,7 +168,6 @@ class PayrollController extends Controller
         // retroactive/back-dated run must apply the rates that were in
         // force at the time, not whatever was configured most recently.
         $periodDate = \Carbon\Carbon::create($year, $month, 1)->toDateString();
-        $pfEsi      = PfEsiConfig::effectiveOn($periodDate);
 
         $generated = $skipped = $errors = 0;
         $noSlabEmployees = [];
@@ -252,11 +249,9 @@ class PayrollController extends Controller
             $net   = $gross - $perDaySal;
 
             // Module 4 FSD 8.7/8.8/8.9 — PF/ESI/TDS Rules take precedence
-            // over the Module-3 Salary Slab percentages, which take
-            // precedence over the global PfEsiConfig — exactly the same
-            // fallback chain SalarySlab itself introduced, extended one
-            // level further. A deployment with no Rule Engine PF/ESI/TDS
-            // rules configured behaves exactly as before this feature.
+            // over the Module-3 Salary Slab percentages. A deployment with
+            // no Rule Engine PF/ESI/TDS rules configured falls back entirely
+            // to the Salary Slab's own percentages.
             $pfRule  = BusinessRule::resolveForEmployee($employee, 'pf', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
             $esiRule = BusinessRule::resolveForEmployee($employee, 'esi', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
             $tdsRule = BusinessRule::resolveForEmployee($employee, 'tds', $branchId, $primaryType, $labourType, $contractorId, $periodDate);
@@ -279,12 +274,12 @@ class PayrollController extends Controller
             // hasn't configured that layer. This previously used plain `->`
             // (silent PHP warning today, not a crash, but still incorrect);
             // behavior is unchanged for every case that already worked.
-            $pfEmployeePct  = $pfDetail?->employee_pf_percentage  ?? $slab?->pf_employee_percentage  ?? $pfEsi?->pf_employee_pct  ?? null;
-            $pfEmployerPct  = $pfDetail?->employer_pf_percentage  ?? $slab?->pf_employer_percentage  ?? $pfEsi?->pf_employer_pct  ?? null;
-            $esiEmployeePct = $esiDetail?->employee_esi_percentage ?? $slab?->esi_employee_percentage ?? $pfEsi?->esi_employee_pct ?? null;
-            $esiEmployerPct = $esiDetail?->employer_esi_percentage ?? $slab?->esi_employer_percentage ?? $pfEsi?->esi_employer_pct ?? null;
-            $pfWageCeiling  = $pfDetail?->pf_wage_ceiling ?? $pfEsi?->pf_wage_ceiling ?? null;
-            $esiWageCeiling = $esiDetail?->salary_slab_to ?? $pfEsi?->esi_wage_ceiling ?? 21000;
+            $pfEmployeePct  = $pfDetail?->employee_pf_percentage  ?? $slab?->pf_employee_percentage  ?? null;
+            $pfEmployerPct  = $pfDetail?->employer_pf_percentage  ?? $slab?->pf_employer_percentage  ?? null;
+            $esiEmployeePct = $esiDetail?->employee_esi_percentage ?? $slab?->esi_employee_percentage ?? null;
+            $esiEmployerPct = $esiDetail?->employer_esi_percentage ?? $slab?->esi_employer_percentage ?? null;
+            $pfWageCeiling  = $pfDetail?->pf_wage_ceiling ?? null;
+            $esiWageCeiling = $esiDetail?->salary_slab_to ?? 21000;
 
             if ($employee->is_pf_applicable && $pfApplicable && $pfEmployeePct !== null) {
                 $wageBase = ($pfDetail?->restrict_to_wage_ceiling ?? true) && $pfWageCeiling

@@ -45,7 +45,7 @@
             <table class="table table-hover">
                 <thead><tr><th>#</th><th>Holiday</th><th>Start Date</th><th>End Date</th><th>Applicable Employee Types</th><th>Paid</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
-                    @php $typeLabels = ['staff'=>'Staff','company_labour'=>'Company Labour','contract_labour'=>'Contract Labour']; @endphp
+                    @php $typeLabels = config('employee_types'); @endphp
                     @forelse($holidays as $holiday)
                     <tr>
                         <td>{{ $holidays->firstItem() + $loop->index }}</td>

@@ -105,8 +105,9 @@
                         <div class="col-sm-6"><strong>UAN Number:</strong> {{ $maskStatutory($employee->uan_number) }}</div>
                         <div class="col-sm-6"><strong>PF Applicable:</strong> {{ $employee->is_pf_applicable ? 'Yes' : 'No' }}{{ $employee->pf_number ? ' (' . $maskStatutory($employee->pf_number) . ')' : '' }}</div>
                         <div class="col-sm-6"><strong>ESI Applicable:</strong> {{ $employee->is_esi_applicable ? 'Yes' : 'No' }}{{ $employee->esi_number ? ' (' . $maskStatutory($employee->esi_number) . ')' : '' }}</div>
-                        <div class="col-sm-6"><strong>TDS Applicable:</strong> {{ $employee->is_tds_applicable ? 'Yes' : 'No' }}</div>
+                        <div class="col-sm-6"><strong>TDS Applicable:</strong> {{ $employee->is_tds_applicable ? 'Yes' : 'No' }}{{ $employee->tds_number ? ' (' . $maskStatutory($employee->tds_number) . ')' : '' }}</div>
                         <div class="col-sm-6"><strong>Earnings Applicable:</strong> {{ $employee->is_earnings_applicable ? 'Yes' : 'No' }}</div>
+                        <div class="col-sm-6"><strong>OT Applicable:</strong> {{ $employee->is_ot_applicable ? 'Yes' : 'No' }}{{ $employee->ot_hourly_rate ? ' (₹' . number_format($employee->ot_hourly_rate, 2) . '/hr)' : '' }}</div>
                     </div>
                 </div>
             </div>

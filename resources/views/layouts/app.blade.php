@@ -257,6 +257,37 @@ document.querySelectorAll('.toast').forEach(el => {
     bootstrap.Toast.getOrCreateInstance(el).show();
 });
 
+/**
+ * Client-side toast helper — for validation/feedback that happens before any
+ * request is sent (e.g. a multi-step wizard's "Next" button), reusing the
+ * same top-right .toast-container the server-rendered session flashes use
+ * (see resources/views/partials/_alerts.blade.php), so both look identical.
+ * type: 'success' | 'danger' | 'warning' | 'info'
+ */
+window.showToast = function (message, type = 'warning') {
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '1080';
+        document.body.appendChild(container);
+    }
+    const icon = { success: 'check-circle', danger: 'exclamation-circle', warning: 'exclamation-triangle', info: 'info-circle' }[type] || 'info-circle';
+    const el = document.createElement('div');
+    el.className = `toast align-items-center text-bg-${type} border-0 shadow`;
+    el.setAttribute('role', 'alert');
+    el.setAttribute('data-bs-autohide', 'true');
+    el.setAttribute('data-bs-delay', '5000');
+    el.innerHTML = `<div class="d-flex">
+        <div class="toast-body"><i class="bi bi-${icon} me-2"></i>${message}</div>
+        <button type="button" class="btn-close ${type === 'warning' ? '' : 'btn-close-white'} me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>`;
+    container.appendChild(el);
+    const toast = bootstrap.Toast.getOrCreateInstance(el);
+    toast.show();
+    el.addEventListener('hidden.bs.toast', () => el.remove());
+};
+
 // System-themed delete/destructive-action confirmation — replaces the
 // browser's native confirm() everywhere. Any form with a
 // data-confirm-delete="Message?" attribute is intercepted: the form is not

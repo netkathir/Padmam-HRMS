@@ -33,10 +33,6 @@
                     @error('end_time')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Break (minutes)</label>
-                    <input type="number" name="break_minutes" class="form-control" value="{{ old('break_minutes', $shift->break_minutes) }}" min="0" max="480">
-                </div>
-                <div class="col-md-3">
                     <label class="form-label">Grace – Late Entry (minutes)</label>
                     <input type="number" name="grace_late_entry_minutes" class="form-control @error('grace_late_entry_minutes') is-invalid @enderror" value="{{ old('grace_late_entry_minutes', $shift->grace_late_entry_minutes) }}" min="0">
                     @error('grace_late_entry_minutes')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -48,11 +44,6 @@
                 </div>
                 <div class="col-12 d-flex gap-4">
                     <div class="form-check">
-                        <input type="hidden" name="is_overnight" value="0">
-                        <input type="checkbox" name="is_overnight" class="form-check-input" value="1" {{ old('is_overnight', $shift->is_overnight) ? 'checked' : '' }}>
-                        <label class="form-check-label">Overnight Shift</label>
-                    </div>
-                    <div class="form-check">
                         <input type="hidden" name="is_active" value="0">
                         <input type="checkbox" name="is_active" class="form-check-input" value="1" {{ old('is_active', $shift->is_active) ? 'checked' : '' }}>
                         <label class="form-check-label">Active <span class="text-danger">*</span></label>
@@ -60,23 +51,10 @@
                     @error('is_active')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Branch Applicability <span class="text-danger">*</span></label>
-                    @php $selectedBranches = old('branch_ids', $shift->branches->pluck('id')->map(fn($id)=>(string)$id)->all()); @endphp
-                    <div class="border rounded p-2 @error('branch_ids') is-invalid @enderror" style="max-height:160px;overflow-y:auto;">
-                        @foreach($branches as $b)
-                        <div class="form-check">
-                            <input type="checkbox" name="branch_ids[]" class="form-check-input" id="branch_{{ $b->id }}" value="{{ $b->id }}" {{ in_array((string)$b->id, $selectedBranches) ? 'checked' : '' }}>
-                            <label class="form-check-label" for="branch_{{ $b->id }}">{{ $b->name }}</label>
-                        </div>
-                        @endforeach
-                    </div>
-                    @error('branch_ids')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-6">
                     <label class="form-label">Employee Type Applicability <span class="text-danger">*</span></label>
                     @php $selectedTypes = old('applicable_employee_types', $shift->applicable_employee_types ?? []); @endphp
                     <div class="border rounded p-2 @error('applicable_employee_types') is-invalid @enderror">
-                        @foreach(['staff'=>'Staff','company_labour'=>'Company Labour','contract_labour'=>'Contract Labour'] as $val=>$label)
+                        @foreach(config('employee_types') as $val=>$label)
                         <div class="form-check">
                             <input type="checkbox" name="applicable_employee_types[]" class="form-check-input" id="etype_{{ $val }}" value="{{ $val }}" {{ in_array($val, $selectedTypes) ? 'checked' : '' }}>
                             <label class="form-check-label" for="etype_{{ $val }}">{{ $label }}</label>

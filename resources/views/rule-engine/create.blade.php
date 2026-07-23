@@ -19,7 +19,7 @@
                 @include('rule-engine.partials._overtime', ['rule' => null])
             </div>
             <div class="mt-4 d-flex gap-2">
-                <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Submit</button>
                 <a href="{{ route('rule-engine.index') }}" class="btn btn-secondary">Cancel</a>
             </div>
         </form>

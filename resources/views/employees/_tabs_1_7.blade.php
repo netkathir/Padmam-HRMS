@@ -273,8 +273,8 @@
         </div>
         <div class="col-md-3">
             <label class="form-label">Biometric Number</label>
-            <input type="text" name="biometric_number" class="form-control @error('biometric_number') is-invalid @enderror" value="{{ old('biometric_number', $employee->biometric_number ?? '') }}" placeholder="e.g. SPP001">
-            <div class="form-text">Must exactly match the Person ID from the biometric device export.</div>
+            <input type="text" name="biometric_number" class="form-control @error('biometric_number') is-invalid @enderror" value="{{ old('biometric_number', $employee->biometric_number ?? '') }}" placeholder="e.g. 002" maxlength="3" inputmode="numeric" pattern="[0-9]{3}" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,3)">
+            <div class="form-text">3-digit number only — no branch prefix (the branch code, e.g. "SGP", is matched separately from the biometric upload's own Person ID).</div>
             @error('biometric_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
     </div>

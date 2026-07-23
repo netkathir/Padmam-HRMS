@@ -85,6 +85,12 @@
                                 <div class="text-muted small">Repeated Punch (within 3 min)</div>
                             </div></div>
                         </div>
+                        <div class="col-6 col-md-2">
+                            <div class="card text-center"><div class="card-body py-2">
+                                <div class="fs-5 fw-bold text-secondary">{{ $preview['counts']['wrong_branch_rows'] }}</div>
+                                <div class="text-muted small">Different Branch — Not Imported</div>
+                            </div></div>
+                        </div>
                     </div>
 
                     @if ($preview['truncated'])
@@ -139,7 +145,27 @@
                         </div>
                     @endif
 
-                    @if (! count($preview['valid']) && ! count($preview['errors']))
+                    @if (count($preview['wrong_branch']))
+                        <h6 class="fw-semibold mb-2">Rows From a Different Branch <small class="text-muted fw-normal">(not imported — not an error, just not this branch's upload)</small></h6>
+                        <div class="table-responsive mb-3" style="max-height:300px;">
+                            <table class="table table-sm table-hover">
+                                <thead><tr><th>Row</th><th>Person ID</th><th>Name</th><th>Time</th><th>Reason</th></tr></thead>
+                                <tbody>
+                                    @foreach ($preview['wrong_branch'] as $w)
+                                    <tr>
+                                        <td>{{ $w['row'] }}</td>
+                                        <td>{{ $w['person_id'] ?? '—' }}</td>
+                                        <td>{{ $w['name'] ?? '—' }}</td>
+                                        <td>{{ $w['time'] ?? '—' }}</td>
+                                        <td class="text-secondary">{{ $w['reason'] }}</td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+
+                    @if (! count($preview['valid']) && ! count($preview['errors']) && ! count($preview['wrong_branch']))
                         <div class="alert alert-warning">No data rows were found in this sheet.</div>
                     @endif
                 @endif

@@ -18,6 +18,7 @@
             ['label' => 'Unknown Employees', 'value' => $upload->unknown_employee_rows, 'color' => 'secondary'],
             ['label' => 'Invalid Dates', 'value' => $upload->invalid_date_rows, 'color' => 'secondary'],
             ['label' => 'Invalid Times', 'value' => $upload->invalid_time_rows, 'color' => 'secondary'],
+            ['label' => 'Different Branch — Not Imported', 'value' => $upload->wrong_branch_rows, 'color' => 'secondary'],
         ];
     @endphp
     @foreach ($tiles as $tile)

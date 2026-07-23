@@ -20,8 +20,10 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Branch Code <span class="text-danger">*</span></label>
-                        <input type="text" name="code" class="form-control @error('code') is-invalid @enderror"
-                            value="{{ old('code', $branch->code) }}" required>
+                        <input type="text" name="code" class="form-control text-uppercase @error('code') is-invalid @enderror"
+                            value="{{ old('code', $branch->code) }}" required maxlength="3" pattern="[A-Za-z]{3}"
+                            oninput="this.value=this.value.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase()">
+                        <div class="form-text">Exactly 3 letters (e.g. "SGP") — used as the branch prefix in biometric device Person IDs.</div>
                         @error('code')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror

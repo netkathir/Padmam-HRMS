@@ -467,8 +467,8 @@ class AttendanceController extends Controller
 
         $upload->update(['sheet_name' => $data['sheet_name'], 'status' => 'processing']);
 
-        [$counts, $errors] = $service->validateAndImport($upload);
-        $errorFilePath = $service->generateErrorFile($upload, $errors);
+        [$counts, $errors, $wrongBranch] = $service->validateAndImport($upload);
+        $errorFilePath = $service->generateErrorFile($upload, $errors, $wrongBranch);
 
         $upload->update(array_merge($counts, ['error_file_path' => $errorFilePath, 'status' => 'completed']));
 

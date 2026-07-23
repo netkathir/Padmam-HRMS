@@ -151,9 +151,16 @@ class BranchController extends Controller
 
     private function validateBranch(Request $request, ?int $ignoreId = null): array
     {
+        // Branch Code is always exactly 3 letters (A-Z) — the biometric
+        // device's Person ID export encodes this same code as its fixed
+        // 3-letter prefix (see BiometricUploadService::PERSON_ID_PATTERN),
+        // so it can never be variable-length without breaking biometric
+        // upload matching branch-wide.
+        $request->merge(['code' => strtoupper((string) $request->input('code'))]);
+
         $data = $request->validate([
             'name'                     => ['required', 'string', 'max:100', 'unique:branches,name' . ($ignoreId ? ",$ignoreId" : '')],
-            'code'                     => ['required', 'string', 'max:20', 'unique:branches,code' . ($ignoreId ? ",$ignoreId" : '')],
+            'code'                     => ['required', 'regex:/^[A-Z]{3}$/', 'unique:branches,code' . ($ignoreId ? ",$ignoreId" : '')],
             'unit_type'                => ['nullable', 'string', 'max:50'],
             // Address is always visible/mandatory on the form now (no more
             // "Address Available" toggle).
@@ -175,6 +182,7 @@ class BranchController extends Controller
             'is_active'                => ['required', 'boolean'],
         ], [
             'closure_date.after_or_equal' => 'The closure date cannot be before the branch start date.',
+            'code.regex' => 'Branch Code must be exactly 3 letters (e.g. "SGP").',
         ]);
 
         $data['weekly_off_days'] = $data['weekly_off_days'] ?? null;

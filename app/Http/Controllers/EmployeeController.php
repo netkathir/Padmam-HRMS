@@ -1150,7 +1150,18 @@ class EmployeeController extends Controller
             // it to 'active' when not present.
             'status'           => ['nullable', 'in:active,inactive,probation,terminated,resigned,retired'],
             'shift_id'         => ['required', 'exists:shifts,id'],
-            'biometric_number' => ['nullable', 'string', 'max:30', 'unique:employees,biometric_number,' . $excludeId],
+            // Plain 3-digit employee number, no branch prefix — the branch
+            // itself is identified separately, from the biometric upload's
+            // own Person ID prefix matched against Branch.code. Uniqueness
+            // is scoped per branch (not global), mirroring employee_code
+            // above, since two different branches may legitimately number
+            // an employee "002".
+            'biometric_number' => [
+                'nullable', 'digits:3',
+                Rule::unique('employees', 'biometric_number')
+                    ->where(fn ($query) => $query->where('branch_id', BranchScope::currentBranchId() ?? request()->input('branch_id')))
+                    ->ignore($excludeId),
+            ],
             'weekly_off_rule_id'  => ['nullable', 'exists:rules,id'],
             'attendance_rule_id'  => ['nullable', 'exists:rules,id'],
             'payroll_rule_id'     => ['nullable', 'exists:rules,id'],

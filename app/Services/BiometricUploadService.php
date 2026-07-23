@@ -20,14 +20,22 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
  * column mapping anymore; this service reads that fixed header set
  * directly.
  *
- * Matching: the device's Person ID (e.g. "SPP001", where "SPP" is a branch
- * code) is matched directly against Employee::biometric_number, scoped to
- * the upload's own branch — there is no separate Checkpoint/door concept.
- * "Attendance Check Point" is read and shown for troubleshooting only; it
- * plays no role in matching an employee.
+ * Matching: the device's Person ID is always exactly 3 letters (branch
+ * code, matching Branch::code) + 3 digits (the employee's own
+ * Employee::biometric_number, entered without any prefix — e.g. "002"),
+ * e.g. "SGP002" -> branch code "SGP", number "002". A row whose prefix
+ * does not match the branch this file is being uploaded for is NOT an
+ * error that blocks the file — it's flagged as belonging to a different
+ * branch and simply not imported (see 'wrong_branch_rows' below); every
+ * other row in the same file still imports normally. There is no separate
+ * Checkpoint/door concept. "Attendance Check Point" is read and shown for
+ * troubleshooting only; it plays no role in matching an employee.
  */
 class BiometricUploadService
 {
+    /** Fixed Person ID shape: 3 letters (branch code) + 3 digits (employee's own biometric_number). */
+    private const PERSON_ID_PATTERN = '/^([A-Za-z]{3})(\d{3})$/';
+
     /** The device export's fixed header row, in order. Matched case-insensitively; column position is not assumed. */
     public const HEADERS = [
         'person_id'         => 'Person ID',
@@ -141,17 +149,31 @@ class BiometricUploadService
     }
 
     /**
-     * Resolves a device Person ID (e.g. "SPP001") directly to an Employee
-     * via Employee::biometric_number, scoped to the upload's own branch —
-     * an employee's biometric number must match the Person ID exactly.
+     * Splits a device Person ID into its 3-letter branch-code prefix and
+     * 3-digit employee number (e.g. "SGP002" -> ["SGP", "002"]). Returns
+     * null if the Person ID doesn't match the fixed 3-letter+3-digit shape
+     * at all (a genuinely malformed value, not a wrong-branch one).
+     *
+     * @return array{0: string, 1: string}|null [branchCode, number]
      */
-    private function resolveEmployee(?string $personId, \Illuminate\Support\Collection $employeesForBranch): ?Employee
+    private function splitPersonId(string $personId): ?array
     {
-        if (! $personId) {
+        if (! preg_match(self::PERSON_ID_PATTERN, $personId, $m)) {
             return null;
         }
 
-        return $employeesForBranch->get(strtolower($personId));
+        return [strtoupper($m[1]), $m[2]];
+    }
+
+    /**
+     * Resolves a device Person ID's number part to an Employee via
+     * Employee::biometric_number, scoped to the upload's own branch — the
+     * branch-code prefix has already been confirmed to match this upload's
+     * branch by the time this is called.
+     */
+    private function resolveEmployee(string $number, \Illuminate\Support\Collection $employeesForBranch): ?Employee
+    {
+        return $employeesForBranch->get($number);
     }
 
     /**
@@ -161,7 +183,7 @@ class BiometricUploadService
      * the preview a user sees is guaranteed to match what actually gets
      * imported a moment later.
      *
-     * @return array{0: array<int,array>, 1: array<int,array>, 2: array<string,int>} [valid rows (post-dedup), invalid rows, counts so far (pre-import-specific duplicate check)]
+     * @return array{0: array<int,array>, 1: array<int,array>, 2: array<string,int>, 3: array<int,array>} [valid rows (post-dedup), invalid rows, counts so far (pre-import-specific duplicate check), wrong-branch rows]
      */
     private function parseAndValidate(BiometricUpload $upload): array
     {
@@ -182,15 +204,20 @@ class BiometricUploadService
         $counts = [
             'total_rows' => 0, 'invalid_rows' => 0, 'duplicate_rows' => 0, 'updated_rows' => 0,
             'unknown_employee_rows' => 0, 'invalid_date_rows' => 0, 'invalid_time_rows' => 0,
+            'wrong_branch_rows' => 0,
         ];
         $errors = [];
+        $wrongBranch = [];
         $parsed = [];
 
-        // Keyed by lowercased biometric_number for O(1) lookup per row.
+        $uploadBranch = $upload->branch;
+        $uploadBranchCode = $uploadBranch ? strtoupper($uploadBranch->code) : null;
+
+        // Keyed by 3-digit biometric_number for O(1) lookup per row.
         $employeesForBranch = Employee::where('branch_id', $upload->branch_id)
             ->whereNotNull('biometric_number')
             ->get()
-            ->keyBy(fn (Employee $e) => strtolower($e->biometric_number));
+            ->keyBy(fn (Employee $e) => $e->biometric_number);
 
         foreach ($rows as $rowNumber => $row) {
             if (empty(array_filter($row, fn ($v) => $v !== null && $v !== ''))) {
@@ -222,10 +249,34 @@ class BiometricUploadService
 
             $employee = null;
             if ($personId) {
-                $employee = $this->resolveEmployee($personId, $employeesForBranch);
-                if (! $employee) {
-                    $rowErrors[] = 'Unknown employee (no employee in this branch has this Biometric Number)';
-                    $counts['unknown_employee_rows']++;
+                $split = $this->splitPersonId($personId);
+                if (! $split) {
+                    $rowErrors[] = 'Person ID is not in the expected format (3 letters + 3 digits, e.g. "SGP002")';
+                } else {
+                    [$rowBranchCode, $number] = $split;
+
+                    // Wrong-branch rows are NOT an error that blocks the row
+                    // (or the rest of the file) — they simply belong to a
+                    // different branch's upload and are surfaced separately
+                    // so the admin can see exactly which rows were skipped
+                    // and why, without treating it as bad data.
+                    if ($uploadBranchCode && $rowBranchCode !== $uploadBranchCode) {
+                        $counts['wrong_branch_rows']++;
+                        $wrongBranch[] = [
+                            'row' => $rowNumber + 2,
+                            'person_id' => $personId,
+                            'name' => $name,
+                            'time' => is_string($rawTime) ? $rawTime : (string) $rawTime,
+                            'reason' => "Person ID belongs to branch \"{$rowBranchCode}\", not the selected branch \"{$uploadBranchCode}\"",
+                        ];
+                        continue;
+                    }
+
+                    $employee = $this->resolveEmployee($number, $employeesForBranch);
+                    if (! $employee) {
+                        $rowErrors[] = 'Unknown employee (no employee in this branch has Biometric Number "' . $number . '")';
+                        $counts['unknown_employee_rows']++;
+                    }
                 }
             }
 
@@ -290,7 +341,7 @@ class BiometricUploadService
             }
         }
 
-        return [$kept, $errors, $counts];
+        return [$kept, $errors, $counts, $wrongBranch];
     }
 
     /**
@@ -301,11 +352,11 @@ class BiometricUploadService
      * a file (or one that overlaps a previous upload) is expected to
      * refresh already-stored punches, not skip them.
      *
-     * @return array{valid: array<int,array>, errors: array<int,array>, counts: array<string,int>, truncated: bool}
+     * @return array{valid: array<int,array>, errors: array<int,array>, counts: array<string,int>, wrong_branch: array<int,array>, truncated: bool}
      */
     public function preview(BiometricUpload $upload): array
     {
-        [$kept, $errors, $counts] = $this->parseAndValidate($upload);
+        [$kept, $errors, $counts, $wrongBranch] = $this->parseAndValidate($upload);
 
         $valid = [];
         foreach ($kept as $p) {
@@ -324,8 +375,9 @@ class BiometricUploadService
         return [
             'valid' => array_slice($valid, 0, self::PREVIEW_LIMIT),
             'errors' => array_slice($errors, 0, self::PREVIEW_LIMIT),
+            'wrong_branch' => array_slice($wrongBranch, 0, self::PREVIEW_LIMIT),
             'counts' => $counts,
-            'truncated' => count($valid) > self::PREVIEW_LIMIT || count($errors) > self::PREVIEW_LIMIT,
+            'truncated' => count($valid) > self::PREVIEW_LIMIT || count($errors) > self::PREVIEW_LIMIT || count($wrongBranch) > self::PREVIEW_LIMIT,
         ];
     }
 
@@ -333,12 +385,14 @@ class BiometricUploadService
      * Validates every data row and inserts valid punches into
      * `attendance_logs`. Never silently drops invalid rows — every problem
      * row is collected with its own message and downloadable afterward.
+     * Wrong-branch rows are reported alongside errors (in their own bucket)
+     * but never block any other row in the same file from importing.
      *
-     * @return array{0: array<string,int>, 1: array<int,array>} [summary counts, error rows]
+     * @return array{0: array<string,int>, 1: array<int,array>, 2: array<int,array>} [summary counts, error rows, wrong-branch rows]
      */
     public function validateAndImport(BiometricUpload $upload): array
     {
-        [$kept, $errors, $counts] = $this->parseAndValidate($upload);
+        [$kept, $errors, $counts, $wrongBranch] = $this->parseAndValidate($upload);
         $counts['valid_rows'] = 0;
 
         foreach ($kept as $p) {
@@ -368,12 +422,12 @@ class BiometricUploadService
             }
         }
 
-        return [$counts, $errors];
+        return [$counts, $errors, $wrongBranch];
     }
 
-    public function generateErrorFile(BiometricUpload $upload, array $errors): ?string
+    public function generateErrorFile(BiometricUpload $upload, array $errors, array $wrongBranch = []): ?string
     {
-        if (empty($errors)) {
+        if (empty($errors) && empty($wrongBranch)) {
             return null;
         }
 
@@ -382,6 +436,9 @@ class BiometricUploadService
         fputcsv($handle, ['Row', 'Person ID', 'Attendance Check Point', 'Time', 'Errors']);
         foreach ($errors as $e) {
             fputcsv($handle, [$e['row'], $e['person_id'], $e['checkpoint'], $e['time'], $e['errors']]);
+        }
+        foreach ($wrongBranch as $w) {
+            fputcsv($handle, [$w['row'], $w['person_id'], '', $w['time'], $w['reason']]);
         }
         rewind($handle);
         Storage::put($path, stream_get_contents($handle));

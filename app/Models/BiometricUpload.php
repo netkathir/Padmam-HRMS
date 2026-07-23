@@ -12,7 +12,7 @@ class BiometricUpload extends Model
         'branch_id', 'period_from', 'period_to', 'file_path', 'original_filename', 'sheet_name',
         'column_mapping', 'remarks', 'uploaded_by', 'total_rows', 'valid_rows', 'invalid_rows',
         'duplicate_rows', 'updated_rows', 'unknown_employee_rows', 'invalid_date_rows', 'invalid_time_rows',
-        'error_file_path', 'status',
+        'wrong_branch_rows', 'error_file_path', 'status',
     ];
 
     protected function casts(): array

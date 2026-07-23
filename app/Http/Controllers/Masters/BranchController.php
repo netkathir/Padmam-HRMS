@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class BranchController extends Controller
 {
@@ -158,9 +159,14 @@ class BranchController extends Controller
         // upload matching branch-wide.
         $request->merge(['code' => strtoupper((string) $request->input('code'))]);
 
+        // whereNull('deleted_at') is load-bearing on both of these:
+        // Rule::unique() (and the plain 'unique:' string rule) has no
+        // built-in awareness of soft deletes — without it, a deleted
+        // branch's name/code stays permanently "taken" and can never be
+        // reused.
         $data = $request->validate([
-            'name'                     => ['required', 'string', 'max:100', 'unique:branches,name' . ($ignoreId ? ",$ignoreId" : '')],
-            'code'                     => ['required', 'regex:/^[A-Z]{3}$/', 'unique:branches,code' . ($ignoreId ? ",$ignoreId" : '')],
+            'name'                     => ['required', 'string', 'max:100', Rule::unique('branches', 'name')->whereNull('deleted_at')->ignore($ignoreId)],
+            'code'                     => ['required', 'regex:/^[A-Z]{3}$/', Rule::unique('branches', 'code')->whereNull('deleted_at')->ignore($ignoreId)],
             'unit_type'                => ['nullable', 'string', 'max:50'],
             // Address is always visible/mandatory on the form now (no more
             // "Address Available" toggle).

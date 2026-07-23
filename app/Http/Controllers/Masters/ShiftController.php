@@ -49,7 +49,11 @@ class ShiftController extends Controller
             // part of this validated field set. `branch_id` is likewise
             // never accepted from the client — always stamped server-side
             // from the currently active branch (see BranchScope::stampBranchId()).
-            'name'                      => ['required', 'string', 'max:100', Rule::unique('shifts', 'name')->ignore($shiftId)],
+            // whereNull('deleted_at') is load-bearing: Rule::unique() has no
+            // built-in awareness of soft deletes — without this, a deleted
+            // shift's name stays permanently "taken" and can never be
+            // reused, even though the row is no longer visible anywhere.
+            'name'                      => ['required', 'string', 'max:100', Rule::unique('shifts', 'name')->whereNull('deleted_at')->ignore($shiftId)],
             'start_time'                => ['required', 'date_format:H:i'],
             'end_time'                  => ['required', 'date_format:H:i'],
             'grace_late_entry_minutes'  => ['nullable', 'integer', 'min:0'],

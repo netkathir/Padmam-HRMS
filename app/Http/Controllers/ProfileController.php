@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class ProfileController extends Controller
@@ -19,7 +20,9 @@ class ProfileController extends Controller
 
         $request->validate([
             'name'  => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            // whereNull('deleted_at') is load-bearing: Rule::unique() has no
+            // built-in awareness of soft deletes.
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->whereNull('deleted_at')->ignore($user->id)],
             'phone' => ['nullable', 'digits:10'],
         ]);
 

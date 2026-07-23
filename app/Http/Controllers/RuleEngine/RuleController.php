@@ -69,7 +69,11 @@ class RuleController extends Controller
     private function headerRules(?int $ruleId, ?string $category): array
     {
         return [
-            'name' => ['required', 'string', 'max:150', ValidationRule::unique('rules', 'name')->where('category', $category)->ignore($ruleId)],
+            // whereNull('deleted_at') is load-bearing: ValidationRule::unique()
+            // has no built-in awareness of soft deletes — without it, a
+            // deleted rule's name stays permanently "taken" and can never
+            // be reused within that category.
+            'name' => ['required', 'string', 'max:150', ValidationRule::unique('rules', 'name')->where('category', $category)->whereNull('deleted_at')->ignore($ruleId)],
             'category' => ['required', ValidationRule::in(BusinessRule::CATEGORIES)],
             'branch_ids' => ['nullable', 'array'],
             'branch_ids.*' => ['exists:branches,id'],

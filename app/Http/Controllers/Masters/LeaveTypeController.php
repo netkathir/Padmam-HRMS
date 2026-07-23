@@ -30,8 +30,12 @@ class LeaveTypeController extends Controller
     private function rules(?int $leaveTypeId = null): array
     {
         return [
-            'name'                         => ['required', 'string', 'max:100', Rule::unique('leave_types', 'name')->ignore($leaveTypeId)],
-            'code'                         => ['required', 'string', 'max:20', Rule::unique('leave_types', 'code')->ignore($leaveTypeId)],
+            // whereNull('deleted_at') is load-bearing on both of these:
+            // Rule::unique() has no built-in awareness of soft deletes —
+            // without it, a deleted leave type's name/code stays
+            // permanently "taken" and can never be reused.
+            'name'                         => ['required', 'string', 'max:100', Rule::unique('leave_types', 'name')->whereNull('deleted_at')->ignore($leaveTypeId)],
+            'code'                         => ['required', 'string', 'max:20', Rule::unique('leave_types', 'code')->whereNull('deleted_at')->ignore($leaveTypeId)],
             'applicable_employee_types'    => ['required', 'array', 'min:1'],
             'applicable_employee_types.*'  => ['in:' . implode(',', array_keys(config('employee_types')))],
             'days_per_year'                => ['required', 'numeric', 'min:0', 'max:365'],

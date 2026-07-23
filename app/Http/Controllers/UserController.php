@@ -12,6 +12,7 @@ use App\Support\BranchAdminPermissions;
 use App\Support\BranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class UserController extends Controller
@@ -338,12 +339,16 @@ class UserController extends Controller
             default => [''],
         };
 
+        // whereNull('deleted_at') is load-bearing on all three: Rule::unique()
+        // has no built-in awareness of soft deletes — without it, a deleted
+        // user's name/email/username stays permanently "taken" and can
+        // never be reused.
         $rules = [
             // FSD 15.1 — "User Name: mandatory, unique."
-            'name'         => ['required', 'string', 'max:255', 'unique:users,name' . ($ignoreId ? ",$ignoreId" : '')],
+            'name'         => ['required', 'string', 'max:255', Rule::unique('users', 'name')->whereNull('deleted_at')->ignore($ignoreId)],
             // FSD 15.1 — "Email Address: optional, valid email" (previously required here).
-            'email'        => ['nullable', 'email', 'max:255', 'unique:users,email' . ($ignoreId ? ",$ignoreId" : '')],
-            'username'     => ['required', 'string', 'max:50', 'unique:users,username' . ($ignoreId ? ",$ignoreId" : '')],
+            'email'        => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')->whereNull('deleted_at')->ignore($ignoreId)],
+            'username'     => ['required', 'string', 'max:50', Rule::unique('users', 'username')->whereNull('deleted_at')->ignore($ignoreId)],
             // FSD 15.1 — "Mobile Number: optional, valid format."
             'mobile'       => ['nullable', 'digits:10'],
             'user_type'    => ['nullable', 'in:' . implode(',', $allowedUserTypes)],

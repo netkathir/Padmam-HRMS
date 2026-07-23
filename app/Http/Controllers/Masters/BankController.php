@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Masters;
 use App\Http\Controllers\Controller;
 use App\Models\Bank;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class BankController extends Controller
 {
@@ -28,9 +29,12 @@ class BankController extends Controller
 
     public function store(Request $request)
     {
+        // whereNull('deleted_at') is load-bearing: Rule::unique() has no
+        // built-in awareness of soft deletes — without it, a deleted
+        // bank's code stays permanently "taken" and can never be reused.
         $data = $request->validate([
             'name'      => ['required', 'string', 'max:100'],
-            'code'      => ['nullable', 'string', 'max:20', 'unique:banks,code'],
+            'code'      => ['nullable', 'string', 'max:20', Rule::unique('banks', 'code')->whereNull('deleted_at')],
             'is_active' => ['boolean'],
         ]);
 
@@ -49,7 +53,7 @@ class BankController extends Controller
     {
         $data = $request->validate([
             'name'      => ['required', 'string', 'max:100'],
-            'code'      => ['nullable', 'string', 'max:20', 'unique:banks,code,' . $bank->id],
+            'code'      => ['nullable', 'string', 'max:20', Rule::unique('banks', 'code')->whereNull('deleted_at')->ignore($bank->id)],
             'is_active' => ['boolean'],
         ]);
 

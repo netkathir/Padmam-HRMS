@@ -46,10 +46,14 @@ class DepartmentController extends Controller
     {
         $branchId = BranchScope::currentBranchId() ?? $request->input('branch_id');
 
+        // whereNull('deleted_at') is load-bearing on both of these:
+        // Rule::unique() has no built-in awareness of soft deletes —
+        // without it, a deleted department's name/code stays permanently
+        // "taken" and can never be reused.
         $data = $request->validate([
             'branch_id'   => ['required', 'exists:branches,id'],
-            'name'        => ['required', 'string', 'max:100', Rule::unique('departments', 'name')->where('branch_id', $branchId)],
-            'code'        => ['required', 'string', 'max:20', 'unique:departments,code'],
+            'name'        => ['required', 'string', 'max:100', Rule::unique('departments', 'name')->where('branch_id', $branchId)->whereNull('deleted_at')],
+            'code'        => ['required', 'string', 'max:20', Rule::unique('departments', 'code')->whereNull('deleted_at')],
             'description' => ['nullable', 'string'],
             'is_active'   => ['required', 'boolean'],
         ]);
@@ -128,10 +132,12 @@ class DepartmentController extends Controller
 
         $branchId = BranchScope::currentBranchId() ?? $request->input('branch_id');
 
+        // whereNull('deleted_at') is load-bearing on both of these — see
+        // store() above.
         $data = $request->validate([
             'branch_id'   => ['required', 'exists:branches,id'],
-            'name'        => ['required', 'string', 'max:100', Rule::unique('departments', 'name')->where('branch_id', $branchId)->ignore($department->id)],
-            'code'        => ['required', 'string', 'max:20', 'unique:departments,code,' . $department->id],
+            'name'        => ['required', 'string', 'max:100', Rule::unique('departments', 'name')->where('branch_id', $branchId)->whereNull('deleted_at')->ignore($department->id)],
+            'code'        => ['required', 'string', 'max:20', Rule::unique('departments', 'code')->whereNull('deleted_at')->ignore($department->id)],
             'description' => ['nullable', 'string'],
             'is_active'   => ['required', 'boolean'],
         ]);

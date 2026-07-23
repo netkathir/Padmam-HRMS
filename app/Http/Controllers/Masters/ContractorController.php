@@ -65,12 +65,16 @@ class ContractorController extends Controller
     private function rules(?int $contractorId = null): array
     {
         return [
-            'name'           => ['required', 'string', 'max:100', Rule::unique('contractors', 'name')->ignore($contractorId)],
+            // whereNull('deleted_at') is load-bearing on both of these:
+            // Rule::unique() has no built-in awareness of soft deletes —
+            // without it, a deleted contractor's name/code stays
+            // permanently "taken" and can never be reused.
+            'name'           => ['required', 'string', 'max:100', Rule::unique('contractors', 'name')->whereNull('deleted_at')->ignore($contractorId)],
             // `code` is auto-generated on create (see createWithGeneratedCode())
             // and never accepted from the client there; still required/unique/
             // editable on update, preserving today's Edit behavior.
             'code'           => $contractorId
-                ? ['required', 'string', 'max:20', Rule::unique('contractors', 'code')->ignore($contractorId)]
+                ? ['required', 'string', 'max:20', Rule::unique('contractors', 'code')->whereNull('deleted_at')->ignore($contractorId)]
                 : ['nullable', 'string', 'max:20'],
             'contact_person' => ['required', 'string', 'max:100'],
             'phone'          => ['required', 'digits:10'],

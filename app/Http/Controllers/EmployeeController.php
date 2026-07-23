@@ -1124,10 +1124,15 @@ class EmployeeController extends Controller
             // Uses the same branch_id precedence as BranchScope::stampBranchId()
             // (the currently selected branch overrides whatever the form
             // submitted) so the check matches what will actually be saved.
+            // whereNull('deleted_at') is load-bearing: Rule::unique() has no
+            // built-in awareness of soft deletes — without it, a deleted
+            // employee's code stays permanently "taken" and can never be
+            // reused within that branch.
             'employee_code'    => [
                 'nullable', 'string', 'max:20',
                 Rule::unique('employees', 'employee_code')
                     ->where(fn ($query) => $query->where('branch_id', BranchScope::currentBranchId() ?? request()->input('branch_id')))
+                    ->whereNull('deleted_at')
                     ->ignore($excludeId),
             ],
             // Employment Information — step 4 of the 5-step wizard.
@@ -1157,7 +1162,7 @@ class EmployeeController extends Controller
             'nationality'      => ['nullable', 'string', 'max:50'],
             'religion'         => ['nullable', 'string', 'max:50'],
             'personal_email'   => ['nullable', 'email', 'max:150'],
-            'official_email'   => ['required', 'email', 'max:255', 'unique:employees,official_email,' . $excludeId],
+            'official_email'   => ['required', 'email', 'max:255', Rule::unique('employees', 'official_email')->whereNull('deleted_at')->ignore($excludeId)],
             'phone'            => ['required', 'digits:10'],
             'alternate_phone'  => ['nullable', 'digits:10'],
             // Status isn't one of the 5 wizard steps — store()/update() default
@@ -1174,6 +1179,7 @@ class EmployeeController extends Controller
                 'nullable', 'digits:3',
                 Rule::unique('employees', 'biometric_number')
                     ->where(fn ($query) => $query->where('branch_id', BranchScope::currentBranchId() ?? request()->input('branch_id')))
+                    ->whereNull('deleted_at')
                     ->ignore($excludeId),
             ],
             'weekly_off_rule_id'  => ['nullable', 'exists:rules,id'],

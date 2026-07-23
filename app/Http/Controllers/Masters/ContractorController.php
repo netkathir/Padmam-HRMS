@@ -116,7 +116,11 @@ class ContractorController extends Controller
      */
     private function createWithGeneratedCode(array $data): Contractor
     {
-        for ($attempt = 1; $attempt <= 5; $attempt++) {
+        // See ShiftController::createWithGeneratedCode() for why this needs
+        // more than a couple of retries plus a jittered backoff: two
+        // near-simultaneous submissions can both read the same "last code"
+        // and race for the same next value.
+        for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 return DB::transaction(function () use ($data) {
                     $lastCode = Contractor::orderByDesc('id')->lockForUpdate()->value('code');
@@ -126,9 +130,10 @@ class ContractorController extends Controller
                 });
             } catch (QueryException $e) {
                 $isDuplicate = (string) $e->getCode() === '23000';
-                if (! $isDuplicate || $attempt === 5) {
+                if (! $isDuplicate || $attempt === 10) {
                     throw $e;
                 }
+                usleep(random_int(20_000, 80_000));
             }
         }
 

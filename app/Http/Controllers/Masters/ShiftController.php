@@ -92,7 +92,14 @@ class ShiftController extends Controller
      */
     private function createWithGeneratedCode(array $data): Shift
     {
-        for ($attempt = 1; $attempt <= 5; $attempt++) {
+        // Two near-simultaneous submissions (double-click, slow reload +
+        // resubmit, two admins at once) can both read the same "last code"
+        // and race for the same next value — one wins, the other must
+        // retry with the now-updated last code. 10 attempts with a short
+        // random backoff between them gives real concurrent contention
+        // enough room to clear before giving up, rather than surfacing a
+        // raw 500 to the user.
+        for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 return DB::transaction(function () use ($data) {
                     $lastCode = Shift::orderByDesc('id')->lockForUpdate()->value('code');
@@ -102,9 +109,10 @@ class ShiftController extends Controller
                 });
             } catch (QueryException $e) {
                 $isDuplicate = (string) $e->getCode() === '23000';
-                if (! $isDuplicate || $attempt === 5) {
+                if (! $isDuplicate || $attempt === 10) {
                     throw $e;
                 }
+                usleep(random_int(20_000, 80_000)); // 20-80ms jittered backoff
             }
         }
 

@@ -172,7 +172,11 @@ class EmployeeController extends Controller
      */
     private function createEmployeeWithRetry(array $data, Request $request, bool $codeWasGenerated, ?string $primaryType, ?string $labourType): Employee
     {
-        for ($attempt = 1; $attempt <= 5; $attempt++) {
+        // See Masters\ShiftController::createWithGeneratedCode() for why
+        // this needs more than a couple of retries plus a jittered backoff:
+        // two near-simultaneous submissions can both read the same "last
+        // code" and race for the same next value.
+        for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 return DB::transaction(function () use ($data, $request) {
                     $emp = Employee::create($data);
@@ -194,7 +198,7 @@ class EmployeeController extends Controller
                 });
             } catch (QueryException $e) {
                 $isDuplicate = (string) $e->getCode() === '23000';
-                if (! $isDuplicate || ! $codeWasGenerated || $attempt === 5) {
+                if (! $isDuplicate || ! $codeWasGenerated || $attempt === 10) {
                     throw $e;
                 }
                 $data['employee_code'] = $this->resolveEmployeeCode(
@@ -202,6 +206,7 @@ class EmployeeController extends Controller
                     $primaryType,
                     $labourType
                 );
+                usleep(random_int(20_000, 80_000));
             }
         }
 
@@ -216,13 +221,13 @@ class EmployeeController extends Controller
      */
     private function updateEmployeeWithRetry(Employee $employee, array $data, bool $codeWasGenerated, ?string $primaryType, ?string $labourType): void
     {
-        for ($attempt = 1; $attempt <= 5; $attempt++) {
+        for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 $employee->update($data);
                 return;
             } catch (QueryException $e) {
                 $isDuplicate = (string) $e->getCode() === '23000';
-                if (! $isDuplicate || ! $codeWasGenerated || $attempt === 5) {
+                if (! $isDuplicate || ! $codeWasGenerated || $attempt === 10) {
                     throw $e;
                 }
                 $data['employee_code'] = $this->resolveEmployeeCode(
@@ -230,6 +235,7 @@ class EmployeeController extends Controller
                     $primaryType,
                     $labourType
                 );
+                usleep(random_int(20_000, 80_000));
             }
         }
 

@@ -75,15 +75,18 @@ class DepartmentController extends Controller
      */
     private function createWithRaceSafeCode(array $data): Department
     {
-        for ($attempt = 1; $attempt <= 5; $attempt++) {
+        // See ShiftController::createWithGeneratedCode() for why this needs
+        // more than a couple of retries plus a jittered backoff.
+        for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 return DB::transaction(fn () => Department::create($data));
             } catch (QueryException $e) {
                 $isDuplicate = (string) $e->getCode() === '23000';
-                if (! $isDuplicate || $attempt === 5) {
+                if (! $isDuplicate || $attempt === 10) {
                     throw $e;
                 }
                 $data['code'] = $this->nextDepartmentCode();
+                usleep(random_int(20_000, 80_000));
             }
         }
 

@@ -55,7 +55,9 @@ class EarningsComponentController extends Controller
      */
     private function createWithGeneratedCode(array $data): EarningsComponent
     {
-        for ($attempt = 1; $attempt <= 5; $attempt++) {
+        // See ShiftController::createWithGeneratedCode() for why this needs
+        // more than a couple of retries plus a jittered backoff.
+        for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 return DB::transaction(function () use ($data) {
                     $lastCode = EarningsComponent::orderByDesc('id')->lockForUpdate()->value('code');
@@ -66,9 +68,10 @@ class EarningsComponentController extends Controller
                 });
             } catch (QueryException $e) {
                 $isDuplicate = (string) $e->getCode() === '23000';
-                if (! $isDuplicate || $attempt === 5) {
+                if (! $isDuplicate || $attempt === 10) {
                     throw $e;
                 }
+                usleep(random_int(20_000, 80_000));
             }
         }
 

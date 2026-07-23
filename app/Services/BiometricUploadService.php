@@ -4,9 +4,7 @@ namespace App\Services;
 
 use App\Models\AttendanceLog;
 use App\Models\BiometricUpload;
-use App\Models\Checkpoint;
 use App\Models\Employee;
-use App\Models\EmployeeCheckpoint;
 use App\Models\EmployeeExit;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -21,6 +19,12 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
  * Handling Type, Temperature, Abnormal) — there is no user-configurable
  * column mapping anymore; this service reads that fixed header set
  * directly.
+ *
+ * Matching: the device's Person ID (e.g. "SPP001", where "SPP" is a branch
+ * code) is matched directly against Employee::biometric_number, scoped to
+ * the upload's own branch — there is no separate Checkpoint/door concept.
+ * "Attendance Check Point" is read and shown for troubleshooting only; it
+ * plays no role in matching an employee.
  */
 class BiometricUploadService
 {
@@ -40,7 +44,7 @@ class BiometricUploadService
     ];
 
     /** Mandatory columns per the FSD — everything else is optional/informational. */
-    private const REQUIRED = ['person_id', 'department', 'time', 'checkpoint'];
+    private const REQUIRED = ['person_id', 'department', 'time'];
 
     /** Same-person punches within this many minutes are treated as one duplicate biometric read — only the earliest is kept. */
     private const DUPLICATE_WINDOW_MINUTES = 3;
@@ -137,81 +141,22 @@ class BiometricUploadService
     }
 
     /**
-     * Validation rule 3 — resolves (Person ID, raw Attendance Check Point
-     * text) to an Employee via the Employee-Checkpoint Mapping master,
-     * matching the raw text against a Checkpoint's own name/code by
-     * prefix/contains (device exports embed the checkpoint name inside a
-     * longer string, e.g. "SPP_Door1_Entrance Card Reader1" for checkpoint
-     * "SPP") — scoped to the upload's branch, mirroring every other
-     * branch-scoped master.
+     * Resolves a device Person ID (e.g. "SPP001") directly to an Employee
+     * via Employee::biometric_number, scoped to the upload's own branch —
+     * an employee's biometric number must match the Person ID exactly.
      */
-    /**
-     * @return array{0: ?Checkpoint, 1: ?Employee} — the matched Checkpoint
-     * and the Employee mapped to it under this Person ID. The checkpoint is
-     * returned too (not just the employee) so callers can dedup/group
-     * punches per (employee, checkpoint) — the same employee can have
-     * different door-local IDs at different checkpoints, so two genuinely
-     * separate checkpoints on the same day must never collapse into one
-     * "duplicate" just because they belong to the same person.
-     */
-    private function resolveEmployee(?string $personId, ?string $rawCheckpoint, int $branchId, \Illuminate\Support\Collection $checkpointsForBranch): array
+    private function resolveEmployee(?string $personId, \Illuminate\Support\Collection $employeesForBranch): ?Employee
     {
-        if (! $personId || ! $rawCheckpoint) {
-            return [null, null];
+        if (! $personId) {
+            return null;
         }
 
-        $rawCheckpointLower = strtolower(trim($rawCheckpoint));
-        $checkpoint = null;
-        foreach ($checkpointsForBranch as $cp) {
-            $name = strtolower($cp->name);
-            $code = strtolower($cp->code);
-            if (str_starts_with($rawCheckpointLower, $name) || str_contains($rawCheckpointLower, $name)
-                || str_starts_with($rawCheckpointLower, $code) || str_contains($rawCheckpointLower, $code)) {
-                $checkpoint = $cp;
-                break;
-            }
-        }
-
-        if (! $checkpoint) {
-            return [null, null];
-        }
-
-        // The device's Person ID column is the checkpoint prefix + the
-        // employee's door-local number combined (e.g. "SPP001" for
-        // checkpoint "SPP") — Employee-Checkpoint Mapping stores just the
-        // plain number ("001"), so strip the matched checkpoint's own
-        // name/code off the front before comparing. Also tries the
-        // unstripped value, so a mapping that was deliberately entered with
-        // the full prefixed ID still resolves.
-        $strippedPersonId = $this->stripCheckpointPrefix($personId, $checkpoint);
-
-        $mapping = EmployeeCheckpoint::where('checkpoint_id', $checkpoint->id)
-            ->whereIn('emp_checkpoint_id', array_unique([$strippedPersonId, $personId]))
-            ->with('employee')
-            ->first();
-
-        return [$checkpoint, $mapping?->employee];
-    }
-
-    /** Strips a leading checkpoint name/code (case-insensitive, with an optional separator like "_" or "-") off a raw Person ID. */
-    private function stripCheckpointPrefix(string $personId, Checkpoint $checkpoint): string
-    {
-        foreach ([$checkpoint->code, $checkpoint->name] as $prefix) {
-            if ($prefix === null || $prefix === '') {
-                continue;
-            }
-            if (stripos($personId, $prefix) === 0) {
-                $rest = substr($personId, strlen($prefix));
-                return ltrim($rest, '_- ');
-            }
-        }
-
-        return $personId;
+        return $employeesForBranch->get(strtolower($personId));
     }
 
     /**
-     * Reads and validates every data row against Employee-Checkpoint
-     * Mapping, without writing anything — shared by the read-only preview()
+     * Reads and validates every data row against Employee::biometric_number,
+     * without writing anything — shared by the read-only preview()
      * (Confirm Upload screen) and validateAndImport() (the real import), so
      * the preview a user sees is guaranteed to match what actually gets
      * imported a moment later.
@@ -241,7 +186,11 @@ class BiometricUploadService
         $errors = [];
         $parsed = [];
 
-        $checkpointsForBranch = Checkpoint::where('branch_id', $upload->branch_id)->active()->get();
+        // Keyed by lowercased biometric_number for O(1) lookup per row.
+        $employeesForBranch = Employee::where('branch_id', $upload->branch_id)
+            ->whereNotNull('biometric_number')
+            ->get()
+            ->keyBy(fn (Employee $e) => strtolower($e->biometric_number));
 
         foreach ($rows as $rowNumber => $row) {
             if (empty(array_filter($row, fn ($v) => $v !== null && $v !== ''))) {
@@ -258,9 +207,6 @@ class BiometricUploadService
             if (! $personId) {
                 $rowErrors[] = 'Missing Person ID';
             }
-            if (! $rawCheckpoint) {
-                $rowErrors[] = 'Missing Attendance Check Point';
-            }
 
             $punchDateTime = null;
             $rawTime = $columns['time'] ? ($row[$columns['time']] ?? null) : null;
@@ -275,11 +221,10 @@ class BiometricUploadService
             }
 
             $employee = null;
-            $checkpoint = null;
-            if ($personId && $rawCheckpoint) {
-                [$checkpoint, $employee] = $this->resolveEmployee($personId, $rawCheckpoint, $upload->branch_id, $checkpointsForBranch);
+            if ($personId) {
+                $employee = $this->resolveEmployee($personId, $employeesForBranch);
                 if (! $employee) {
-                    $rowErrors[] = 'Unknown employee (no Employee-Checkpoint Mapping found for this Person ID + Attendance Check Point)';
+                    $rowErrors[] = 'Unknown employee (no employee in this branch has this Biometric Number)';
                     $counts['unknown_employee_rows']++;
                 }
             }
@@ -312,7 +257,6 @@ class BiometricUploadService
             $parsed[] = [
                 'row' => $rowNumber + 2,
                 'employee' => $employee,
-                'checkpoint' => $checkpoint,
                 'person_id' => $personId,
                 'name' => $name,
                 'department' => $department,
@@ -321,14 +265,11 @@ class BiometricUploadService
             ];
         }
 
-        // Validation rule 2 — 3-minute duplicate window, per employee PER
-        // CHECKPOINT. The same employee can be mapped to more than one
-        // checkpoint (different door-local IDs) — two punches at different
-        // checkpoints around the same time are two real, separate events,
-        // not a duplicate biometric read, so the window must never span
-        // checkpoints. Grouped in-memory since the sheet isn't guaranteed to
-        // be time-ordered.
-        $byEmployee = collect($parsed)->groupBy(fn ($p) => $p['employee']->id . ':' . $p['checkpoint']->id);
+        // Validation rule 2 — 3-minute duplicate window, per employee. Two
+        // punches by the same employee within the window are treated as one
+        // biometric read (only the earliest is kept). Grouped in-memory
+        // since the sheet isn't guaranteed to be time-ordered.
+        $byEmployee = collect($parsed)->groupBy(fn ($p) => $p['employee']->id);
         $kept = [];
         foreach ($byEmployee as $employeeRows) {
             $sorted = $employeeRows->sortBy('punch_time')->values();
@@ -355,10 +296,10 @@ class BiometricUploadService
     /**
      * Read-only preview for the Confirm Upload screen — parses and
      * validates every row exactly like the real import, but never writes to
-     * the database. A row whose exact (employee, checkpoint, punch_time)
-     * already exists is shown as "will be updated," not as a duplicate/error
-     * — re-uploading a file (or one that overlaps a previous upload) is
-     * expected to refresh already-stored punches, not skip them.
+     * the database. A row whose exact (employee, punch_time) already exists
+     * is shown as "will be updated," not as a duplicate/error — re-uploading
+     * a file (or one that overlaps a previous upload) is expected to
+     * refresh already-stored punches, not skip them.
      *
      * @return array{valid: array<int,array>, errors: array<int,array>, counts: array<string,int>, truncated: bool}
      */
@@ -370,7 +311,6 @@ class BiometricUploadService
         foreach ($kept as $p) {
             $existing = AttendanceLog::where('employee_id', $p['employee']->id)
                 ->where('punch_time', $p['punch_time'])
-                ->where('device_id', $p['checkpoint']->code)
                 ->first();
             if ($existing) {
                 $counts['updated_rows']++;
@@ -403,19 +343,17 @@ class BiometricUploadService
 
         foreach ($kept as $p) {
             // Validation rule 6 — re-upload handling: exact (employee,
-            // checkpoint, punch_time) already recorded is updated in place
-            // (not skipped/flagged as a duplicate) — re-uploading a file is
-            // expected to refresh already-stored punches. Checkpoint is part
-            // of the match key since the same employee can legitimately
-            // punch at more than one checkpoint.
+            // punch_time) already recorded is updated in place (not skipped/
+            // flagged as a duplicate) — re-uploading a file is expected to
+            // refresh already-stored punches.
             $log = AttendanceLog::updateOrCreate(
                 [
                     'employee_id' => $p['employee']->id,
                     'punch_time' => $p['punch_time'],
-                    'device_id' => $p['checkpoint']->code,
                 ],
                 [
                     'employee_code' => $p['employee']->employee_code,
+                    'device_id' => $p['person_id'],
                     'punch_type' => 'unknown', // device export doesn't distinguish in/out — process() derives first/last punch per day
                     'source' => 'biometric',
                     'is_processed' => false,

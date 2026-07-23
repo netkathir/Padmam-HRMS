@@ -12,7 +12,7 @@ class Employee extends Model
     protected $table = 'employees';
 
     protected $fillable = [
-        'employee_code', 'branch_id', 'department_id', 'designation_id',
+        'employee_code', 'biometric_number', 'branch_id', 'department_id', 'designation_id',
         'employee_type_id', 'primary_employee_type', 'labour_type', 'contractor_id',
         'contractor_employee_number', 'work_order_number', 'labour_category', 'contractor_rate', 'contractor_remarks',
         'designation_employee_category', 'designation_employee_type', 'designation_contractor_id',

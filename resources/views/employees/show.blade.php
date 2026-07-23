@@ -78,6 +78,7 @@
                         <div class="col-sm-6"><strong>Date of Joining:</strong>
                             {{ $employee->date_of_joining?->format('d-m-Y') ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Shift:</strong> {{ $employee->shift->name ?? '—' }}</div>
+                        <div class="col-sm-6"><strong>Biometric Number:</strong> {{ $employee->biometric_number ?? '—' }}</div>
                         <div class="col-sm-6"><strong>Status:</strong> {{ ucfirst($employee->status) }}</div>
                         @can('rule_engine.full')
                         <div class="col-sm-6"><strong>Weekly Off Rule:</strong> {{ $employee->weeklyOffRuleOverride->name ?? 'Automatic' }}</div>

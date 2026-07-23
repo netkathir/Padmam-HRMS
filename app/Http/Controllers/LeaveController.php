@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\AuditLog;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Holiday;
@@ -228,6 +229,8 @@ class LeaveController extends Controller
                     ->where('leave_type_id', $leave->leave_type_id)
                     ->where('year', now()->year)
                     ->increment('used_days', $leave->total_days);
+
+                $this->overrideAttendanceForApprovedLeave($leave);
             } else {
                 $leave->update([
                     'status'           => 'rejected',
@@ -243,6 +246,62 @@ class LeaveController extends Controller
         });
 
         return redirect()->route('leaves.index')->with('success', 'Leave request ' . $request->action . 'd.');
+    }
+
+    /**
+     * Once a leave request is approved, it overrides whatever Attendance
+     * status already exists for every date in its range (e.g. a biometric
+     * upload had already marked a day Present or Absent before the leave
+     * was approved) — Leave always wins over Attendance for the same date.
+     * Each changed date is individually audit-logged (who/when/old status
+     * -> new status), never silently overwritten.
+     */
+    private function overrideAttendanceForApprovedLeave(LeaveRequest $leave): void
+    {
+        $leave->loadMissing('leaveType', 'employee');
+        $employee = $leave->employee;
+        if (! $employee) {
+            return;
+        }
+
+        $newStatus = $leave->leaveType?->is_paid ? 'paid_leave' : 'unpaid_leave';
+        $period = \Carbon\CarbonPeriod::create($leave->start_date, $leave->end_date);
+
+        foreach ($period as $date) {
+            $dateStr = $date->toDateString();
+            $existing = Attendance::where('employee_id', $employee->id)->where('date', $dateStr)->first();
+            $oldValues = $existing?->toArray();
+
+            // Nothing to override — no need to touch or audit-log a date
+            // that already correctly reflects this same leave.
+            if ($existing && $existing->status === $newStatus && $existing->leave_type_id === $leave->leave_type_id) {
+                continue;
+            }
+
+            $attendance = $existing ?: new Attendance(['employee_id' => $employee->id, 'date' => $dateStr]);
+            $attendance->fill([
+                'shift_id'        => $attendance->shift_id ?: $employee->shift_id,
+                'status'          => $newStatus,
+                'leave_type_id'   => $leave->leave_type_id,
+                'in_time'         => null,
+                'out_time'        => null,
+                'work_minutes'    => 0,
+                'is_manual_entry' => false,
+                'source'          => 'manual',
+            ]);
+            $attendance->save();
+
+            AuditLog::write(
+                auth()->id(),
+                'leave_override',
+                'attendance',
+                $attendance->id,
+                $oldValues,
+                $attendance->fresh()->toArray(),
+                $employee->branch_id,
+                'Leave approved (' . ($leave->leaveType->name ?? 'Leave') . ') overrides prior attendance status for ' . $dateStr
+            );
+        }
     }
 
     public function cancel(LeaveRequest $leave)

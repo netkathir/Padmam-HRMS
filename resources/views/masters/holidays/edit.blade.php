@@ -25,7 +25,15 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Applicable Employee Types <span class="text-danger">*</span></label>
-                    @php $selectedTypes = old('applicable_employee_types', $holiday->applicable_employee_types ?? ['staff','company_labour','contract_labour']); @endphp
+                    {{-- See masters/shifts/edit.blade.php for why hasOldInput() is required here:
+                         unchecking every box submits no applicable_employee_types[] key at all, and a
+                         naive old(..., $holiday->...) fallback would wrongly re-check every box from
+                         the database instead of showing that nothing was actually submitted. --}}
+                    @php
+                        $selectedTypes = session()->hasOldInput()
+                            ? old('applicable_employee_types', [])
+                            : ($holiday->applicable_employee_types ?? ['staff','company_labour','contract_labour']);
+                    @endphp
                     <div class="border rounded p-2 @error('applicable_employee_types') is-invalid @enderror">
                         @foreach(config('employee_types') as $val=>$label)
                         <div class="form-check">

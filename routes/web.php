@@ -123,6 +123,7 @@ Route::middleware(['auth', 'force.password.change', 'require.branch'])->group(fu
     Route::post('/attendance/manual',            [AttendanceController::class, 'manual'])->name('attendance.manual.post')->middleware('permission:attendance.create');
     Route::get('/attendance/pending',            [AttendanceController::class, 'pending'])->name('attendance.pending')->middleware('permission:attendance.read');
     Route::get('/attendance/report',             [AttendanceController::class, 'report'])->name('attendance.report')->middleware('permission:attendance.read');
+    Route::get('/attendance/summary',            [AttendanceController::class, 'summary'])->name('attendance.summary')->middleware('permission:attendance.read');
 
     // 11.2 Biometric Excel Upload
     Route::get('/attendance/upload',                     [AttendanceController::class, 'uploadForm'])->name('attendance.upload.form')->middleware('permission:attendance.read');

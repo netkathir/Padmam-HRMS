@@ -52,7 +52,24 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Employee Type Applicability <span class="text-danger">*</span></label>
-                    @php $selectedTypes = old('applicable_employee_types', $shift->applicable_employee_types ?? []); @endphp
+                    {{--
+                        old('applicable_employee_types') must NOT fall back to the
+                        shift's saved value on a failed resubmit — unchecking every
+                        box sends no applicable_employee_types[] key at all (HTML
+                        checkboxes omit unchecked boxes entirely), so a naive
+                        old('applicable_employee_types', $shift->...) would wrongly
+                        re-check every box from the database instead of showing what
+                        was actually (not) submitted. Falling back to the shift's
+                        saved value is only correct on the very first GET, before any
+                        submission — detected via session()->hasOldInput() (true only
+                        after a redirect back with flashed input, i.e. after a failed
+                        validate()).
+                    --}}
+                    @php
+                        $selectedTypes = session()->hasOldInput()
+                            ? old('applicable_employee_types', [])
+                            : ($shift->applicable_employee_types ?? []);
+                    @endphp
                     <div class="border rounded p-2 @error('applicable_employee_types') is-invalid @enderror">
                         @foreach(config('employee_types') as $val=>$label)
                         <div class="form-check">

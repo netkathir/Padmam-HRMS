@@ -10,6 +10,7 @@
     <a href="{{ route('attendance.mark') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus-lg"></i> Mark Attendance</a>
     <a href="{{ route('attendance.manual') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i> Manual Entry</a>
     <a href="{{ route('attendance.report') }}" class="btn btn-outline-info btn-sm"><i class="bi bi-file-text"></i> Report</a>
+    <a href="{{ route('attendance.summary') }}" class="btn btn-outline-info btn-sm"><i class="bi bi-bar-chart-line"></i> Summary</a>
 @endsection
 
 @section('content')

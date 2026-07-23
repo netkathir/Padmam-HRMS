@@ -1150,6 +1150,7 @@ class EmployeeController extends Controller
             // it to 'active' when not present.
             'status'           => ['nullable', 'in:active,inactive,probation,terminated,resigned,retired'],
             'shift_id'         => ['required', 'exists:shifts,id'],
+            'biometric_number' => ['nullable', 'string', 'max:30', 'unique:employees,biometric_number,' . $excludeId],
             'weekly_off_rule_id'  => ['nullable', 'exists:rules,id'],
             'attendance_rule_id'  => ['nullable', 'exists:rules,id'],
             'payroll_rule_id'     => ['nullable', 'exists:rules,id'],

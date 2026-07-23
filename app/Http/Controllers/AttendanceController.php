@@ -13,6 +13,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeType;
 use App\Models\Holiday;
+use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Shift;
 use App\Services\BiometricUploadService;
@@ -277,6 +278,106 @@ class AttendanceController extends Controller
         return view('attendance.report', compact('report', 'employees', 'departments', 'month', 'year'));
     }
 
+    /**
+     * Per-employee summary for a selected period: Shift, OT hours, Total
+     * Working Days, Present/Absent day counts, one day-count column per
+     * active LeaveType (dynamic — always reflects the current LeaveType
+     * master, never hardcoded to specific leave names), plus Weekend and
+     * Public Holiday day counts derived from Attendance.status (there is no
+     * separate LeaveType for either — see resolveHolidayOrWeeklyOffStatus()).
+     */
+    public function summary(Request $request)
+    {
+        $period = \Carbon\Carbon::parse($request->input('month', now()->format('Y-m')) . '-01');
+        $month = $period->month;
+        $year  = $period->year;
+
+        $leaveTypes = LeaveType::where('is_active', true)->orderBy('name')->get();
+
+        $query = BranchScope::scopeQueryVia(
+            Attendance::whereMonth('date', $month)->whereYear('date', $year),
+            'employee'
+        )
+            ->when($request->filled('employee_id'), fn($q) => $q->where('employee_id', $request->employee_id))
+            ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)));
+
+        $summary = (clone $query)->with('employee.department', 'employee.shift', 'employee.branch')->get()
+            ->groupBy('employee_id')
+            ->map(function ($rows) use ($leaveTypes, $month, $year) {
+                $employee = $rows->first()->employee;
+
+                $leaveCounts = $leaveTypes->mapWithKeys(function ($lt) use ($rows) {
+                    return [$lt->id => $rows->where('leave_type_id', $lt->id)
+                        ->whereIn('status', ['paid_leave', 'unpaid_leave', 'on_leave'])->count()];
+                });
+
+                return [
+                    'employee'        => $employee,
+                    'shift'           => $employee->shift,
+                    'ot_hours'        => round($rows->sum('ot_minutes') / 60, 2),
+                    'working_days'    => $this->countWorkingDaysInMonth($employee, $month, $year),
+                    'present'         => $rows->where('status', 'present')->count(),
+                    'absent'          => $rows->whereIn('status', ['absent', 'missing_punch'])->count(),
+                    'leave_counts'    => $leaveCounts,
+                    'weekend'         => $rows->where('status', 'weekly_off')->count(),
+                    'public_holiday'  => $rows->whereIn('status', ['paid_holiday', 'unpaid_holiday'])->count(),
+                ];
+            })->values();
+
+        $employees   = BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get();
+        $departments = BranchScope::scopeQuery(Department::query())->orderBy('name')->get();
+
+        if ($request->filled('export')) {
+            $header = ['Employee Number', 'Employee', 'Shift', 'OT Hrs', 'Total Working Days', 'Present', 'Absent'];
+            foreach ($leaveTypes as $lt) { $header[] = $lt->name; }
+            $header[] = 'Weekend';
+            $header[] = 'Public Holiday';
+
+            return $this->streamCsv('attendance-summary-' . $month . '-' . $year . '.csv', $header,
+                $summary->map(function ($r) use ($leaveTypes) {
+                    $row = [
+                        $r['employee']->employee_code ?? '', $r['employee']->full_name ?? '',
+                        $r['shift']->name ?? '—', $r['ot_hours'], $r['working_days'], $r['present'], $r['absent'],
+                    ];
+                    foreach ($leaveTypes as $lt) { $row[] = $r['leave_counts'][$lt->id] ?? 0; }
+                    $row[] = $r['weekend'];
+                    $row[] = $r['public_holiday'];
+                    return $row;
+                })->all()
+            );
+        }
+
+        return view('attendance.summary', compact('summary', 'employees', 'departments', 'leaveTypes', 'month', 'year'));
+    }
+
+    /**
+     * Total working days (calendar days minus weekly-offs) in the given
+     * month for this employee's branch — mirrors
+     * PayrollController::getWorkingDays()'s own weekly-off resolution
+     * (Branch::weekly_off_days, falling back to Sat/Sun) but doesn't share
+     * that private method across controllers; kept intentionally simple
+     * since this is a display-only summary, not a payroll calculation.
+     */
+    private function countWorkingDaysInMonth(Employee $employee, int $month, int $year): int
+    {
+        $dayNameToIndex = ['sunday' => 0, 'monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4, 'friday' => 5, 'saturday' => 6];
+        $offIndexes = $employee->branch?->weekly_off_days
+            ? array_values(array_filter(array_map(fn($d) => $dayNameToIndex[$d] ?? null, $employee->branch->weekly_off_days), fn($v) => $v !== null))
+            : [0, 6];
+
+        $start = \Carbon\Carbon::create($year, $month, 1);
+        $end = $start->copy()->endOfMonth();
+
+        $days = 0;
+        $date = $start->copy();
+        while ($date->lte($end)) {
+            if (! in_array($date->dayOfWeek, $offIndexes, true)) $days++;
+            $date->addDay();
+        }
+
+        return $days;
+    }
+
     // ── 11.2 Biometric Excel Upload ───────────────────────────────────────
 
     /**
@@ -453,7 +554,36 @@ class AttendanceController extends Controller
                         ->orderBy('punch_time')->get();
 
                     if ($logs->isEmpty()) {
-                        if (! $existing) { $skipped++; }
+                        // No biometric punch at all for this employee on this
+                        // date within the uploaded file's own period — mark
+                        // Absent, UNLESS an approved leave already covers this
+                        // date (LeaveController::approve() already stamped
+                        // Attendance to reflect it — that override must not be
+                        // clobbered by a biometric file uploaded afterward).
+                        // The admin can still apply a Leave later for a date
+                        // this uploads marks Absent; that later approval will
+                        // override it the normal way.
+                        $hasApprovedLeave = LeaveRequest::where('employee_id', $employee->id)
+                            ->where('status', 'approved')
+                            ->where('start_date', '<=', $dateStr)->where('end_date', '>=', $dateStr)
+                            ->exists();
+                        if ($hasApprovedLeave) {
+                            if (! $existing) { $skipped++; }
+                            continue;
+                        }
+
+                        $attendance->fill([
+                            'status' => 'absent', 'in_time' => null, 'out_time' => null,
+                            'work_minutes' => 0, 'is_manual_entry' => false, 'source' => 'biometric',
+                        ]);
+                        $attendance->save();
+                        $this->applyDailyLopEligibility($attendance->fresh(), $employee);
+
+                        if ($existing) {
+                            AuditLog::write(auth()->id(), 'recalculate', 'attendance', $attendance->id, $oldValues, $attendance->fresh()->toArray(), $employee->branch_id, 'Marked Absent — no biometric punch found for this date');
+                        }
+
+                        $processed++;
                         continue;
                     }
 

@@ -51,6 +51,12 @@ class ShiftController extends Controller
     /**
      * FSD 7.2: shift end time must form a valid (positive) duration, and
      * combined grace periods shall not exceed that total shift duration.
+     * No explicit overnight flag: an End Time strictly earlier than Start
+     * Time is inferred to cross midnight (e.g. 22:00 -> 06:00 is an 8-hour
+     * shift), purely from the 24-hour values themselves — mirrors
+     * Shift::getDurationMinutesAttribute(). An End Time EQUAL to Start Time
+     * is NOT wrapped — that's a same-time data-entry mistake, not a 24-hour
+     * shift, and must still be rejected below.
      */
     private function assertGraceWithinDuration(array $data): void
     {
@@ -59,6 +65,9 @@ class ShiftController extends Controller
         $end = \Carbon\Carbon::createFromFormat('H:i', $data['end_time'])->hour * 60
             + \Carbon\Carbon::createFromFormat('H:i', $data['end_time'])->minute;
 
+        if ($end < $start) {
+            $end += 24 * 60;
+        }
         $duration = $end - $start;
 
         if ($duration <= 0) {

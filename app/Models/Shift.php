@@ -22,6 +22,23 @@ class Shift extends Model
         ];
     }
 
+    /**
+     * MySQL's TIME column type round-trips as "H:i:s" (e.g. "21:00:00"),
+     * but every form field and validation rule in this app works in plain
+     * "H:i" — normalizing here (rather than in every Blade view) means the
+     * raw value is always safe to drop straight into an <input type="time">
+     * or re-validate with date_format:H:i.
+     */
+    public function getStartTimeAttribute($value): ?string
+    {
+        return $value ? substr($value, 0, 5) : $value;
+    }
+
+    public function getEndTimeAttribute($value): ?string
+    {
+        return $value ? substr($value, 0, 5) : $value;
+    }
+
     public function getStartMinutesAttribute(): int
     {
         [$h, $m] = explode(':', $this->start_time);
@@ -41,11 +58,21 @@ class Shift extends Model
 
     /**
      * Total shift duration in minutes — used to validate grace periods don't
-     * exceed the shift itself (FSD 7.2).
+     * exceed the shift itself (FSD 7.2). No explicit overnight flag: an End
+     * Time strictly earlier than Start Time is inferred to cross midnight
+     * (e.g. 22:00 -> 06:00 is an 8-hour shift), purely from the 24-hour
+     * values themselves. An End Time EQUAL to Start Time is NOT wrapped —
+     * that's a same-time data-entry mistake, not a 24-hour shift, and must
+     * still produce a zero/invalid duration.
      */
     public function getDurationMinutesAttribute(): int
     {
-        return $this->end_minutes - $this->start_minutes;
+        $end = $this->end_minutes;
+        if ($end < $this->start_minutes) {
+            $end += 24 * 60;
+        }
+
+        return $end - $this->start_minutes;
     }
 
     public function appliesToEmployeeType(?string $primaryType, ?string $labourType = null): bool

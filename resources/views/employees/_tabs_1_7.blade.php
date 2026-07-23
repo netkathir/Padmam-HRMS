@@ -271,6 +271,12 @@
             </select>
             @error('shift_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
+        <div class="col-md-3">
+            <label class="form-label">Biometric Number</label>
+            <input type="text" name="biometric_number" class="form-control @error('biometric_number') is-invalid @enderror" value="{{ old('biometric_number', $employee->biometric_number ?? '') }}" placeholder="e.g. SPP001">
+            <div class="form-text">Must exactly match the Person ID from the biometric device export.</div>
+            @error('biometric_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
     </div>
 
     {{-- Contract Labour Information — shown only for Contract Labour; hides Bank Details below. --}}

@@ -203,21 +203,31 @@ class EmployeeNumberGenerator
     {
         $prefix = $this->typePrefix($employeeTypeId);
 
-        for ($attempt = 1; $attempt <= 5; $attempt++) {
+        // withTrashed() is load-bearing here, same as
+        // ShiftController::createWithGeneratedCode(): a soft-deleted
+        // Employee's code is still permanently reserved by the database's
+        // unique index, so excluding deleted rows can compute a code
+        // that's already taken. Also uses the row with the HIGHEST code
+        // NUMBER under this prefix, not just "whichever row has the
+        // highest id" — those can drift apart (e.g. a deleted row created
+        // after the newest surviving one).
+        for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 return DB::transaction(function () use ($prefix) {
-                    $lastCode = Employee::where('employee_code', 'like', $prefix . '%')
-                        ->orderByDesc('id')
+                    $allCodes = Employee::withTrashed()
+                        ->where('employee_code', 'like', $prefix . '%')
                         ->lockForUpdate()
-                        ->value('employee_code');
+                        ->pluck('employee_code');
+                    $lastCode = SequentialCodeGenerator::highestCode($allCodes);
 
                     return SequentialCodeGenerator::next($lastCode, $prefix . '0001');
                 });
             } catch (QueryException $e) {
                 $isDuplicate = (string) $e->getCode() === '23000';
-                if (! $isDuplicate || $attempt === 5) {
+                if (! $isDuplicate || $attempt === 10) {
                     throw $e;
                 }
+                usleep(random_int(20_000, 80_000));
             }
         }
 

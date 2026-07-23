@@ -8,6 +8,7 @@
         <form action="{{ route('masters.shifts.update', $shift) }}" method="POST">
             @csrf @method('PUT')
             <div class="row g-3">
+                @include('partials._locked_branch_field', ['currentBranch' => $currentBranch])
                 <div class="col-md-6">
                     <label class="form-label">Shift Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $shift->name) }}" required>

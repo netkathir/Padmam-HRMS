@@ -13,6 +13,16 @@
             <div class="col-md-4">
                 <input type="text" name="search" class="form-control form-control-sm" placeholder="Search name, code…" value="{{ request('search') }}">
             </div>
+            @if ($branches->isNotEmpty())
+            <div class="col-md-3">
+                <select name="branch_id" class="form-select form-select-sm">
+                    <option value="">All Branches</option>
+                    @foreach($branches as $b)
+                        <option value="{{ $b->id }}" {{ request('branch_id') == $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            @endif
             <div class="col-md-2">
                 <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i> Search</button>
             </div>
@@ -22,13 +32,14 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Start</th><th>End</th><th>Grace (Late/Early)</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Branch</th><th>Start</th><th>End</th><th>Grace (Late/Early)</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($shifts as $shift)
                     <tr>
                         <td>{{ $shifts->firstItem() + $loop->index }}</td>
                         <td><span class="badge bg-secondary">{{ $shift->code }}</span></td>
                         <td>{{ $shift->name }}</td>
+                        <td>{{ $shift->branch->name ?? '—' }}</td>
                         <td>{{ $shift->start_time }}</td>
                         <td>{{ $shift->end_time }}</td>
                         <td>{{ $shift->grace_late_entry_minutes ?? 0 }} / {{ $shift->grace_early_exit_minutes ?? 0 }} min</td>
@@ -43,7 +54,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="8" class="text-center text-muted py-4">No shifts found.</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">No shifts found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -1059,7 +1059,15 @@ class EmployeeController extends Controller
                 ->orderBy('name')->get(),
             'employeeTypes' => EmployeeType::where('is_active', true)->get(),
             'contractors'   => Contractor::where('is_active', true)->orderBy('name')->get(),
-            'shifts'        => Shift::where('is_active', true)->get(),
+            // Scoped to the employee's own branch — a Shift now belongs to
+            // exactly one branch (see ShiftController), so only shifts
+            // created under this employee's branch are assignable. The
+            // employee's own already-assigned shift is kept in the list on
+            // the edit form even if it's since gone inactive or belongs to
+            // a different branch, so the field doesn't silently render blank.
+            'shifts'        => BranchScope::scopeQuery(Shift::query())
+                ->where(fn($q) => $q->where('is_active', true)->when($employee?->shift_id, fn($q2) => $q2->orWhere('id', $employee->shift_id)))
+                ->get(),
             'managers'      => BranchScope::scopeQuery(Employee::active())->orderBy('first_name')->get(),
             'roles'         => \App\Models\Role::orderBy('name')->get(),
             'banks'         => Bank::where('is_active', true)->orderBy('name')->get(),

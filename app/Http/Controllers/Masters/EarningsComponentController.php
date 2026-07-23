@@ -56,11 +56,16 @@ class EarningsComponentController extends Controller
     private function createWithGeneratedCode(array $data): EarningsComponent
     {
         // See ShiftController::createWithGeneratedCode() for why this needs
-        // more than a couple of retries plus a jittered backoff.
+        // more than a couple of retries plus a jittered backoff, and why
+        // the "last code" must be the row with the highest CODE NUMBER —
+        // not just "whichever row has the highest id" — which can drift
+        // apart from actual code order (e.g. legacy/manually-entered codes
+        // out of sequence).
         for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 return DB::transaction(function () use ($data) {
-                    $lastCode = EarningsComponent::orderByDesc('id')->lockForUpdate()->value('code');
+                    $allCodes = EarningsComponent::lockForUpdate()->pluck('code');
+                    $lastCode = SequentialCodeGenerator::highestCode($allCodes);
                     $data['code'] = SequentialCodeGenerator::next($lastCode, 'EC0001');
                     $data['type'] = 'percentage';
 

@@ -102,7 +102,13 @@ class DepartmentController extends Controller
      */
     private function nextDepartmentCode(): string
     {
-        $lastCode = Department::where('code', 'REGEXP', '^DEP[0-9]+$')
+        // withTrashed() is load-bearing: a soft-deleted Department's code is
+        // still permanently reserved by the database's unique index, so
+        // excluding deleted rows here can suggest a code that's already
+        // taken (see ShiftController::createWithGeneratedCode() for the
+        // full explanation of this failure mode).
+        $lastCode = Department::withTrashed()
+            ->where('code', 'REGEXP', '^DEP[0-9]+$')
             ->orderByRaw('CAST(SUBSTRING(code, 4) AS UNSIGNED) DESC')
             ->value('code');
 

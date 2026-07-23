@@ -117,13 +117,18 @@ class ContractorController extends Controller
     private function createWithGeneratedCode(array $data): Contractor
     {
         // See ShiftController::createWithGeneratedCode() for why this needs
-        // more than a couple of retries plus a jittered backoff: two
-        // near-simultaneous submissions can both read the same "last code"
-        // and race for the same next value.
+        // more than a couple of retries plus a jittered backoff, AND why
+        // withTrashed() here is load-bearing: a soft-deleted Contractor's
+        // code is still permanently reserved by the database's unique
+        // index, so the "last code" lookup must include deleted rows or it
+        // can recompute a code that's already taken — a failure the retry
+        // loop can never actually recover from, since it would keep
+        // recomputing that same wrong answer.
         for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 return DB::transaction(function () use ($data) {
-                    $lastCode = Contractor::orderByDesc('id')->lockForUpdate()->value('code');
+                    $allCodes = Contractor::withTrashed()->lockForUpdate()->pluck('code');
+                    $lastCode = SequentialCodeGenerator::highestCode($allCodes);
                     $data['code'] = SequentialCodeGenerator::next($lastCode, 'CN0001');
 
                     return Contractor::create($data);

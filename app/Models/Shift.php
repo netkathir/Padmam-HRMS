@@ -9,7 +9,7 @@ class Shift extends Model
 {
     use SoftDeletes;
     protected $fillable = [
-        'name', 'code', 'start_time', 'end_time',
+        'branch_id', 'name', 'code', 'start_time', 'end_time',
         'grace_late_entry_minutes', 'grace_early_exit_minutes',
         'applicable_employee_types', 'work_hours', 'is_active',
     ];
@@ -89,5 +89,10 @@ class Shift extends Model
     public function employeeShiftAssignments()
     {
         return $this->hasMany(EmployeeShiftAssignment::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

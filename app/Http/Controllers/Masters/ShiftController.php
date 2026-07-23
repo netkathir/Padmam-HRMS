@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Masters;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Shift;
+use App\Support\BranchScope;
 use App\Support\SequentialCodeGenerator;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -14,20 +16,29 @@ class ShiftController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Shift::orderBy('name');
+        $query = BranchScope::scopeQuery(Shift::with('branch'))->orderBy('name');
 
         if ($request->filled('search')) {
             $s = '%' . $request->search . '%';
             $query->where(fn($q) => $q->where('name', 'like', $s)->orWhere('code', 'like', $s));
         }
+        // A branch is already forced above (BranchScope::scopeQuery) for a
+        // Super Admin (currently selected branch) or a branch-scoped actor
+        // (their own branch) — this ad-hoc filter only still applies for
+        // unscoped legacy accounts, avoiding a redundant/conflicting AND.
+        if (BranchScope::currentBranchId() === null && $request->filled('branch_id')) {
+            $query->where('branch_id', $request->branch_id);
+        }
 
-        $shifts = $query->paginate(20)->withQueryString();
-        return view('masters.shifts.index', compact('shifts'));
+        $shifts   = $query->paginate(20)->withQueryString();
+        $branches = BranchScope::currentBranchId() === null ? Branch::orderBy('name')->get() : collect();
+        return view('masters.shifts.index', compact('shifts', 'branches'));
     }
 
     public function create()
     {
-        return view('masters.shifts.create');
+        $currentBranch = BranchScope::currentBranch();
+        return view('masters.shifts.create', compact('currentBranch'));
     }
 
     private function rules(?int $shiftId = null): array
@@ -35,7 +46,9 @@ class ShiftController extends Controller
         return [
             // `code` is auto-generated server-side (see createWithGeneratedCode())
             // and never accepted from the client, so it is intentionally not
-            // part of this validated field set.
+            // part of this validated field set. `branch_id` is likewise
+            // never accepted from the client — always stamped server-side
+            // from the currently active branch (see BranchScope::stampBranchId()).
             'name'                      => ['required', 'string', 'max:100', Rule::unique('shifts', 'name')->ignore($shiftId)],
             'start_time'                => ['required', 'date_format:H:i'],
             'end_time'                  => ['required', 'date_format:H:i'],
@@ -99,10 +112,20 @@ class ShiftController extends Controller
         // random backoff between them gives real concurrent contention
         // enough room to clear before giving up, rather than surfacing a
         // raw 500 to the user.
+        //
+        // withTrashed() here is load-bearing, not optional: the database's
+        // unique index on `code` has no concept of "soft deleted" — a
+        // deleted Shift's code is still permanently reserved. Looking only
+        // at non-deleted rows (or worse, "whichever row has the highest
+        // id") can compute a code that a deleted row already holds,
+        // guaranteeing a duplicate-key failure every single time (the
+        // retry loop can't help — it would recompute the exact same wrong
+        // answer on every attempt, since nothing about that flaw changes).
         for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 return DB::transaction(function () use ($data) {
-                    $lastCode = Shift::orderByDesc('id')->lockForUpdate()->value('code');
+                    $allCodes = Shift::withTrashed()->lockForUpdate()->pluck('code');
+                    $lastCode = SequentialCodeGenerator::highestCode($allCodes);
                     $data['code'] = SequentialCodeGenerator::next($lastCode, 'SH0001');
 
                     return Shift::create($data);
@@ -124,6 +147,9 @@ class ShiftController extends Controller
         $data = $request->validate($this->rules());
         $this->assertGraceWithinDuration($data);
 
+        $data = BranchScope::stampBranchId($data);
+        BranchScope::assertBranchAccess($data['branch_id'] ?? null);
+
         $this->createWithGeneratedCode($data);
 
         return redirect()->route('masters.shifts.index')
@@ -132,11 +158,15 @@ class ShiftController extends Controller
 
     public function edit(Shift $shift)
     {
-        return view('masters.shifts.edit', compact('shift'));
+        BranchScope::assertBranchAccess($shift->branch_id);
+        $currentBranch = $shift->branch;
+        return view('masters.shifts.edit', compact('shift', 'currentBranch'));
     }
 
     public function update(Request $request, Shift $shift)
     {
+        BranchScope::assertBranchAccess($shift->branch_id);
+
         $data = $request->validate($this->rules($shift->id));
         $this->assertGraceWithinDuration($data);
 
@@ -148,6 +178,8 @@ class ShiftController extends Controller
 
     public function destroy(Shift $shift)
     {
+        BranchScope::assertBranchAccess($shift->branch_id);
+
         if ($shift->employeeShiftAssignments()->exists()) {
             return back()->with('error', 'Cannot delete shift with active assignments.');
         }

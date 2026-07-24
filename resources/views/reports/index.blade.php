@@ -198,6 +198,15 @@
             box-shadow: 0 16px 40px rgba(71, 85, 105, .5);
         }
 
+        .report-pink {
+            background: linear-gradient(135deg, #831843 0%, #db2777 45%, #f472b6 100%);
+            box-shadow: 0 8px 28px rgba(219, 39, 119, .35);
+        }
+
+        .report-pink:hover {
+            box-shadow: 0 16px 40px rgba(219, 39, 119, .5);
+        }
+
         /* Icon */
         .report-icon {
             width: 56px;
@@ -375,6 +384,14 @@
             <div class="report-icon"><i class="bi bi-graph-down-arrow"></i></div>
             <div class="report-title">LOP Report</div>
             <p class="report-desc">Loss of Pay report showing LOP days, deduction amount, and employee-wise summary</p>
+        </a>
+
+        {{-- Salary Structure — Pink --}}
+        <a href="{{ route('reports.salary-structure.index') }}" class="report-card report-pink">
+            <i class="bi bi-arrow-up-right report-arrow"></i>
+            <div class="report-icon"><i class="bi bi-diagram-3"></i></div>
+            <div class="report-title">Salary Structure</div>
+            <p class="report-desc">Employee-wise gross salary, earnings, and deductions breakdown</p>
         </a>
     </div>
 

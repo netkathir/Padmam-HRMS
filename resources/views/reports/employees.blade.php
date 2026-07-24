@@ -320,7 +320,7 @@
                             <th>Designation</th>
                             <th>Type</th>
                             <th>Joining Date</th>
-                            <th>Basic Salary</th>
+                            <th>Gross Salary</th>
                             <th>Status</th>
                         </tr>
                     </thead>

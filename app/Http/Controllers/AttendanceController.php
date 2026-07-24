@@ -10,6 +10,7 @@ use App\Models\Branch;
 use App\Models\BusinessRule;
 use App\Models\Contractor;
 use App\Models\Department;
+use App\Models\DepartmentWorkAssignment;
 use App\Models\Employee;
 use App\Models\EmployeeType;
 use App\Models\Holiday;
@@ -444,6 +445,15 @@ class AttendanceController extends Controller
             $this->computeAttendanceForEmployees($employees, $period);
         }
 
+        // FSD (bulk-upload follow-up) — company staff (the only employees
+        // eligible for leave) get a chance to mark any missing-attendance
+        // date as paid leave, so it's excluded from LOP, before payroll ever
+        // sees it. Skipped entirely when the branch has no company staff.
+        $hasStaff = Employee::where('branch_id', $upload->branch_id)->where('primary_employee_type', 'staff')->exists();
+        if ($hasStaff) {
+            return redirect()->route('attendance.upload.leave-review', $upload)->with('success', 'Upload processed and attendance computed.');
+        }
+
         return redirect()->route('attendance.upload.summary', $upload)->with('success', 'Upload processed and attendance computed.');
     }
 
@@ -451,6 +461,96 @@ class AttendanceController extends Controller
     {
         BranchScope::assertBranchAccess($upload->branch_id);
         return view('attendance.upload-summary', compact('upload'));
+    }
+
+    /**
+     * Post-upload paid-leave confirmation — for every company staff
+     * employee, lists dates in this upload's period with NO Attendance row
+     * at all (after excluding Holidays and weekly-off days, which are never
+     * LOP candidates in the first place). For each such date, shows the
+     * matching LeaveRequest's leave type if one covers it, or a
+     * "Non-Created Leave" placeholder if none exists — the admin checks a
+     * date to mark it paid leave (excluded from LOP); unchecked dates are
+     * left untouched and flow into LOP the same way they do today.
+     */
+    public function leaveReviewForm(BiometricUpload $upload)
+    {
+        BranchScope::assertBranchAccess($upload->branch_id);
+
+        $staff = Employee::where('branch_id', $upload->branch_id)
+            ->where('primary_employee_type', 'staff')
+            ->orderBy('first_name')
+            ->get();
+
+        $period = \Carbon\CarbonPeriod::create($upload->period_from, $upload->period_to);
+        $branch = $upload->branch;
+
+        $staffGaps = $staff->map(function (Employee $employee) use ($period, $branch) {
+            $gaps = [];
+            foreach ($period as $date) {
+                $dateStr = $date->toDateString();
+                if ($branch && $this->resolveHolidayOrWeeklyOffStatus($employee, $branch, $date)) {
+                    continue; // Holiday / weekly-off — never a LOP candidate.
+                }
+                if (Attendance::where('employee_id', $employee->id)->where('date', $dateStr)->exists()) {
+                    continue; // Already has a concrete status — not this screen's concern.
+                }
+
+                $leave = LeaveRequest::coveringDate($dateStr)
+                    ->where('employee_id', $employee->id)
+                    ->whereIn('status', ['approved', 'pending'])
+                    ->with('leaveType')
+                    ->first();
+
+                $gaps[] = [
+                    'date' => $dateStr,
+                    'leave_type_id' => $leave?->leave_type_id,
+                    'leave_type_name' => $leave?->leaveType?->name,
+                ];
+            }
+
+            return ['employee' => $employee, 'gaps' => $gaps];
+        })->filter(fn($row) => ! empty($row['gaps']))->values();
+
+        return view('attendance.leave-review', compact('upload', 'staffGaps'));
+    }
+
+    public function leaveReview(Request $request, BiometricUpload $upload)
+    {
+        BranchScope::assertBranchAccess($upload->branch_id);
+
+        $data = $request->validate([
+            'paid_leave'                    => ['nullable', 'array'],
+            'paid_leave.*.checked'          => ['required', 'in:0,1'],
+            'paid_leave.*.employee_id'      => ['required', 'exists:employees,id'],
+            'paid_leave.*.date'             => ['required', 'date'],
+            'paid_leave.*.leave_type_id'    => ['nullable', 'exists:leave_types,id'],
+        ]);
+
+        foreach ($data['paid_leave'] ?? [] as $row) {
+            if ($row['checked'] !== '1') {
+                continue; // Left unchecked — leave this date untouched, exactly as today.
+            }
+
+            $employee = Employee::find($row['employee_id']);
+            if (! $employee || (int) $employee->branch_id !== (int) $upload->branch_id) {
+                continue; // Not part of this upload's branch — ignore a tampered/stale row.
+            }
+
+            Attendance::updateOrCreate(
+                ['employee_id' => $row['employee_id'], 'date' => $row['date']],
+                [
+                    'shift_id' => $employee->shift_id,
+                    'status' => 'paid_leave',
+                    'leave_type_id' => $row['leave_type_id'] ?? null,
+                    'in_time' => null, 'out_time' => null, 'work_minutes' => 0,
+                    'is_manual_entry' => true,
+                    'source' => 'manual',
+                ]
+            );
+        }
+
+        return redirect()->route('attendance.upload.summary', $upload)->with('success', 'Paid leave confirmations saved.');
     }
 
     public function downloadUploadErrors(BiometricUpload $upload)
@@ -867,6 +967,63 @@ class AttendanceController extends Controller
 
         return redirect()->route('attendance.index', ['from_date' => $data['attendance_date'], 'to_date' => $data['attendance_date']])
             ->with($payrollExists ? 'warning' : 'success', $message);
+    }
+
+    /**
+     * Department Work Assignment — records which department an employee
+     * worked in on which date(s), snapshotting that department's Value Per
+     * Day at entry time (Masters > Department). Feeds inter-department
+     * daily-rate work into payroll generation.
+     */
+    public function departmentWorkForm(Request $request)
+    {
+        $employees = BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get();
+        $departments = BranchScope::scopeQuery(Department::where('is_active', true)->orderBy('name'))->get();
+
+        $recent = collect();
+        if ($request->filled('employee_id')) {
+            $employee = Employee::find($request->employee_id);
+            if ($employee) {
+                BranchScope::assertBranchAccess($employee->branch_id);
+                $recent = DepartmentWorkAssignment::with('department')
+                    ->where('employee_id', $employee->id)
+                    ->orderByDesc('work_date')
+                    ->limit(20)
+                    ->get();
+            }
+        }
+
+        return view('attendance.department-work', compact('employees', 'departments', 'recent'));
+    }
+
+    public function departmentWork(Request $request)
+    {
+        $data = $request->validate([
+            'employee_id'   => ['required', 'exists:employees,id'],
+            'department_id' => ['required', 'exists:departments,id'],
+            'dates'         => ['required', 'array', 'min:1'],
+            'dates.*'       => ['date'],
+        ]);
+
+        $employee = Employee::findOrFail($data['employee_id']);
+        BranchScope::assertBranchAccess($employee->branch_id);
+
+        $department = Department::findOrFail($data['department_id']);
+        BranchScope::assertBranchAccess($department->branch_id);
+
+        if ($department->value_per_day === null) {
+            return back()->withErrors(['department_id' => 'This department has no Value Per Day configured yet — set one in Masters > Departments first.'])->withInput();
+        }
+
+        foreach (array_unique($data['dates']) as $date) {
+            DepartmentWorkAssignment::updateOrCreate(
+                ['employee_id' => $employee->id, 'work_date' => $date],
+                ['department_id' => $department->id, 'value_per_day' => $department->value_per_day, 'created_by' => auth()->id()]
+            );
+        }
+
+        return redirect()->route('attendance.department-work.form', ['employee_id' => $employee->id])
+            ->with('success', 'Department work assignment saved for ' . count($data['dates']) . ' date(s).');
     }
 
     /**

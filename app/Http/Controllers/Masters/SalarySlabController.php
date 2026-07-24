@@ -53,6 +53,7 @@ class SalarySlabController extends Controller
             'pf_employer_percentage'   => ['required', 'numeric', 'between:0,100'],
             'esi_employee_percentage'  => ['required', 'numeric', 'between:0,100'],
             'esi_employer_percentage'  => ['required', 'numeric', 'between:0,100'],
+            'lop_percentage'           => ['required', 'numeric', 'between:0,100'],
             'is_active'      => ['required', 'boolean'],
             'earnings'                  => ['nullable', 'array'],
             // A row only needs to validate once the user has actually picked an
@@ -111,6 +112,7 @@ class SalarySlabController extends Controller
             'pf_employer_percentage' => 'PF Employer %',
             'esi_employee_percentage' => 'ESI Employee %',
             'esi_employer_percentage' => 'ESI Employer %',
+            'lop_percentage' => 'LOP %',
         ];
     }
 

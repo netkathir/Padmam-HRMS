@@ -279,27 +279,6 @@
         </div>
     </div>
 
-    {{-- Salary — Basic Salary auto-matches a Salary Slab (by range, within
-         this employee's own branch) and the matched slab's earnings are
-         offered back as a Yes/No multi-select. --}}
-    <div class="row g-3 mt-1">
-        <div class="col-12"><h6 class="fw-bold border-bottom pb-2 mt-2">Salary</h6></div>
-        <div class="col-md-3">
-            <label class="form-label">Basic Salary (₹) <span class="text-danger">*</span></label>
-            <input type="number" step="0.01" min="0" name="basic_salary" id="basic_salary" class="form-control @error('basic_salary') is-invalid @enderror" value="{{ old('basic_salary', $employee->currentSalary->basic_salary ?? '') }}" required>
-            @error('basic_salary')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        <div class="col-md-9">
-            <label class="form-label">Matched Salary Slab</label>
-            <input type="text" id="matched_slab_display" class="form-control" value="" placeholder="Enter Basic Salary to find the matching slab" disabled>
-        </div>
-        <div class="col-12" id="salary-earnings-fields" style="display:none;">
-            <label class="form-label">Earnings</label>
-            <div id="salary-earnings-rows" class="row row-cols-1 row-cols-md-3 g-2"
-                 data-selected-earnings="{{ old('salary_earnings') ? json_encode(old('salary_earnings')) : json_encode($employee?->currentSalary?->components->pluck('component_id') ?? []) }}"></div>
-        </div>
-    </div>
-
     {{-- Contract Labour Information — shown only for Contract Labour; hides Bank Details below. --}}
     <div id="contract-labour-fields" class="row g-3 mt-1" style="display:none;">
         <div class="col-12"><h6 class="fw-bold border-bottom pb-2 mt-2">Contract Labour Information</h6></div>
@@ -431,7 +410,7 @@
         </div>
         <div class="col">
             <label class="form-label">Earnings <span class="text-danger">*</span></label>
-            <select name="is_earnings_applicable" class="form-select @error('is_earnings_applicable') is-invalid @enderror" required>
+            <select name="is_earnings_applicable" id="is_earnings_applicable" class="form-select @error('is_earnings_applicable') is-invalid @enderror" required>
                 <option value="yes" {{ $currentEarnings == 'yes' ? 'selected' : '' }}>Yes</option>
                 <option value="no" {{ $currentEarnings == 'no' ? 'selected' : '' }}>No</option>
             </select>
@@ -462,11 +441,31 @@
             <input type="text" name="tds_number" class="form-control @error('tds_number') is-invalid @enderror" value="{{ old('tds_number', $employee->tds_number ?? '') }}">
             @error('tds_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
-        <div class="col"></div>
+        <div class="col" id="gross-salary-field">
+            <label class="form-label">Gross Salary (₹) <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="0" name="basic_salary" id="basic_salary" class="form-control @error('basic_salary') is-invalid @enderror" value="{{ old('basic_salary', $employee->currentSalary->basic_salary ?? '') }}" required>
+            @error('basic_salary')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
         <div class="col" id="ot-rate-field">
             <label class="form-label">OT Rate (per hour)</label>
             <input type="number" step="0.01" name="ot_hourly_rate" class="form-control @error('ot_hourly_rate') is-invalid @enderror" value="{{ old('ot_hourly_rate', $employee->ot_hourly_rate ?? '') }}" min="0">
             @error('ot_hourly_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+
+        {{-- Row 3: shown only when Earnings = Yes — matched Salary Slab + its earnings as a dropdown checklist --}}
+        <div class="col-md-6" id="matched-slab-field" style="display:none;">
+            <label class="form-label">Matched Salary Slab</label>
+            <input type="text" id="matched_slab_display" class="form-control" value="" placeholder="Enter Gross Salary to find the matching slab" disabled>
+        </div>
+        <div class="col-md-6" id="salary-earnings-fields" style="display:none;">
+            <label class="form-label">Earnings</label>
+            <div class="dropdown">
+                <button class="form-select text-start" type="button" id="salary-earnings-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                    Select earnings
+                </button>
+                <div class="dropdown-menu p-2" style="max-height:240px; overflow-y:auto;" id="salary-earnings-rows"
+                     data-selected-earnings="{{ old('salary_earnings') ? json_encode(old('salary_earnings')) : json_encode($employee?->currentSalary?->components->pluck('component_id') ?? []) }}"></div>
+            </div>
         </div>
     </div>
 

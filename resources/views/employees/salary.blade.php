@@ -30,7 +30,7 @@
                         @error('ctc')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Basic Salary (₹) <span class="text-danger">*</span></label>
+                        <label class="form-label">Gross Salary (₹) <span class="text-danger">*</span></label>
                         <input type="number" name="basic_salary" step="0.01" min="0" class="form-control @error('basic_salary') is-invalid @enderror" value="{{ old('basic_salary', $salary->basic_salary ?? '') }}" required>
                         @error('basic_salary')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
@@ -82,7 +82,7 @@
             <div class="card-body">
                 @if($salary)
                 <dl class="row mb-0">
-                    <dt class="col-sm-5">Basic Salary</dt>
+                    <dt class="col-sm-5">Gross Salary</dt>
                     <dd class="col-sm-7">₹{{ number_format($salary->basic_salary, 2) }}</dd>
                     <dt class="col-sm-5">HRA</dt>
                     <dd class="col-sm-7">₹{{ number_format($salary->hra, 2) }}</dd>

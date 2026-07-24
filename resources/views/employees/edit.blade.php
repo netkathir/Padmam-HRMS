@@ -195,20 +195,34 @@
         wireYesNoToggle('is_tds_applicable', 'tds-number-field');
         wireYesNoToggle('is_ot_applicable', 'ot-rate-field');
 
-        // ── Tab 5: Basic Salary auto-matches a Salary Slab and offers its
-        // earnings back as a Yes/No multi-select. ──
+        // ── Tab 6: Gross Salary is always collected. It auto-matches a Salary
+        // Slab, but the slab's earnings are only offered back (as a dropdown
+        // checklist) when Earnings = Yes; when Earnings = No, only Gross
+        // Salary itself is collected. ──
         (function () {
+            const earningsToggle = document.getElementById('is_earnings_applicable');
             const basicSalaryInput = document.getElementById('basic_salary');
+            const matchedSlabField = document.getElementById('matched-slab-field');
             const slabDisplay = document.getElementById('matched_slab_display');
             const earningsFields = document.getElementById('salary-earnings-fields');
             const earningsRows = document.getElementById('salary-earnings-rows');
+            const earningsDropdownToggle = document.getElementById('salary-earnings-toggle');
             if (!basicSalaryInput || !slabDisplay || !earningsRows) return;
 
             const selectedEarnings = new Set((JSON.parse(earningsRows.dataset.selectedEarnings || '[]')).map(String));
             let debounceTimer = null;
 
+            function earningsApplicable() {
+                return !earningsToggle || earningsToggle.value === 'yes';
+            }
+
+            function updateDropdownToggleLabel() {
+                const count = earningsRows.querySelectorAll('input[type=checkbox]:checked').length;
+                earningsDropdownToggle.textContent = count ? (count + ' earning' + (count > 1 ? 's' : '') + ' selected') : 'Select earnings';
+            }
+
             function renderEarnings(earnings) {
-                if (!earnings.length) {
+                if (!earningsApplicable() || !earnings.length) {
                     earningsFields.style.display = 'none';
                     earningsRows.innerHTML = '';
                     return;
@@ -216,21 +230,25 @@
                 earningsFields.style.display = '';
                 earningsRows.innerHTML = earnings.map(function (e) {
                     const checked = selectedEarnings.has(String(e.component_id)) ? 'checked' : '';
-                    return '<div class="col"><div class="form-check">'
+                    return '<div class="form-check">'
                         + '<input type="checkbox" class="form-check-input" name="salary_earnings[]" value="' + e.component_id + '" id="earning_' + e.component_id + '" ' + checked + '>'
                         + '<label class="form-check-label" for="earning_' + e.component_id + '">' + e.name + ' (' + e.rate + '%  ≈ ₹' + e.amount + ')</label>'
-                        + '</div></div>';
+                        + '</div>';
                 }).join('');
+                updateDropdownToggleLabel();
+                earningsRows.addEventListener('change', updateDropdownToggleLabel);
             }
 
             function lookupSlab() {
                 const basicSalary = parseFloat(basicSalaryInput.value);
                 if (!basicSalary || basicSalary <= 0) {
                     slabDisplay.value = '';
+                    matchedSlabField.style.display = 'none';
                     earningsFields.style.display = 'none';
                     earningsRows.innerHTML = '';
                     return;
                 }
+                matchedSlabField.style.display = '';
                 fetch('{{ route('employees.salary-slab-breakdown') }}?basic_salary=' + encodeURIComponent(basicSalary))
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
@@ -250,6 +268,16 @@
                 clearTimeout(debounceTimer);
                 debounceTimer = setTimeout(lookupSlab, 400);
             });
+            if (earningsToggle) {
+                earningsToggle.addEventListener('change', function () {
+                    if (earningsApplicable()) {
+                        if (basicSalaryInput.value) lookupSlab();
+                    } else {
+                        earningsFields.style.display = 'none';
+                        earningsRows.innerHTML = '';
+                    }
+                });
+            }
             if (basicSalaryInput.value) lookupSlab();
         })();
 

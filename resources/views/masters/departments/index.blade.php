@@ -32,7 +32,7 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Branch</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Branch</th><th>Value Per Day</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($departments as $dept)
                     <tr>
@@ -40,6 +40,7 @@
                         <td><span class="badge bg-secondary">{{ $dept->code ?? '—' }}</span></td>
                         <td>{{ $dept->name }}</td>
                         <td>{{ $dept->branch->name ?? '—' }}</td>
+                        <td>{{ $dept->value_per_day !== null ? number_format($dept->value_per_day, 2) : '—' }}</td>
                         <td><span class="badge bg-{{ $dept->is_active ? 'success' : 'danger' }}-subtle text-{{ $dept->is_active ? 'success' : 'danger' }}">{{ $dept->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
                             <a href="{{ route('masters.generic.show', ['module' => 'departments', 'id' => $dept->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
@@ -51,7 +52,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="6" class="text-center text-muted py-4">No departments found.</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted py-4">No departments found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

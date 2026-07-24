@@ -7,6 +7,7 @@
 @section('page-actions')
     <a href="{{ route('attendance.upload.form') }}" class="btn btn-primary btn-sm"><i class="bi bi-upload"></i> Biometric Upload</a>
     <a href="{{ route('attendance.correction.form') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil-square"></i> Correction</a>
+    <a href="{{ route('attendance.department-work.form') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-diagram-3"></i> Department Work</a>
     <a href="{{ route('attendance.mark') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus-lg"></i> Mark Attendance</a>
     <a href="{{ route('attendance.report') }}" class="btn btn-outline-info btn-sm"><i class="bi bi-file-text"></i> Report</a>
     <a href="{{ route('attendance.summary') }}" class="btn btn-outline-info btn-sm"><i class="bi bi-bar-chart-line"></i> Summary</a>

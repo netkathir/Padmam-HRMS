@@ -70,7 +70,7 @@
                 <table class="table table-bordered table-sm">
                     <thead class="table-success"><tr><th>Earnings</th><th class="text-end">Amount (₹)</th></tr></thead>
                     <tbody>
-                        <tr><td>Basic Salary</td><td class="text-end">{{ number_format($payroll->basic_salary, 2) }}</td></tr>
+                        <tr><td>Gross Salary</td><td class="text-end">{{ number_format($payroll->basic_salary, 2) }}</td></tr>
                         <tr><td>HRA</td><td class="text-end">{{ number_format($payroll->hra, 2) }}</td></tr>
                         <tr><td>DA</td><td class="text-end">{{ number_format($payroll->da, 2) }}</td></tr>
                         <tr><td>TA</td><td class="text-end">{{ number_format($payroll->ta, 2) }}</td></tr>

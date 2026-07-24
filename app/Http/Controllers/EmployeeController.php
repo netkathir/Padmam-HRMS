@@ -352,10 +352,10 @@ class EmployeeController extends Controller
      * Pulls basic_salary/salary_earnings out of the wizard payload (they're
      * not Employee columns) and, once the employee is saved, resolves the
      * matching Salary Slab and stamps a fresh EmployeeSalaryStructure +
-     * EmployeeSalaryComponent rows from it. Only earnings the user marked
-     * "Yes" (present in salary_earnings) are kept — "No" ones are excluded
-     * entirely, both from the employee's salary structure and (so payroll
-     * generation never picks them up) from calculated_amount altogether.
+     * EmployeeSalaryComponent rows from it. Only the earnings the user
+     * checked in the Tab 6 checklist are kept — salary_earnings is empty
+     * entirely whenever is_earnings_applicable = no, since the checklist is
+     * never rendered/submitted in that case.
      */
     private function extractSalaryData(array &$data): array
     {
@@ -422,7 +422,7 @@ class EmployeeController extends Controller
     {
         if (! $this->matchSalarySlab($branchId, $basicSalary)) {
             throw ValidationException::withMessages([
-                'basic_salary' => 'No salary slab found for this amount. Adjust the Basic Salary or ask an admin to create a slab covering this range.',
+                'basic_salary' => 'No salary slab found for this amount. Adjust the Gross Salary or ask an admin to create a slab covering this range.',
             ]);
         }
     }
@@ -1309,10 +1309,10 @@ class EmployeeController extends Controller
                     ->whereNull('deleted_at')
                     ->ignore($excludeId),
             ],
-            // Employee Information — Basic Salary auto-matches a Salary
-            // Slab (by range, within this employee's own branch) and the
-            // matched slab's earnings are offered back as a Yes/No
-            // multi-select; only the "Yes" ones are kept.
+            // Statutory Details — Gross Salary is always collected and
+            // auto-matches a Salary Slab (by range, within this employee's
+            // own branch). The matched slab's earnings are only offered
+            // back as a checklist when is_earnings_applicable = yes.
             'basic_salary'        => ['required', 'numeric', 'min:0'],
             'salary_earnings'     => ['nullable', 'array'],
             'salary_earnings.*'   => ['integer'],

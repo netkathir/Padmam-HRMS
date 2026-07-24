@@ -85,7 +85,7 @@
     <table>
         <tr><th colspan="2">Earnings</th><th colspan="2">Deductions</th></tr>
         <tr>
-            <td>Basic Salary</td><td class="text-end">{{ number_format($payroll->basic_salary, 2) }}</td>
+            <td>Gross Salary</td><td class="text-end">{{ number_format($payroll->basic_salary, 2) }}</td>
             <td>LOP Deduction</td><td class="text-end">{{ number_format($payroll->lop_deduction, 2) }}</td>
         </tr>
         <tr>

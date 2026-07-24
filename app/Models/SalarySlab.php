@@ -13,7 +13,7 @@ class SalarySlab extends Model
     protected $fillable = [
         'branch_id', 'name', 'salary_from', 'salary_to',
         'tds_percentage', 'pf_employee_percentage', 'pf_employer_percentage',
-        'esi_employee_percentage', 'esi_employer_percentage',
+        'esi_employee_percentage', 'esi_employer_percentage', 'lop_percentage',
         'is_active',
     ];
     protected function casts(): array
@@ -26,6 +26,7 @@ class SalarySlab extends Model
             'pf_employer_percentage' => 'decimal:2',
             'esi_employee_percentage' => 'decimal:2',
             'esi_employer_percentage' => 'decimal:2',
+            'lop_percentage' => 'decimal:2',
             'is_active' => 'boolean',
         ];
     }
@@ -89,5 +90,16 @@ class SalarySlab extends Model
     public function ctc(float $basicSalary): float
     {
         return round($this->grossSalary($basicSalary) + $this->employerContributions($basicSalary), 2);
+    }
+
+    /**
+     * Applies this slab's LOP % on top of the standard per-day-rate × LOP
+     * days deduction — a leniency/cushion factor per slab (100% = full
+     * deduction, unchanged from before this field existed; less than 100%
+     * softens it for employees mapped to this slab).
+     */
+    public function lopDeduction(float $standardLopDeduction): float
+    {
+        return round($standardLopDeduction * (float) $this->lop_percentage / 100, 2);
     }
 }

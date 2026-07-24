@@ -16,7 +16,6 @@ use App\Models\EmployeeSalaryStructure;
 use App\Models\Attendance;
 use App\Models\BusinessRule;
 use App\Models\Contractor;
-use App\Models\EmployeeType;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\SalarySlab;
@@ -88,12 +87,11 @@ class PayrollController extends Controller
         $currentBranchId = BranchScope::currentBranchId();
         $branchId = $request->input('branch_id', $currentBranchId);
         $branches = $currentBranchId ? Branch::where('id', $currentBranchId)->get() : Branch::active()->orderBy('name')->get();
-        $employeeTypes = EmployeeType::where('is_active', true)->get();
         $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get();
 
         $preconditions = $this->checkPreconditions($month, $year, $branchId);
 
-        return view('payroll.generate', compact('departments', 'recentPayrolls', 'branches', 'currentBranchId', 'month', 'year', 'branchId', 'preconditions', 'employeeTypes', 'contractors'));
+        return view('payroll.generate', compact('departments', 'recentPayrolls', 'branches', 'currentBranchId', 'month', 'year', 'branchId', 'preconditions', 'contractors'));
     }
 
     /**
@@ -157,8 +155,7 @@ class PayrollController extends Controller
         if ($request->filled('employee_id')) $query->where('id', $request->employee_id);
         if ($request->filled('department_id')) $query->where('department_id', $request->department_id);
         if ($request->filled('branch_id')) $query->where('branch_id', $request->branch_id);
-        // FSD 13.2 — Employee Type / Labour Type / Contractor header filters.
-        if ($request->filled('employee_type_id')) $query->where('employee_type_id', $request->employee_type_id);
+        // FSD 13.2 — Labour Type / Contractor header filters.
         if ($request->filled('labour_type')) $query->where('labour_type', $request->labour_type);
         if ($request->filled('contractor_id')) $query->where('contractor_id', $request->contractor_id);
 
@@ -243,6 +240,10 @@ class PayrollController extends Controller
             $lopDays = $lopBreakdown['calculated_lop_days'];
             if ($lopBreakdown['rule_id']) $appliedRules['lop'] = $lopBreakdown['rule_id'];
             $perDaySal = $lopDays > 0 ? ($salary->ctc / 12) / $workingDays * $lopDays : 0;
+            // The employee's mapped Salary Slab applies its own LOP % on top
+            // of the standard per-day-rate deduction (100% = unchanged full
+            // deduction; less than 100% softens it for that slab).
+            $perDaySal = $slab->lopDeduction($perDaySal);
 
             $gross = ($salary->basic_salary + $salary->hra + $salary->da
                    + $salary->ta + $salary->medical_allowance + $salary->special_allowance) * $proRationFactor;
@@ -846,9 +847,6 @@ class PayrollController extends Controller
         if ($request->filled('branch_id')) {
             $query->whereHas('employee', fn($q) => $q->where('branch_id', $request->branch_id));
         }
-        if ($request->filled('employee_type_id')) {
-            $query->whereHas('employee', fn($q) => $q->where('employee_type_id', $request->employee_type_id));
-        }
         if ($request->filled('labour_type')) {
             $query->whereHas('employee', fn($q) => $q->where('labour_type', $request->labour_type));
         }
@@ -860,7 +858,6 @@ class PayrollController extends Controller
 
         $currentBranchId = BranchScope::currentBranchId();
         $branches      = $currentBranchId ? Branch::where('id', $currentBranchId)->get() : Branch::active()->orderBy('name')->get();
-        $employeeTypes = EmployeeType::where('is_active', true)->get();
         $contractors   = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get();
 
         // FSD 13.3 — LOP Confirmation Prompt summary counts, computed over
@@ -878,7 +875,7 @@ class PayrollController extends Controller
                 ->whereIn('status', ['missing_punch', 'pending_review'])->count(),
         ];
 
-        return view('payroll.lop-review', compact('records', 'month', 'year', 'branches', 'employeeTypes', 'contractors', 'currentBranchId', 'lopSummary'));
+        return view('payroll.lop-review', compact('records', 'month', 'year', 'branches', 'contractors', 'currentBranchId', 'lopSummary'));
     }
 
     public function updateLop(Request $request, PayrollRecord $payroll)
@@ -970,6 +967,13 @@ class PayrollController extends Controller
         // (CTC/12/workingDays) isn't available here without re-loading the
         // salary structure; gross/workingDays is the closest equivalent
         // derivable purely from the stored payroll record.
+        // Same Salary Slab LOP % applied in generate() — kept consistent so
+        // a manual LOP-day override doesn't diverge from the original
+        // calculation's slab-based leniency factor.
+        $slab = $payroll->employee?->currentSalary?->slab;
+        if ($slab) {
+            $perDaySal = $slab->lopDeduction($perDaySal);
+        }
         $newLopDeduction = round($perDaySal, 2);
         $newTotalDeductions = $payroll->pf_employee + $payroll->esi_employee + $payroll->tds + $payroll->advance_deduction + $newLopDeduction + $payroll->other_deductions;
         $newNet = $payroll->gross_earnings + $payroll->ot_amount - $newTotalDeductions;

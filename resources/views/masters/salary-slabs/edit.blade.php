@@ -31,7 +31,7 @@
                     @error('salary_to')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
-                <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">Earnings (% of Basic Salary)</h6></div>
+                <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">Earnings (% of Gross Salary)</h6></div>
                 <div class="col-12">
                     @php
                         $existingEarnings = old('earnings', $salarySlab->earningsComponents->map(fn($c) => ['component_id' => $c->component_id, 'value' => $c->rate])->values()->all());
@@ -88,6 +88,12 @@
                     <label class="form-label">ESI Employer % <span class="text-danger">*</span></label>
                     <input type="number" step="0.01" name="esi_employer_percentage" class="form-control @error('esi_employer_percentage') is-invalid @enderror" value="{{ old('esi_employer_percentage', $salarySlab->esi_employer_percentage) }}" min="0" max="100" required>
                     @error('esi_employer_percentage')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">LOP % <span class="text-danger">*</span></label>
+                    <input type="number" step="0.01" name="lop_percentage" class="form-control @error('lop_percentage') is-invalid @enderror" value="{{ old('lop_percentage', $salarySlab->lop_percentage) }}" min="0" max="100" required>
+                    <div class="form-text">% of the standard LOP deduction to apply — 100 = full deduction.</div>
+                    @error('lop_percentage')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
                 <div class="col-12 mt-2">

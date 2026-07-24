@@ -32,7 +32,7 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Slab Name</th><th>Branch</th><th>Salary Range</th><th>TDS%</th><th>PF Emp/Empr%</th><th>ESI Emp/Empr%</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Slab Name</th><th>Branch</th><th>Salary Range</th><th>TDS%</th><th>PF Emp/Empr%</th><th>ESI Emp/Empr%</th><th>LOP%</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($slabs as $slab)
                     <tr>
@@ -43,6 +43,7 @@
                         <td>{{ $slab->tds_percentage ?? '—' }}</td>
                         <td>{{ $slab->pf_employee_percentage ?? '—' }} / {{ $slab->pf_employer_percentage ?? '—' }}</td>
                         <td>{{ $slab->esi_employee_percentage ?? '—' }} / {{ $slab->esi_employer_percentage ?? '—' }}</td>
+                        <td>{{ $slab->lop_percentage ?? '—' }}</td>
                         <td><span class="badge bg-{{ $slab->is_active ? 'success' : 'danger' }}-subtle text-{{ $slab->is_active ? 'success' : 'danger' }}">{{ $slab->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
                             <a href="{{ route('masters.generic.show', ['module' => 'salary-slabs', 'id' => $slab->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
@@ -54,7 +55,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="9" class="text-center text-muted py-4">No salary slabs found.</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted py-4">No salary slabs found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

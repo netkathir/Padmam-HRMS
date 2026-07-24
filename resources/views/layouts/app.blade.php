@@ -113,11 +113,34 @@
         .pagination .page-item.active .page-link { background-color: #4f7ef8; border-color: #4f7ef8; }
         .pagination .page-item.disabled .page-link { color: #9ca3af; }
         .card-footer .pagination { margin-bottom: 0; }
+
+        /* ── Universal loader — shown for the duration of any form submit or
+           axios/fetch call, blocking interaction with the rest of the UI. ── */
+        #globalLoaderOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, .6);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        #globalLoaderOverlay.show { display: flex; }
+        #globalLoaderOverlay .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
     </style>
 
     @stack('styles')
 </head>
 <body>
+
+<div id="globalLoaderOverlay" aria-hidden="true">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading…</span>
+    </div>
+</div>
 
 <div class="layout-wrapper">
     @unless (View::hasSection('hide-sidebar'))
@@ -287,6 +310,68 @@ window.showToast = function (message, type = 'warning') {
     toast.show();
     el.addEventListener('hidden.bs.toast', () => el.remove());
 };
+
+// ── Universal loader — shown for the duration of any form submission or
+// axios/fetch call, so the user can't interact with the rest of the UI
+// mid-request. Ref-counted so overlapping requests don't hide it early;
+// opt out per-element with data-no-loader (e.g. quick client-side-only
+// toggles that don't hit the network). ──
+(function () {
+    const overlay = document.getElementById('globalLoaderOverlay');
+    if (!overlay) return;
+    let pending = 0;
+
+    function show() {
+        pending++;
+        overlay.classList.add('show');
+        overlay.setAttribute('aria-hidden', 'false');
+    }
+    function hide() {
+        pending = Math.max(0, pending - 1);
+        if (pending === 0) {
+            overlay.classList.remove('show');
+            overlay.setAttribute('aria-hidden', 'true');
+        }
+    }
+
+    // Plain HTML form submissions (the vast majority of this app's actions).
+    // A form intercepted by the destructive-action confirm modal below fires
+    // this listener twice — once suppressed (preventDefault, no navigation
+    // happens) and once for real after confirmation — so the loader only
+    // ever shows for the submission that actually leaves the page.
+    document.addEventListener('submit', function (e) {
+        const form = e.target;
+        if (!(form instanceof HTMLFormElement) || form.hasAttribute('data-no-loader')) return;
+        if (form.hasAttribute('data-confirm-delete') && form.dataset.confirmed !== '1') return;
+        if (form.target && form.target !== '_self') return; // opens elsewhere (e.g. a new tab) — nothing to wait for on this page
+        show();
+    }, true);
+
+    // axios — already used by a handful of pages (e.g. the employee wizard's
+    // slab lookup could be migrated to it later; this covers any current/
+    // future axios call with zero per-call wiring).
+    if (window.axios) {
+        window.axios.interceptors.request.use(function (config) {
+            if (!config.headers || config.headers['X-No-Loader'] !== '1') show();
+            return config;
+        }, function (error) { return Promise.reject(error); });
+        window.axios.interceptors.response.use(function (response) {
+            hide();
+            return response;
+        }, function (error) {
+            hide();
+            return Promise.reject(error);
+        });
+    }
+
+    // Native fetch — used directly by a few pages (e.g. the employee
+    // wizard's salary-slab lookup) instead of axios.
+    const originalFetch = window.fetch;
+    window.fetch = function (...args) {
+        show();
+        return originalFetch.apply(this, args).finally(hide);
+    };
+})();
 
 // System-themed delete/destructive-action confirmation — replaces the
 // browser's native confirm() everywhere. Any form with a

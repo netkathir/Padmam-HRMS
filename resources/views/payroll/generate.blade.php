@@ -97,15 +97,6 @@
                     <input type="hidden" name="branch_id" value="{{ $currentBranchId }}">
                     @endif
                     <div class="mb-3">
-                        <label class="form-label">Employee Type</label>
-                        <select name="employee_type_id" class="form-select">
-                            <option value="">All</option>
-                            @foreach($employeeTypes as $et)
-                            <option value="{{ $et->id }}" {{ old('employee_type_id') == $et->id ? 'selected' : '' }}>{{ $et->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="mb-3">
                         <label class="form-label">Labour Type</label>
                         <select name="labour_type" class="form-select">
                             <option value="">All</option>

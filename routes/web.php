@@ -10,6 +10,7 @@ use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\GenericReportController;
+use App\Http\Controllers\SalaryStructureController;
 use App\Http\Controllers\MasterController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SettingsController;
@@ -128,6 +129,8 @@ Route::middleware(['auth', 'force.password.change', 'require.branch'])->group(fu
     Route::get('/attendance/upload/{upload}/mapping',    [AttendanceController::class, 'mappingForm'])->name('attendance.upload.mapping')->middleware('permission:attendance.read');
     Route::post('/attendance/upload/{upload}/mapping',   [AttendanceController::class, 'confirmMapping'])->name('attendance.upload.confirm')->middleware('permission:attendance.create');
     Route::get('/attendance/upload/{upload}/summary',    [AttendanceController::class, 'uploadSummary'])->name('attendance.upload.summary')->middleware('permission:attendance.read');
+    Route::get('/attendance/upload/{upload}/leave-review',  [AttendanceController::class, 'leaveReviewForm'])->name('attendance.upload.leave-review')->middleware('permission:attendance.read');
+    Route::post('/attendance/upload/{upload}/leave-review', [AttendanceController::class, 'leaveReview'])->name('attendance.upload.leave-review.post')->middleware('permission:attendance.create');
     Route::get('/attendance/upload/{upload}/errors',     [AttendanceController::class, 'downloadUploadErrors'])->name('attendance.upload.errors')->middleware('permission:attendance.read');
 
     // 11.4 Register actions
@@ -138,6 +141,8 @@ Route::middleware(['auth', 'force.password.change', 'require.branch'])->group(fu
     // 11.5 Attendance Correction
     Route::get('/attendance/correction',          [AttendanceController::class, 'correctionForm'])->name('attendance.correction.form')->middleware('permission:attendance.read');
     Route::post('/attendance/correction',         [AttendanceController::class, 'correction'])->name('attendance.correction.post')->middleware('permission:attendance.create');
+    Route::get('/attendance/department-work',     [AttendanceController::class, 'departmentWorkForm'])->name('attendance.department-work.form')->middleware('permission:attendance.read');
+    Route::post('/attendance/department-work',    [AttendanceController::class, 'departmentWork'])->name('attendance.department-work.post')->middleware('permission:attendance.create');
 
     Route::post('/attendance/{attendance}/ot-approve', [AttendanceController::class, 'approveOvertime'])->name('attendance.ot.approve')->middleware('permission:attendance.full');
     Route::get('/attendance/{attendance}',        [AttendanceController::class, 'show'])->name('attendance.show')->middleware('permission:attendance.read');
@@ -206,6 +211,8 @@ Route::middleware(['auth', 'force.password.change', 'require.branch'])->group(fu
         Route::get('/reports/pf-esi',                [ReportController::class, 'pfEsi'])->name('reports.pf-esi');
         Route::get('/reports/overtime',              [ReportController::class, 'overtime'])->name('reports.overtime');
         Route::get('/reports/lop',                   [ReportController::class, 'lop'])->name('reports.lop');
+        Route::get('/reports/salary-structure',            [SalaryStructureController::class, 'index'])->name('reports.salary-structure.index');
+        Route::get('/reports/salary-structure/{employee}', [SalaryStructureController::class, 'show'])->name('reports.salary-structure.show');
 
         // Module 10 (FSD 14.1-14.7) — generic report engine for the ~60
         // additional named reports; the 9 routes above are untouched.

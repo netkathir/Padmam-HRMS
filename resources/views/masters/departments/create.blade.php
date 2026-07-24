@@ -28,6 +28,11 @@
                     </div>
                     @error('is_active')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                 </div>
+                <div class="col-md-4">
+                    <label class="form-label">Value Per Day (₹)</label>
+                    <input type="number" step="0.01" min="0" name="value_per_day" class="form-control @error('value_per_day') is-invalid @enderror" value="{{ old('value_per_day') }}">
+                    @error('value_per_day')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
                 <div class="col-12">
                     <label class="form-label">Description</label>
                     <textarea name="description" class="form-control @error('description') is-invalid @enderror" rows="3">{{ old('description') }}</textarea>

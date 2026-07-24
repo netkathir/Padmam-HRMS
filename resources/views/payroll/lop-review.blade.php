@@ -31,15 +31,6 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small mb-1">Employee Type</label>
-                <select name="employee_type_id" class="form-select form-select-sm">
-                    <option value="">All</option>
-                    @foreach($employeeTypes as $et)
-                        <option value="{{ $et->id }}" {{ request('employee_type_id') == $et->id ? 'selected' : '' }}>{{ $et->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-md-2">
                 <label class="form-label small mb-1">Labour Type</label>
                 <select name="labour_type" class="form-select form-select-sm">
                     <option value="">All</option>

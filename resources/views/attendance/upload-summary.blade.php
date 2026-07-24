@@ -4,6 +4,7 @@
 @section('page-subtitle', $upload->original_filename)
 @section('back-url', route('attendance.index', ['from_date' => $upload->period_from->toDateString(), 'to_date' => $upload->period_to->toDateString()]))
 @section('page-actions')
+    <a href="{{ route('attendance.upload.leave-review', $upload) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-calendar2-check"></i> Paid Leave Review</a>
     <a href="{{ route('attendance.index', ['from_date' => $upload->period_from->toDateString(), 'to_date' => $upload->period_to->toDateString()]) }}" class="btn btn-primary btn-sm"><i class="bi bi-calendar-check"></i> View Attendance Register</a>
 @endsection
 @section('content')

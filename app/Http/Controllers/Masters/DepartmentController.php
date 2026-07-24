@@ -57,6 +57,7 @@ class DepartmentController extends Controller
             // from DEP001 in each branch, matching Employee/Shift.
             'code'        => ['required', 'string', 'max:20', Rule::unique('departments', 'code')->where('branch_id', $branchId)->whereNull('deleted_at')],
             'description' => ['nullable', 'string'],
+            'value_per_day' => ['nullable', 'numeric', 'min:0'],
             'is_active'   => ['required', 'boolean'],
         ]);
 
@@ -144,6 +145,7 @@ class DepartmentController extends Controller
             'name'        => ['required', 'string', 'max:100', Rule::unique('departments', 'name')->where('branch_id', $branchId)->whereNull('deleted_at')->ignore($department->id)],
             'code'        => ['required', 'string', 'max:20', Rule::unique('departments', 'code')->where('branch_id', $branchId)->whereNull('deleted_at')->ignore($department->id)],
             'description' => ['nullable', 'string'],
+            'value_per_day' => ['nullable', 'numeric', 'min:0'],
             'is_active'   => ['required', 'boolean'],
         ]);
 

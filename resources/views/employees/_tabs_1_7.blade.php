@@ -272,10 +272,31 @@
             @error('shift_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
         <div class="col-md-3">
-            <label class="form-label">Biometric Number</label>
-            <input type="text" name="biometric_number" class="form-control @error('biometric_number') is-invalid @enderror" value="{{ old('biometric_number', $employee->biometric_number ?? '') }}" placeholder="e.g. 002" maxlength="3" inputmode="numeric" pattern="[0-9]{3}" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,3)">
+            <label class="form-label">Biometric Number <span class="text-danger">*</span></label>
+            <input type="text" name="biometric_number" class="form-control @error('biometric_number') is-invalid @enderror" value="{{ old('biometric_number', $employee->biometric_number ?? '') }}" placeholder="e.g. 002" required maxlength="3" inputmode="numeric" pattern="[0-9]{3}" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,3)">
             <div class="form-text">3-digit number only — no branch prefix (the branch code, e.g. "SGP", is matched separately from the biometric upload's own Person ID).</div>
             @error('biometric_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+    </div>
+
+    {{-- Salary — Basic Salary auto-matches a Salary Slab (by range, within
+         this employee's own branch) and the matched slab's earnings are
+         offered back as a Yes/No multi-select. --}}
+    <div class="row g-3 mt-1">
+        <div class="col-12"><h6 class="fw-bold border-bottom pb-2 mt-2">Salary</h6></div>
+        <div class="col-md-3">
+            <label class="form-label">Basic Salary (₹) <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="0" name="basic_salary" id="basic_salary" class="form-control @error('basic_salary') is-invalid @enderror" value="{{ old('basic_salary', $employee->currentSalary->basic_salary ?? '') }}" required>
+            @error('basic_salary')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-9">
+            <label class="form-label">Matched Salary Slab</label>
+            <input type="text" id="matched_slab_display" class="form-control" value="" placeholder="Enter Basic Salary to find the matching slab" disabled>
+        </div>
+        <div class="col-12" id="salary-earnings-fields" style="display:none;">
+            <label class="form-label">Earnings</label>
+            <div id="salary-earnings-rows" class="row row-cols-1 row-cols-md-3 g-2"
+                 data-selected-earnings="{{ old('salary_earnings') ? json_encode(old('salary_earnings')) : json_encode($employee?->currentSalary?->components->pluck('component_id') ?? []) }}"></div>
         </div>
     </div>
 

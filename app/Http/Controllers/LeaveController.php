@@ -41,7 +41,7 @@ class LeaveController extends Controller
         if ($request->filled('employee_id'))   $query->where('employee_id', $request->employee_id);
 
         $leaves     = $query->paginate(20)->withQueryString();
-        $leaveTypes = LeaveType::where('is_active', true)->get();
+        $leaveTypes = BranchScope::scopeQuery(LeaveType::where('is_active', true))->get();
         $employees  = $user->can('leaves.full') ? BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get() : collect();
 
         // FSD 12.1 — "Derived or suggested based on attendance status."
@@ -93,8 +93,13 @@ class LeaveController extends Controller
         }
         // FSD 7.4: "Leave types shall be available only for the selected
         // employee types" — restrict the self-service dropdown to leave
-        // types applicable to this employee's classification.
-        $leaveTypes = LeaveType::where('is_active', true)->get()
+        // types applicable to this employee's classification. Also scoped
+        // to the employee's own branch — a LeaveType now belongs to
+        // exactly one branch (see LeaveTypeController).
+        $leaveTypesQuery = $employee
+            ? LeaveType::where('is_active', true)->where('branch_id', $employee->branch_id)
+            : BranchScope::scopeQuery(LeaveType::where('is_active', true));
+        $leaveTypes = $leaveTypesQuery->get()
             ->filter(fn($lt) => $employee ? $lt->appliesToEmployeeType($employee->primary_employee_type, $employee->labour_type) : true)
             ->values();
         $balances   = $employee ? LeaveBalance::where('employee_id', $employee->id)
@@ -134,6 +139,9 @@ class LeaveController extends Controller
         BranchScope::assertBranchIsActive($employee->branch_id);
 
         $leaveType = LeaveType::findOrFail($data['leave_type_id']);
+        if ((int) $leaveType->branch_id !== (int) $employee->branch_id) {
+            return back()->with('error', 'This leave type does not belong to your branch.');
+        }
         if (! $leaveType->appliesToEmployeeType($employee->primary_employee_type, $employee->labour_type)) {
             return back()->with('error', 'This leave type is not applicable to your employee category.');
         }

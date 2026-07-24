@@ -8,6 +8,13 @@
         <form action="{{ route('masters.salary-slabs.update', $salarySlab) }}" method="POST">
             @csrf @method('PUT')
             <div class="row g-3">
+                @if($currentBranch)
+                    <input type="hidden" name="branch_id" value="{{ $currentBranch->id }}">
+                    <div class="col-md-6">
+                        <label class="form-label">Branch</label>
+                        <input type="text" class="form-control" value="{{ $currentBranch->name }}" disabled>
+                    </div>
+                @endif
                 <div class="col-md-6">
                     <label class="form-label">Slab Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $salarySlab->name) }}" required>
@@ -24,7 +31,7 @@
                     @error('salary_to')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
-                <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">Earnings</h6></div>
+                <div class="col-12"><h6 class="text-primary border-bottom pb-1 mt-2">Earnings (% of Basic Salary)</h6></div>
                 <div class="col-12">
                     @php
                         $existingEarnings = old('earnings', $salarySlab->earningsComponents->map(fn($c) => ['component_id' => $c->component_id, 'value' => $c->rate])->values()->all());
@@ -42,7 +49,10 @@
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <input type="number" step="0.01" name="earnings[{{ $i }}][value]" class="form-control" placeholder="Value" min="0" value="{{ $row['value'] ?? '' }}">
+                                <div class="input-group">
+                                    <input type="number" step="0.01" name="earnings[{{ $i }}][value]" class="form-control" placeholder="%" min="0" max="100" value="{{ $row['value'] ?? '' }}">
+                                    <span class="input-group-text">%</span>
+                                </div>
                             </div>
                             <div class="col-md-2">
                                 <button type="button" class="btn btn-outline-danger w-100 remove-earning-row"><i class="bi bi-dash-lg"></i></button>
@@ -108,7 +118,10 @@
             </select>
         </div>
         <div class="col-md-4">
-            <input type="number" step="0.01" name="earnings[__INDEX__][value]" class="form-control" placeholder="Value" min="0">
+            <div class="input-group">
+                <input type="number" step="0.01" name="earnings[__INDEX__][value]" class="form-control" placeholder="%" min="0" max="100">
+                <span class="input-group-text">%</span>
+            </div>
         </div>
         <div class="col-md-2">
             <button type="button" class="btn btn-outline-danger w-100 remove-earning-row"><i class="bi bi-dash-lg"></i></button>

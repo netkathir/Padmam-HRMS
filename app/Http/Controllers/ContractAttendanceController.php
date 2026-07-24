@@ -20,7 +20,7 @@ class ContractAttendanceController extends Controller
 {
     public function index(Request $request)
     {
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(['id', 'name', 'code', 'branch_id']);
 
         $contractor  = null;
         $attendance  = collect();
@@ -54,7 +54,7 @@ class ContractAttendanceController extends Controller
 
     public function markForm(Request $request)
     {
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(['id', 'name', 'code', 'branch_id']);
 
         $contractor  = null;
         $workers     = collect();
@@ -135,7 +135,7 @@ class ContractAttendanceController extends Controller
 
     public function report(Request $request)
     {
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(['id', 'name', 'code', 'branch_id']);
 
         $month      = (int) $request->input('month', now()->month);
         $year       = (int) $request->input('year', now()->year);

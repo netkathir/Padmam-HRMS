@@ -10,9 +10,19 @@
 <div class="card">
     <div class="card-body">
         <form method="GET" class="row g-2 mb-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <input type="text" name="search" class="form-control form-control-sm" placeholder="Search name, code…" value="{{ request('search') }}">
             </div>
+            @if ($branches->isNotEmpty())
+            <div class="col-md-3">
+                <select name="branch_id" class="form-select form-select-sm">
+                    <option value="">All Branches</option>
+                    @foreach($branches as $b)
+                        <option value="{{ $b->id }}" {{ request('branch_id') == $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            @endif
             <div class="col-md-2">
                 <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i> Search</button>
             </div>
@@ -22,7 +32,7 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Days/Year</th><th>Employee Type Applicability</th><th>Paid</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Branch</th><th>Days/Year</th><th>Employee Type Applicability</th><th>Paid</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @php $typeLabels = config('employee_types'); @endphp
                     @forelse($leaveTypes as $lt)
@@ -30,6 +40,7 @@
                         <td>{{ $leaveTypes->firstItem() + $loop->index }}</td>
                         <td><span class="badge bg-secondary">{{ $lt->code }}</span></td>
                         <td>{{ $lt->name }}</td>
+                        <td>{{ $lt->branch->name ?? '—' }}</td>
                         <td>{{ $lt->days_per_year }}</td>
                         <td>{{ collect($lt->applicable_employee_types ?? [])->map(fn($t) => $typeLabels[$t] ?? $t)->join(', ') ?: '—' }}</td>
                         <td class="text-center"><i class="bi bi-{{ $lt->is_paid ? 'check-circle-fill text-success' : 'x-circle text-danger' }}"></i></td>
@@ -44,7 +55,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="8" class="text-center text-muted py-4">No leave types found.</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">No leave types found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

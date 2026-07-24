@@ -9,6 +9,13 @@
             @csrf @method('PUT')
             <div class="row g-3">
                 <div class="col-12"><h6 class="text-primary border-bottom pb-1">Contractor Details</h6></div>
+                @if($currentBranch)
+                    <input type="hidden" name="branch_id" value="{{ $currentBranch->id }}">
+                    <div class="col-md-6">
+                        <label class="form-label">Branch</label>
+                        <input type="text" class="form-control" value="{{ $currentBranch->name }}" disabled>
+                    </div>
+                @endif
                 <div class="col-md-6">
                     <label class="form-label">Contractor Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $contractor->name) }}" required>

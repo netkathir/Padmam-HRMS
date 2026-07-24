@@ -15,10 +15,20 @@
     <div class="card">
         <div class="card-body">
             <form method="GET" class="row g-2 mb-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <input type="text" name="search" class="form-control form-control-sm"
                         placeholder="Search name, code, contact…" value="{{ request('search') }}">
                 </div>
+                @if ($branches->isNotEmpty())
+                <div class="col-md-3">
+                    <select name="branch_id" class="form-select form-select-sm">
+                        <option value="">All Branches</option>
+                        @foreach($branches as $b)
+                            <option value="{{ $b->id }}" {{ request('branch_id') == $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                @endif
                 <div class="col-md-2">
                     <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i> Search</button>
                 </div>
@@ -34,6 +44,7 @@
                             <th>#</th>
                             <th>Code</th>
                             <th>Name</th>
+                            <th>Branch</th>
                             <th>Contact Person</th>
                             <th>Phone</th>
                             <th>Email</th>
@@ -49,6 +60,7 @@
                                 <td>{{ $contractors->firstItem() + $loop->index }}</td>
                                 <td><span class="badge bg-secondary">{{ $c->code }}</span></td>
                                 <td>{{ $c->name }}</td>
+                                <td>{{ $c->branch->name ?? '—' }}</td>
                                 <td>{{ $c->contact_person ?? '—' }}</td>
                                 <td>{{ $c->phone ?? '—' }}</td>
                                 <td>{{ $c->email ?? '—' }}</td>
@@ -86,7 +98,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-4">No contractors found.</td>
+                                <td colspan="11" class="text-center text-muted py-4">No contractors found.</td>
                             </tr>
                         @endforelse
                     </tbody>

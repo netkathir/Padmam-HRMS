@@ -7,6 +7,7 @@ use App\Models\Designation;
 use App\Models\Department;
 use App\Support\BranchScope;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class DesignationController extends Controller
 {
@@ -44,13 +45,7 @@ class DesignationController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'department_id' => ['nullable', 'exists:departments,id'],
-            'name'          => ['required', 'string', 'max:100'],
-            'code'          => ['nullable', 'string', 'max:20'],
-            'grade'         => ['nullable', 'string', 'max:20'],
-            'is_active'     => ['boolean'],
-        ]);
+        $data = $request->validate($this->rules($request->input('department_id')));
 
         $this->assertDepartmentInScope($data['department_id'] ?? null);
 
@@ -71,13 +66,7 @@ class DesignationController extends Controller
     {
         $this->assertDepartmentInScope($designation->department_id);
 
-        $data = $request->validate([
-            'department_id' => ['nullable', 'exists:departments,id'],
-            'name'          => ['required', 'string', 'max:100'],
-            'code'          => ['nullable', 'string', 'max:20'],
-            'grade'         => ['nullable', 'string', 'max:20'],
-            'is_active'     => ['boolean'],
-        ]);
+        $data = $request->validate($this->rules($request->input('department_id'), $designation->id));
 
         $this->assertDepartmentInScope($data['department_id'] ?? null);
 
@@ -97,6 +86,27 @@ class DesignationController extends Controller
         $designation->delete();
         return redirect()->route('masters.designations.index')
             ->with('success', 'Designation deleted successfully.');
+    }
+
+    /**
+     * Designation.name/code are scoped by department_id (which is itself
+     * per-branch, see DepartmentController), rather than a separate
+     * branch_id column — two different departments (in the same or
+     * different branches) may legitimately share a designation name/code,
+     * matching how Department scoping already works. A NULL department_id
+     * (global designation) is scoped against other NULL-department rows.
+     */
+    private function rules(?string $departmentId, ?int $designationId = null): array
+    {
+        $departmentId = $departmentId !== null && $departmentId !== '' ? (int) $departmentId : null;
+
+        return [
+            'department_id' => ['nullable', 'exists:departments,id'],
+            'name'          => ['required', 'string', 'max:100', Rule::unique('designations', 'name')->where('department_id', $departmentId)->whereNull('deleted_at')->ignore($designationId)],
+            'code'          => ['nullable', 'string', 'max:20', Rule::unique('designations', 'code')->where('department_id', $departmentId)->whereNull('deleted_at')->ignore($designationId)],
+            'grade'         => ['nullable', 'string', 'max:20'],
+            'is_active'     => ['boolean'],
+        ];
     }
 
     /**

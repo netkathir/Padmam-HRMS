@@ -53,7 +53,9 @@ return new class extends Migration
             }
         });
 
-        $indexes = collect(\Illuminate\Support\Facades\DB::select('SHOW INDEX FROM salary_slabs'))->pluck('Key_name');
+        // Schema::getIndexes() (not a raw SHOW INDEX query) so this runs on
+        // both MySQL (production) and SQLite (the in-memory test suite).
+        $indexes = collect(Schema::getIndexes('salary_slabs'))->pluck('name');
         if (! $indexes->contains('salary_slabs_branch_id_foreign')) {
             Schema::table('salary_slabs', function (Blueprint $table) {
                 $table->foreign('branch_id')->references('id')->on('branches')->nullOnDelete();

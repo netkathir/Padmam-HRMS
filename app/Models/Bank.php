@@ -9,6 +9,8 @@ class Bank extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['name', 'code', 'is_active'];
+    protected $fillable = ['branch_id', 'name', 'code', 'is_active'];
     protected function casts(): array { return ['is_active' => 'boolean']; }
+
+    public function branch() { return $this->belongsTo(Branch::class); }
 }

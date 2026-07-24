@@ -126,7 +126,7 @@ class ReportController extends Controller
         }
 
         $leaves      = $query->paginate(30)->withQueryString();
-        $leaveTypes  = \App\Models\LeaveType::where('is_active', true)->get();
+        $leaveTypes  = BranchScope::scopeQuery(\App\Models\LeaveType::where('is_active', true))->get();
         $departments = $this->scopedDepartments();
 
         return view('reports.leave', compact('leaves', 'leaveTypes', 'departments', 'year'));

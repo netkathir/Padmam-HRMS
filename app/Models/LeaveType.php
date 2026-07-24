@@ -11,7 +11,7 @@ class LeaveType extends Model
 
     protected $table = 'leave_types';
     protected $fillable = [
-        'name', 'code', 'days_per_year', 'is_paid', 'applicable_employee_types', 'is_active',
+        'branch_id', 'name', 'code', 'days_per_year', 'is_paid', 'applicable_employee_types', 'is_active',
     ];
     protected function casts(): array {
         return [
@@ -21,6 +21,7 @@ class LeaveType extends Model
             'applicable_employee_types' => 'array',
         ];
     }
+    public function branch() { return $this->belongsTo(Branch::class); }
     public function balances() { return $this->hasMany(LeaveBalance::class); }
     public function leaveRequests() { return $this->hasMany(LeaveRequest::class); }
 

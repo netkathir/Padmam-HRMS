@@ -27,15 +27,32 @@ use Illuminate\Support\Facades\Storage;
 
 class AttendanceController extends Controller
 {
+    /**
+     * Attendance Register — per-employee summary for the selected date
+     * range (exact column set per user spec): Employee, Shift, OT Hrs,
+     * Total Working Days, Total Days Present, Total Days Absent, Absent
+     * Leave, Casual Leave, Sick Leave, Weekend Leave, Public Leave. Only
+     * these two specific leave types get their own column — NOT every
+     * active LeaveType — per explicit user correction. "Total Days Absent"
+     * and "Absent Leave" are deliberately kept as two separate counts for
+     * now (no record at all vs. unpaid leave taken) — the user asked to
+     * keep both and prune later if one turns out redundant, rather than
+     * deciding that now.
+     */
     public function index(Request $request)
     {
         $from = $request->input('from_date', now()->startOfMonth()->toDateString());
         $to   = $request->input('to_date', now()->toDateString());
 
-        $query = Attendance::with(['employee.department', 'employee.employeeType', 'employee.contractor', 'shift', 'leaveType'])
-            ->whereBetween('date', [$from, $to])
-            ->orderByDesc('date')->orderBy('in_time');
+        // LeaveType is now per-branch (see LeaveTypeController), so a Super
+        // Admin viewing multiple branches at once will see one "Casual
+        // Leave" row PER BRANCH here, each with a different id — grouping
+        // below is therefore keyed by NAME, not id, so the two fixed
+        // columns still line up across branches.
+        $leaveTypes = LeaveType::where('is_active', true)->whereIn('name', ['Casual Leave', 'Sick Leave'])->orderBy('name')->get();
+        $leaveTypeNames = $leaveTypes->pluck('name')->unique()->values();
 
+        $query = Attendance::whereBetween('date', [$from, $to]);
         $query = BranchScope::scopeQueryVia($query, 'employee');
 
         if ($request->filled('branch_id') && BranchScope::currentBranchId() === null) {
@@ -68,21 +85,89 @@ class AttendanceController extends Controller
             $query->where('status', $request->status);
         }
 
-        $attendance  = $query->paginate(25)->withQueryString();
+        $attendance = $query->with('employee.department', 'employee.shift', 'employee.branch', 'leaveType')->get()
+            ->groupBy('employee_id')
+            ->map(function ($rows) use ($leaveTypeNames, $from, $to) {
+                $employee = $rows->first()->employee;
+
+                $leaveCounts = $leaveTypeNames->mapWithKeys(function ($name) use ($rows) {
+                    return [$name => $rows->filter(fn ($r) => $r->leaveType?->name === $name)
+                        ->whereIn('status', ['paid_leave', 'unpaid_leave', 'on_leave'])->count()];
+                });
+
+                return [
+                    'employee'        => $employee,
+                    'shift'           => $employee->shift,
+                    'ot_hours'        => round($rows->sum('ot_minutes') / 60, 2),
+                    'working_days'    => $this->countWorkingDaysInRange($employee, $from, $to),
+                    'present'         => $rows->where('status', 'present')->count(),
+                    'absent'          => $rows->whereIn('status', ['absent', 'missing_punch'])->count(),
+                    'absent_leave'    => $rows->where('status', 'unpaid_leave')->count(),
+                    'leave_counts'    => $leaveCounts,
+                    'weekend'         => $rows->where('status', 'weekly_off')->count(),
+                    'public_holiday'  => $rows->whereIn('status', ['paid_holiday', 'unpaid_holiday'])->count(),
+                ];
+            })->values();
+
         $departments = BranchScope::scopeQuery(Department::query())->orderBy('name')->get();
         $employeeTypes = EmployeeType::where('is_active', true)->get();
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get();
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get();
         $shifts = Shift::where('is_active', true)->get();
         $currentBranchId = BranchScope::currentBranchId();
         $branches = $currentBranchId ? Branch::where('id', $currentBranchId)->get() : Branch::active()->orderBy('name')->get();
 
-        $summary = BranchScope::scopeQueryVia(Attendance::whereBetween('date', [$from, $to]), 'employee')
-            ->selectRaw('status, COUNT(*) as cnt')->groupBy('status')->pluck('cnt', 'status');
+        if ($request->filled('export')) {
+            $header = ['Employee Number', 'Employee', 'Shift', 'OT Hrs', 'Total Working Days', 'Total Days Present', 'Total Days Absent', 'Absent Leave'];
+            foreach ($leaveTypeNames as $name) { $header[] = $name; }
+            $header[] = 'Weekend Leave';
+            $header[] = 'Public Leave';
+
+            return $this->streamCsv('attendance-register-' . $from . '-to-' . $to . '.csv', $header,
+                $attendance->map(function ($r) use ($leaveTypeNames) {
+                    $row = [
+                        $r['employee']->employee_code ?? '', $r['employee']->full_name ?? '',
+                        $r['shift']->name ?? '—', $r['ot_hours'], $r['working_days'], $r['present'], $r['absent'], $r['absent_leave'],
+                    ];
+                    foreach ($leaveTypeNames as $name) { $row[] = $r['leave_counts'][$name] ?? 0; }
+                    $row[] = $r['weekend'];
+                    $row[] = $r['public_holiday'];
+                    return $row;
+                })->all()
+            );
+        }
 
         return view('attendance.index', compact(
-            'attendance', 'departments', 'summary', 'from', 'to', 'employeeTypes',
+            'attendance', 'departments', 'from', 'to', 'employeeTypes', 'leaveTypeNames',
             'contractors', 'shifts', 'branches', 'currentBranchId'
         ));
+    }
+
+    /**
+     * Total working days (calendar days in the range minus weekly-offs)
+     * for this employee's branch — mirrors PayrollController::getWorkingDays()'s
+     * own weekly-off resolution (Branch::weekly_off_days, falling back to
+     * Sat/Sun) but doesn't share that private method across controllers;
+     * kept intentionally simple since this is a display-only summary, not
+     * a payroll calculation.
+     */
+    private function countWorkingDaysInRange(Employee $employee, string $from, string $to): int
+    {
+        $dayNameToIndex = ['sunday' => 0, 'monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4, 'friday' => 5, 'saturday' => 6];
+        $offIndexes = $employee->branch?->weekly_off_days
+            ? array_values(array_filter(array_map(fn($d) => $dayNameToIndex[$d] ?? null, $employee->branch->weekly_off_days), fn($v) => $v !== null))
+            : [0, 6];
+
+        $start = \Carbon\Carbon::parse($from);
+        $end = \Carbon\Carbon::parse($to);
+
+        $days = 0;
+        $date = $start->copy();
+        while ($date->lte($end)) {
+            if (! in_array($date->dayOfWeek, $offIndexes, true)) $days++;
+            $date->addDay();
+        }
+
+        return $days;
     }
 
     public function show(Attendance $attendance)
@@ -149,83 +234,6 @@ class AttendanceController extends Controller
             ->with('success', "Attendance saved for {$saved} employee(s).");
     }
 
-    public function manualForm()
-    {
-        $employees = BranchScope::scopeQuery(Employee::active()->orderBy('first_name')->with('department'))->get();
-        $recentEntries = BranchScope::scopeQueryVia(
-            Attendance::where('is_manual_entry', true), 'employee'
-        )->with('employee')
-            ->orderByDesc('created_at')
-            ->limit(10)
-            ->get();
-        return view('attendance.manual', compact('employees', 'recentEntries'));
-    }
-
-    public function manual(Request $request)
-    {
-        $data = $request->validate([
-            'employee_id'   => ['required', 'exists:employees,id'],
-            'date'          => ['required', 'date', 'before_or_equal:today'],
-            'in_time'       => ['required', 'date_format:H:i'],
-            'out_time'      => ['nullable', 'date_format:H:i', 'after:in_time'],
-            'status'        => ['required', 'in:present,half_day,absent,on_leave,holiday,week_off'],
-            'manual_reason' => ['required', 'string', 'max:255'],
-        ]);
-
-        $manualEmployee = Employee::find($data['employee_id']);
-        BranchScope::assertBranchAccess($manualEmployee?->branch_id);
-        BranchScope::assertBranchIsActive($manualEmployee?->branch_id);
-
-        // There is no dedicated `manual_reason` column — it's recorded in
-        // the general-purpose `remarks` field that already exists on this
-        // table.
-        $data['remarks'] = $data['manual_reason'];
-        unset($data['manual_reason']);
-
-        $data['is_manual_entry'] = true;
-        $data['approval_status'] = 'pending';
-        $data['source']    = 'manual';
-        $data['in_time']   = $data['date'] . ' ' . $data['in_time'] . ':00';
-        $data['out_time']  = ! empty($data['out_time']) ? $data['date'] . ' ' . $data['out_time'] . ':00' : null;
-
-        $attendance = Attendance::updateOrCreate(
-            ['employee_id' => $data['employee_id'], 'date' => $data['date']],
-            $data
-        );
-
-        if ($attendance->in_time && $attendance->out_time) {
-            $this->recalculate($attendance);
-        }
-
-        return redirect()->route('attendance.pending')
-            ->with('success', 'Manual attendance submitted for approval.');
-    }
-
-    public function pending()
-    {
-        $pendingRequests = BranchScope::scopeQueryVia(
-            Attendance::where('is_manual_entry', true)->where('approval_status', 'pending'), 'employee'
-        )->with(['employee.department'])
-            ->orderByDesc('date')
-            ->paginate(20);
-
-        return view('attendance.pending', compact('pendingRequests'));
-    }
-
-    public function approve(Request $request, Attendance $attendance)
-    {
-        BranchScope::assertBranchAccess($attendance->employee?->branch_id);
-        $request->validate(['action' => ['required', 'in:approve,reject']]);
-
-        if ($request->action === 'approve') {
-            $attendance->update(['approved_by' => auth()->id(), 'approved_at' => now(), 'approval_status' => 'approved']);
-        } else {
-            $attendance->update(['is_manual_entry' => false, 'approved_by' => null, 'approval_status' => 'rejected']);
-        }
-
-        return back()->with('success', 'Attendance ' . $request->action . 'd.');
-    }
-
     public function report(Request $request)
     {
         // The view's <input type="month"> submits a single "Y-m" value, not
@@ -279,20 +287,18 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Per-employee summary for a selected period: Shift, OT hours, Total
-     * Working Days, Present/Absent day counts, one day-count column per
-     * active LeaveType (dynamic — always reflects the current LeaveType
-     * master, never hardcoded to specific leave names), plus Weekend and
-     * Public Holiday day counts derived from Attendance.status (there is no
-     * separate LeaveType for either — see resolveHolidayOrWeeklyOffStatus()).
+     * Same per-employee monthly rollup as report() (Present/Absent/Late/
+     * Half-Day/Leave/WFH/Total/%) — kept as its own named page/route
+     * (attendance.summary) per user request, rather than a duplicate of
+     * report() the user has to navigate to a second way. The richer
+     * per-leave-type / OT / working-days breakdown that used to live here
+     * was moved to the Attendance Register (see index()) instead.
      */
     public function summary(Request $request)
     {
         $period = \Carbon\Carbon::parse($request->input('month', now()->format('Y-m')) . '-01');
         $month = $period->month;
         $year  = $period->year;
-
-        $leaveTypes = LeaveType::where('is_active', true)->orderBy('name')->get();
 
         $query = BranchScope::scopeQueryVia(
             Attendance::whereMonth('date', $month)->whereYear('date', $year),
@@ -301,26 +307,18 @@ class AttendanceController extends Controller
             ->when($request->filled('employee_id'), fn($q) => $q->where('employee_id', $request->employee_id))
             ->when($request->filled('department_id'), fn($q) => $q->whereHas('employee', fn($e) => $e->where('department_id', $request->department_id)));
 
-        $summary = (clone $query)->with('employee.department', 'employee.shift', 'employee.branch')->get()
+        $summary = (clone $query)->with('employee.department')->get()
             ->groupBy('employee_id')
-            ->map(function ($rows) use ($leaveTypes, $month, $year) {
-                $employee = $rows->first()->employee;
-
-                $leaveCounts = $leaveTypes->mapWithKeys(function ($lt) use ($rows) {
-                    return [$lt->id => $rows->where('leave_type_id', $lt->id)
-                        ->whereIn('status', ['paid_leave', 'unpaid_leave', 'on_leave'])->count()];
-                });
-
+            ->map(function ($rows) {
                 return [
-                    'employee'        => $employee,
-                    'shift'           => $employee->shift,
-                    'ot_hours'        => round($rows->sum('ot_minutes') / 60, 2),
-                    'working_days'    => $this->countWorkingDaysInMonth($employee, $month, $year),
-                    'present'         => $rows->where('status', 'present')->count(),
-                    'absent'          => $rows->whereIn('status', ['absent', 'missing_punch'])->count(),
-                    'leave_counts'    => $leaveCounts,
-                    'weekend'         => $rows->where('status', 'weekly_off')->count(),
-                    'public_holiday'  => $rows->whereIn('status', ['paid_holiday', 'unpaid_holiday'])->count(),
+                    'employee'  => $rows->first()->employee,
+                    'present'   => $rows->whereIn('status', ['present'])->count(),
+                    'absent'    => $rows->whereIn('status', ['absent', 'missing_punch'])->count(),
+                    'half_day'  => $rows->where('status', 'half_day')->count(),
+                    'leave'     => $rows->whereIn('status', ['on_leave', 'paid_leave', 'unpaid_leave'])->count(),
+                    'wfh'       => $rows->where('status', 'work_from_home')->count(),
+                    'late'      => $rows->where('is_late', true)->count(),
+                    'total'     => $rows->count(),
                 ];
             })->values();
 
@@ -328,54 +326,16 @@ class AttendanceController extends Controller
         $departments = BranchScope::scopeQuery(Department::query())->orderBy('name')->get();
 
         if ($request->filled('export')) {
-            $header = ['Employee Number', 'Employee', 'Shift', 'OT Hrs', 'Total Working Days', 'Present', 'Absent'];
-            foreach ($leaveTypes as $lt) { $header[] = $lt->name; }
-            $header[] = 'Weekend';
-            $header[] = 'Public Holiday';
-
-            return $this->streamCsv('attendance-summary-' . $month . '-' . $year . '.csv', $header,
-                $summary->map(function ($r) use ($leaveTypes) {
-                    $row = [
-                        $r['employee']->employee_code ?? '', $r['employee']->full_name ?? '',
-                        $r['shift']->name ?? '—', $r['ot_hours'], $r['working_days'], $r['present'], $r['absent'],
-                    ];
-                    foreach ($leaveTypes as $lt) { $row[] = $r['leave_counts'][$lt->id] ?? 0; }
-                    $row[] = $r['weekend'];
-                    $row[] = $r['public_holiday'];
-                    return $row;
-                })->all()
+            return $this->streamCsv('attendance-summary-' . $month . '-' . $year . '.csv',
+                ['Employee Number', 'Employee', 'Present', 'Absent', 'Half Day', 'Leave', 'WFH', 'Late', 'Total'],
+                $summary->map(fn($r) => [
+                    $r['employee']->employee_code ?? '', $r['employee']->full_name ?? '',
+                    $r['present'], $r['absent'], $r['half_day'], $r['leave'], $r['wfh'], $r['late'], $r['total'],
+                ])->all()
             );
         }
 
-        return view('attendance.summary', compact('summary', 'employees', 'departments', 'leaveTypes', 'month', 'year'));
-    }
-
-    /**
-     * Total working days (calendar days minus weekly-offs) in the given
-     * month for this employee's branch — mirrors
-     * PayrollController::getWorkingDays()'s own weekly-off resolution
-     * (Branch::weekly_off_days, falling back to Sat/Sun) but doesn't share
-     * that private method across controllers; kept intentionally simple
-     * since this is a display-only summary, not a payroll calculation.
-     */
-    private function countWorkingDaysInMonth(Employee $employee, int $month, int $year): int
-    {
-        $dayNameToIndex = ['sunday' => 0, 'monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4, 'friday' => 5, 'saturday' => 6];
-        $offIndexes = $employee->branch?->weekly_off_days
-            ? array_values(array_filter(array_map(fn($d) => $dayNameToIndex[$d] ?? null, $employee->branch->weekly_off_days), fn($v) => $v !== null))
-            : [0, 6];
-
-        $start = \Carbon\Carbon::create($year, $month, 1);
-        $end = $start->copy()->endOfMonth();
-
-        $days = 0;
-        $date = $start->copy();
-        while ($date->lte($end)) {
-            if (! in_array($date->dayOfWeek, $offIndexes, true)) $days++;
-            $date->addDay();
-        }
-
-        return $days;
+        return view('attendance.summary', ['report' => $summary, 'employees' => $employees, 'departments' => $departments, 'month' => $month, 'year' => $year]);
     }
 
     // ── 11.2 Biometric Excel Upload ───────────────────────────────────────
@@ -794,7 +754,9 @@ class AttendanceController extends Controller
         }
 
         $employees = BranchScope::scopeQuery(Employee::active()->orderBy('first_name'))->get();
-        $leaveTypes = LeaveType::where('is_active', true)->get();
+        $leaveTypes = $employee
+            ? LeaveType::where('is_active', true)->where('branch_id', $employee->branch_id)->get()
+            : BranchScope::scopeQuery(LeaveType::where('is_active', true))->get();
         $canSetOvertime = ! BranchScope::isBranchScopedUser() || BranchAdminPermissions::can(auth()->user(), 'attendance', 'approve');
 
         return view('attendance.correction', compact('employees', 'employee', 'attendance', 'leaveTypes', 'canSetOvertime'));
@@ -816,6 +778,13 @@ class AttendanceController extends Controller
 
         $employee = Employee::findOrFail($data['employee_id']);
         BranchScope::assertBranchAccess($employee->branch_id);
+
+        if (! empty($data['leave_type_id'])) {
+            $leaveType = LeaveType::findOrFail($data['leave_type_id']);
+            if ((int) $leaveType->branch_id !== (int) $employee->branch_id) {
+                return back()->withErrors(['leave_type_id' => 'This leave type does not belong to the employee\'s branch.'])->withInput();
+            }
+        }
 
         $attendance = Attendance::firstOrNew(['employee_id' => $data['employee_id'], 'date' => $data['attendance_date']]);
         $oldValues = $attendance->exists ? $attendance->toArray() : null;

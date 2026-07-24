@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title','Attendance Summary')
 @section('page-title','Attendance Summary')
-@section('page-subtitle','Per-employee period summary — attendance, OT, and leave-type breakdown')
+@section('page-subtitle','Monthly attendance summary')
 @section('content')
 <div class="card mb-3">
     <div class="card-body">
@@ -45,38 +45,39 @@
                 <thead>
                     <tr>
                         <th>Employee</th>
-                        <th>Shift</th>
-                        <th class="text-center">OT Hrs</th>
-                        <th class="text-center">Total Working Days</th>
+                        <th>Department</th>
                         <th class="text-center text-success">Present</th>
                         <th class="text-center text-danger">Absent</th>
-                        @foreach($leaveTypes as $lt)
-                        <th class="text-center">{{ $lt->name }}</th>
-                        @endforeach
-                        <th class="text-center">Weekend</th>
-                        <th class="text-center">Public Holiday</th>
+                        <th class="text-center text-warning">Late</th>
+                        <th class="text-center text-info">Half Day</th>
+                        <th class="text-center text-secondary">Leave</th>
+                        <th class="text-center text-primary">WFH</th>
+                        <th class="text-center">Total Days</th>
+                        <th class="text-center">%</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($summary as $row)
+                    @forelse($report as $row)
                     <tr>
                         <td>
                             <strong>{{ $row['employee']->employee_code }}</strong><br>
                             <small class="text-muted">{{ $row['employee']->full_name ?? '—' }}</small>
                         </td>
-                        <td><small>{{ $row['shift']->name ?? '—' }}</small></td>
-                        <td class="text-center">{{ $row['ot_hours'] }}</td>
-                        <td class="text-center">{{ $row['working_days'] }}</td>
+                        <td><small>{{ $row['employee']->department->name ?? '—' }}</small></td>
                         <td class="text-center text-success fw-bold">{{ $row['present'] }}</td>
                         <td class="text-center text-danger fw-bold">{{ $row['absent'] }}</td>
-                        @foreach($leaveTypes as $lt)
-                        <td class="text-center">{{ $row['leave_counts'][$lt->id] ?? 0 }}</td>
-                        @endforeach
-                        <td class="text-center">{{ $row['weekend'] }}</td>
-                        <td class="text-center">{{ $row['public_holiday'] }}</td>
+                        <td class="text-center text-warning fw-bold">{{ $row['late'] }}</td>
+                        <td class="text-center text-info fw-bold">{{ $row['half_day'] }}</td>
+                        <td class="text-center text-secondary fw-bold">{{ $row['leave'] }}</td>
+                        <td class="text-center text-primary fw-bold">{{ $row['wfh'] }}</td>
+                        <td class="text-center">{{ $row['total'] }}</td>
+                        <td class="text-center">
+                            @php $pct = $row['total'] > 0 ? round(($row['present'] / $row['total']) * 100) : 0; @endphp
+                            <span class="badge bg-{{ $pct >= 90 ? 'success' : ($pct >= 75 ? 'warning' : 'danger') }}-subtle text-{{ $pct >= 90 ? 'success' : ($pct >= 75 ? 'warning' : 'danger') }}">{{ $pct }}%</span>
+                        </td>
                     </tr>
                     @empty
-                    <tr><td colspan="{{ 8 + count($leaveTypes) }}" class="text-center text-muted py-4">No attendance data for the selected period.</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted py-4">No attendance data for the selected period.</td></tr>
                     @endforelse
                 </tbody>
             </table>

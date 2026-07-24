@@ -45,7 +45,8 @@ return new class extends Migration
 
     private function hasUniqueIndex(string $table, string $indexName): bool
     {
-        $indexes = collect(Schema::getConnection()->select("SHOW INDEX FROM `{$table}`"))->pluck('Key_name');
-        return $indexes->contains($indexName);
+        // Schema::getIndexes() (not a raw SHOW INDEX query) so this runs on
+        // both MySQL (production) and SQLite (the in-memory test suite).
+        return collect(Schema::getIndexes($table))->pluck('name')->contains($indexName);
     }
 };

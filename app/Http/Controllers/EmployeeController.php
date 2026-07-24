@@ -333,6 +333,100 @@ class EmployeeController extends Controller
         return $data;
     }
 
+    /**
+     * Employee Information — Basic Salary auto-matches a Salary Slab by
+     * range, scoped to the given branch (ranges are per-branch, see
+     * SalarySlabController::assertNoRangeOverlap()). Since ranges never
+     * overlap within a branch, at most one slab can ever match.
+     */
+    private function matchSalarySlab(int $branchId, float $basicSalary): ?\App\Models\SalarySlab
+    {
+        return \App\Models\SalarySlab::where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->where('salary_from', '<=', $basicSalary)
+            ->where('salary_to', '>=', $basicSalary)
+            ->first();
+    }
+
+    /**
+     * Pulls basic_salary/salary_earnings out of the wizard payload (they're
+     * not Employee columns) and, once the employee is saved, resolves the
+     * matching Salary Slab and stamps a fresh EmployeeSalaryStructure +
+     * EmployeeSalaryComponent rows from it. Only earnings the user marked
+     * "Yes" (present in salary_earnings) are kept — "No" ones are excluded
+     * entirely, both from the employee's salary structure and (so payroll
+     * generation never picks them up) from calculated_amount altogether.
+     */
+    private function extractSalaryData(array &$data): array
+    {
+        $basicSalary = (float) ($data['basic_salary'] ?? 0);
+        $selectedEarningIds = array_map('intval', $data['salary_earnings'] ?? []);
+        unset($data['basic_salary'], $data['salary_earnings']);
+
+        return [$basicSalary, $selectedEarningIds];
+    }
+
+    private function applySalaryStructure(Employee $employee, float $basicSalary, array $selectedEarningIds): void
+    {
+        $slab = $this->matchSalarySlab($employee->branch_id, $basicSalary);
+        if (! $slab) {
+            // Basic Salary was already validated against a matching slab
+            // before this point (assertBasicSalaryMatchesSlab()) — this is
+            // just a defensive no-op if that invariant somehow doesn't hold.
+            return;
+        }
+
+        $structureData = [
+            'employee_id'       => $employee->id,
+            'salary_slab_id'    => $slab->id,
+            'ctc'               => $slab->ctc($basicSalary),
+            'basic_salary'      => $basicSalary,
+            'hra' => 0, 'da' => 0, 'ta' => 0, 'medical_allowance' => 0, 'special_allowance' => 0,
+            'gross_salary'      => $slab->grossSalary($basicSalary),
+            'pf_employee'       => $slab->pfEmployee($basicSalary),
+            'pf_employer'       => $slab->pfEmployer($basicSalary),
+            'esi_employee'      => $slab->esiEmployee($basicSalary),
+            'esi_employer'      => $slab->esiEmployer($basicSalary),
+            'tds'               => $slab->tds($basicSalary),
+            'net_salary'        => $slab->netSalary($basicSalary),
+            'effective_from'    => now()->toDateString(),
+            'is_current'        => true,
+            'created_by'        => auth()->id(),
+        ];
+
+        $employee->salaryHistory()->update(['is_current' => false, 'effective_to' => now()->toDateString()]);
+        $structure = $employee->salaryHistory()->create($structureData);
+
+        foreach ($slab->earningsComponents as $slabComponent) {
+            if (! in_array($slabComponent->component_id, $selectedEarningIds, true)) {
+                continue;
+            }
+            $amount = round($basicSalary * (float) $slabComponent->rate / 100, 2);
+            $structure->components()->create([
+                'component_type'    => 'earning',
+                'component_id'      => $slabComponent->component_id,
+                'component_name'    => $slabComponent->component_name,
+                'calculation_type'  => $slabComponent->calculation_type,
+                'rate'              => $slabComponent->rate,
+                'calculated_amount' => $amount,
+            ]);
+        }
+    }
+
+    /**
+     * Part 3's "no match -> block" rule — must run against validated data
+     * before the employee is written, using $branchId the same way
+     * BranchScope::stampBranchId() will resolve it moments later.
+     */
+    private function assertBasicSalaryMatchesSlab(int $branchId, float $basicSalary): void
+    {
+        if (! $this->matchSalarySlab($branchId, $basicSalary)) {
+            throw ValidationException::withMessages([
+                'basic_salary' => 'No salary slab found for this amount. Adjust the Basic Salary or ask an admin to create a slab covering this range.',
+            ]);
+        }
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
@@ -344,11 +438,13 @@ class EmployeeController extends Controller
         }
         $data = BranchScope::stampBranchId($data);
         BranchScope::assertBranchIsActive($data['branch_id']);
+        $this->assertBasicSalaryMatchesSlab($data['branch_id'], (float) $data['basic_salary']);
 
         $this->assertContractorForLabour($data);
         $data = $this->applySameAsCurrentAddress($request, $data);
         $data = $this->stripUnauthorizedRuleOverrides($data);
         $data = $this->stripUnauthorizedContractorRate($data);
+        [$basicSalary, $selectedEarningIds] = $this->extractSalaryData($data);
 
         $bankData = $this->extractBankData($data);
         $data['is_pf_applicable'] = $data['is_pf_applicable'] === 'yes';
@@ -383,6 +479,8 @@ class EmployeeController extends Controller
         if ($bankData) {
             $employee->bankDetails()->create($bankData);
         }
+
+        $this->applySalaryStructure($employee, $basicSalary, $selectedEarningIds);
 
         return redirect()->route('employees.index')
             ->with('success', 'Employee created successfully.');
@@ -435,7 +533,7 @@ class EmployeeController extends Controller
     {
         BranchScope::assertBranchAccess($employee->branch_id);
         $activeTab = (int) $request->input('tab', 2);
-        $employee->load('bankDetails');
+        $employee->load('bankDetails', 'currentSalary.components');
         $primaryBankDetail = $employee->bankDetails->firstWhere('is_primary', true) ?? $employee->bankDetails->first();
 
         return view('employees.edit', array_merge(
@@ -468,9 +566,11 @@ class EmployeeController extends Controller
         $this->assertDepartmentIsActive($data['department_id'], $employee);
         $this->assertContractorForLabour($data);
         $this->assertReportingToIsNotSelf($data['reporting_to'] ?? null, $employee->id);
+        $this->assertBasicSalaryMatchesSlab($data['branch_id'], (float) $data['basic_salary']);
         $data = $this->applySameAsCurrentAddress($request, $data);
         $data = $this->stripUnauthorizedRuleOverrides($data);
         $data = $this->stripUnauthorizedContractorRate($data);
+        [$basicSalary, $selectedEarningIds] = $this->extractSalaryData($data);
 
         $bankData = $this->extractBankData($data);
         $data['is_pf_applicable'] = $data['is_pf_applicable'] === 'yes';
@@ -503,6 +603,7 @@ class EmployeeController extends Controller
         unset($data['employee_category']);
 
         $this->updateEmployeeWithRetry($employee, $data, $codeWasGenerated, $primaryType, $labourType);
+        $this->applySalaryStructure($employee, $basicSalary, $selectedEarningIds);
 
         if ($bankData) {
             $primary = $employee->bankDetails()->where('is_primary', true)->first();
@@ -761,16 +862,32 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Employee Master — "Designation & Salary" live preview: returns the
-     * selected Salary Slab's full computed breakdown (never trusting a
-     * client-supplied figure) so the tab can show it read-only before the
-     * employee record is even saved yet.
+     * Employee Information — "enter Basic Salary, auto-find the matching
+     * Salary Slab and show its earnings" live lookup. Scoped to the
+     * currently effective branch (ranges are per-branch) — never trusts a
+     * client-supplied slab id, only the basic_salary figure and the
+     * server-resolved branch.
      */
-    public function salarySlabBreakdown(Request $request, \App\Models\SalarySlab $salarySlab)
+    public function salarySlabBreakdown(Request $request)
     {
         $basicSalary = (float) $request->input('basic_salary', 0);
+        $branchId = BranchScope::currentBranchId() ?? (int) $request->input('branch_id');
 
-        return response()->json($this->buildSalarySlabBreakdown($salarySlab, $basicSalary));
+        $slab = $this->matchSalarySlab($branchId, $basicSalary);
+        if (! $slab) {
+            return response()->json(['matched' => false]);
+        }
+
+        return response()->json([
+            'matched' => true,
+            'slab' => ['id' => $slab->id, 'name' => $slab->name],
+            'earnings' => $slab->earningsComponents->map(fn ($c) => [
+                'component_id' => $c->component_id,
+                'name' => $c->component_name,
+                'rate' => (float) $c->rate,
+                'amount' => round($basicSalary * (float) $c->rate / 100, 2),
+            ]),
+        ] + $this->buildSalarySlabBreakdown($slab, $basicSalary));
     }
 
     /**
@@ -1058,7 +1175,7 @@ class EmployeeController extends Controller
                 ->where(fn($q) => $q->where('is_active', true)->when($employee?->department_id, fn($q2) => $q2->orWhere('id', $employee->department_id)))
                 ->orderBy('name')->get(),
             'employeeTypes' => EmployeeType::where('is_active', true)->get(),
-            'contractors'   => Contractor::where('is_active', true)->orderBy('name')->get(),
+            'contractors'   => BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(),
             // Scoped to the employee's own branch — a Shift now belongs to
             // exactly one branch (see ShiftController), so only shifts
             // created under this employee's branch are assignable. The
@@ -1070,7 +1187,7 @@ class EmployeeController extends Controller
                 ->get(),
             'managers'      => BranchScope::scopeQuery(Employee::active())->orderBy('first_name')->get(),
             'roles'         => \App\Models\Role::orderBy('name')->get(),
-            'banks'         => Bank::where('is_active', true)->orderBy('name')->get(),
+            'banks'         => BranchScope::scopeQuery(Bank::where('is_active', true))->orderBy('name')->get(),
             'canOverrideRules' => auth()->user()->can('rule_engine.full'),
             'canSetContractorRate' => auth()->user()->can('employees.full'),
             'canViewFullBankDetails' => \App\Support\SensitiveDataAccess::canView('employees'),
@@ -1162,7 +1279,17 @@ class EmployeeController extends Controller
             'nationality'      => ['nullable', 'string', 'max:50'],
             'religion'         => ['nullable', 'string', 'max:50'],
             'personal_email'   => ['nullable', 'email', 'max:150'],
-            'official_email'   => ['required', 'email', 'max:255', Rule::unique('employees', 'official_email')->whereNull('deleted_at')->ignore($excludeId)],
+            // Scoped per branch (not global), matching employee_code/
+            // biometric_number above — two different branches may
+            // legitimately onboard an employee under the same official
+            // email pattern (e.g. a shared naming convention).
+            'official_email'   => [
+                'required', 'email', 'max:255',
+                Rule::unique('employees', 'official_email')
+                    ->where(fn ($query) => $query->where('branch_id', BranchScope::currentBranchId() ?? request()->input('branch_id')))
+                    ->whereNull('deleted_at')
+                    ->ignore($excludeId),
+            ],
             'phone'            => ['required', 'digits:10'],
             'alternate_phone'  => ['nullable', 'digits:10'],
             // Status isn't one of the 5 wizard steps — store()/update() default
@@ -1176,12 +1303,19 @@ class EmployeeController extends Controller
             // above, since two different branches may legitimately number
             // an employee "002".
             'biometric_number' => [
-                'nullable', 'digits:3',
+                'required', 'digits:3',
                 Rule::unique('employees', 'biometric_number')
                     ->where(fn ($query) => $query->where('branch_id', BranchScope::currentBranchId() ?? request()->input('branch_id')))
                     ->whereNull('deleted_at')
                     ->ignore($excludeId),
             ],
+            // Employee Information — Basic Salary auto-matches a Salary
+            // Slab (by range, within this employee's own branch) and the
+            // matched slab's earnings are offered back as a Yes/No
+            // multi-select; only the "Yes" ones are kept.
+            'basic_salary'        => ['required', 'numeric', 'min:0'],
+            'salary_earnings'     => ['nullable', 'array'],
+            'salary_earnings.*'   => ['integer'],
             'weekly_off_rule_id'  => ['nullable', 'exists:rules,id'],
             'attendance_rule_id'  => ['nullable', 'exists:rules,id'],
             'payroll_rule_id'     => ['nullable', 'exists:rules,id'],

@@ -11,6 +11,7 @@ namespace App\Http\Controllers;
 use App\Models\Contractor;
 use App\Models\ContractWorkerAttendance;
 use App\Models\ContractWorkerPayroll;
+use App\Support\BranchScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +20,7 @@ class ContractPayrollController extends Controller
 {
     public function index(Request $request)
     {
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(['id', 'name', 'code', 'branch_id']);
 
         $month = (int) $request->input('month', now()->month);
         $year  = (int) $request->input('year', now()->year);
@@ -42,7 +43,7 @@ class ContractPayrollController extends Controller
 
     public function calculateForm()
     {
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))->orderBy('name')->get(['id', 'name', 'code', 'branch_id']);
         return view('contract-payroll.calculate', compact('contractors'));
     }
 

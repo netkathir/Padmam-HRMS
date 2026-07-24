@@ -8,6 +8,13 @@
         <form action="{{ route('masters.earnings.update', $earningsComponent) }}" method="POST">
             @csrf @method('PUT')
             <div class="row g-3">
+                @if($currentBranch)
+                    <input type="hidden" name="branch_id" value="{{ $currentBranch->id }}">
+                    <div class="col-md-6">
+                        <label class="form-label">Branch</label>
+                        <input type="text" class="form-control" value="{{ $currentBranch->name }}" disabled>
+                    </div>
+                @endif
                 <div class="col-md-6">
                     <label class="form-label">Earning Component Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $earningsComponent->name) }}" required>

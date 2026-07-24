@@ -10,9 +10,19 @@
 <div class="card">
     <div class="card-body">
         <form method="GET" class="row g-2 mb-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <input type="text" name="search" class="form-control form-control-sm" placeholder="Search slab name…" value="{{ request('search') }}">
             </div>
+            @if ($branches->isNotEmpty())
+            <div class="col-md-3">
+                <select name="branch_id" class="form-select form-select-sm">
+                    <option value="">All Branches</option>
+                    @foreach($branches as $b)
+                        <option value="{{ $b->id }}" {{ request('branch_id') == $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            @endif
             <div class="col-md-2">
                 <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i> Search</button>
             </div>
@@ -22,12 +32,13 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Slab Name</th><th>Salary Range</th><th>TDS%</th><th>PF Emp/Empr%</th><th>ESI Emp/Empr%</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Slab Name</th><th>Branch</th><th>Salary Range</th><th>TDS%</th><th>PF Emp/Empr%</th><th>ESI Emp/Empr%</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($slabs as $slab)
                     <tr>
                         <td>{{ $slabs->firstItem() + $loop->index }}</td>
                         <td>{{ $slab->name }}</td>
+                        <td>{{ $slab->branch->name ?? '—' }}</td>
                         <td>{{ $slab->salary_from !== null ? number_format($slab->salary_from) . ' - ' . number_format($slab->salary_to) : '—' }}</td>
                         <td>{{ $slab->tds_percentage ?? '—' }}</td>
                         <td>{{ $slab->pf_employee_percentage ?? '—' }} / {{ $slab->pf_employer_percentage ?? '—' }}</td>
@@ -43,7 +54,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="8" class="text-center text-muted py-4">No salary slabs found.</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">No salary slabs found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

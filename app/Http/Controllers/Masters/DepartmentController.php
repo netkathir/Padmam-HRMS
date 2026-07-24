@@ -38,7 +38,7 @@ class DepartmentController extends Controller
     public function create()
     {
         $currentBranch = BranchScope::currentBranch();
-        $nextDepartmentCode = $this->nextDepartmentCode();
+        $nextDepartmentCode = $this->nextDepartmentCode($currentBranch?->id);
         return view('masters.departments.create', compact('currentBranch', 'nextDepartmentCode'));
     }
 
@@ -53,7 +53,9 @@ class DepartmentController extends Controller
         $data = $request->validate([
             'branch_id'   => ['required', 'exists:branches,id'],
             'name'        => ['required', 'string', 'max:100', Rule::unique('departments', 'name')->where('branch_id', $branchId)->whereNull('deleted_at')],
-            'code'        => ['required', 'string', 'max:20', Rule::unique('departments', 'code')->whereNull('deleted_at')],
+            // Scoped per branch, not global — a Department Code restarts
+            // from DEP001 in each branch, matching Employee/Shift.
+            'code'        => ['required', 'string', 'max:20', Rule::unique('departments', 'code')->where('branch_id', $branchId)->whereNull('deleted_at')],
             'description' => ['nullable', 'string'],
             'is_active'   => ['required', 'boolean'],
         ]);
@@ -89,7 +91,7 @@ class DepartmentController extends Controller
                 if (! $isDuplicate || $attempt === 10) {
                     throw $e;
                 }
-                $data['code'] = $this->nextDepartmentCode();
+                $data['code'] = $this->nextDepartmentCode($data['branch_id'] ?? null);
                 usleep(random_int(20_000, 80_000));
             }
         }
@@ -98,21 +100,24 @@ class DepartmentController extends Controller
     }
 
     /**
-     * Next sequential Department Code — "DEP" + zero-padded number, one
-     * higher than the latest existing code already following this
-     * convention (legacy codes in other formats, e.g. from before this
-     * feature existed, are ignored so they can't produce a nonsensical
-     * suggestion like incrementing a plain numeric legacy code).
+     * Next sequential Department Code — "DEP" + zero-padded number,
+     * restarting from DEP001 in EACH branch (branch A's 5th department and
+     * branch B's 1st department can both be "DEP001" — code uniqueness is
+     * now scoped to (branch_id, code), see store()/update() above). Legacy
+     * codes in other formats (e.g. from before this feature existed) are
+     * ignored so they can't produce a nonsensical suggestion like
+     * incrementing a plain numeric legacy code.
      */
-    private function nextDepartmentCode(): string
+    private function nextDepartmentCode(?int $branchId): string
     {
         // withTrashed() is load-bearing: a soft-deleted Department's code is
-        // still permanently reserved by the database's unique index, so
-        // excluding deleted rows here can suggest a code that's already
-        // taken (see ShiftController::createWithGeneratedCode() for the
-        // full explanation of this failure mode).
+        // still permanently reserved by the database's unique index within
+        // its branch, so excluding deleted rows here can suggest a code
+        // that's already taken (see ShiftController::createWithGeneratedCode()
+        // for the full explanation of this failure mode).
         $lastCode = Department::withTrashed()
             ->where('code', 'REGEXP', '^DEP[0-9]+$')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->orderByRaw('CAST(SUBSTRING(code, 4) AS UNSIGNED) DESC')
             ->value('code');
 
@@ -137,7 +142,7 @@ class DepartmentController extends Controller
         $data = $request->validate([
             'branch_id'   => ['required', 'exists:branches,id'],
             'name'        => ['required', 'string', 'max:100', Rule::unique('departments', 'name')->where('branch_id', $branchId)->whereNull('deleted_at')->ignore($department->id)],
-            'code'        => ['required', 'string', 'max:20', Rule::unique('departments', 'code')->whereNull('deleted_at')->ignore($department->id)],
+            'code'        => ['required', 'string', 'max:20', Rule::unique('departments', 'code')->where('branch_id', $branchId)->whereNull('deleted_at')->ignore($department->id)],
             'description' => ['nullable', 'string'],
             'is_active'   => ['required', 'boolean'],
         ]);

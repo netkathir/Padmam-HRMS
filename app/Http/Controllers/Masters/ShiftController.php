@@ -43,6 +43,14 @@ class ShiftController extends Controller
 
     private function rules(?int $shiftId = null): array
     {
+        // Resolved the same way BranchScope::stampBranchId() will resolve it
+        // moments later on save — so the uniqueness check here matches what
+        // actually gets stamped. Scoped per branch (not global): two
+        // different branches may legitimately both have a "Morning Shift",
+        // matching how Shift Code already restarts per branch and how
+        // Department names already work.
+        $branchId = BranchScope::currentBranchId() ?? request()->input('branch_id');
+
         return [
             // `code` is auto-generated server-side (see createWithGeneratedCode())
             // and never accepted from the client, so it is intentionally not
@@ -53,7 +61,7 @@ class ShiftController extends Controller
             // built-in awareness of soft deletes — without this, a deleted
             // shift's name stays permanently "taken" and can never be
             // reused, even though the row is no longer visible anywhere.
-            'name'                      => ['required', 'string', 'max:100', Rule::unique('shifts', 'name')->whereNull('deleted_at')->ignore($shiftId)],
+            'name'                      => ['required', 'string', 'max:100', Rule::unique('shifts', 'name')->where('branch_id', $branchId)->whereNull('deleted_at')->ignore($shiftId)],
             'start_time'                => ['required', 'date_format:H:i'],
             'end_time'                  => ['required', 'date_format:H:i'],
             'grace_late_entry_minutes'  => ['nullable', 'integer', 'min:0'],
@@ -100,12 +108,13 @@ class ShiftController extends Controller
 
     /**
      * Generates the next Shift Code (one higher than the latest existing
-     * code, preserving its prefix/padding) and creates the shift with it —
-     * mirrors BranchController::createWithGeneratedCode() exactly. A row
-     * lock on the latest shift serializes concurrent creations, and the
-     * retry loop is a defensive fallback against the rare duplicate-key
-     * race the lock doesn't cover — the unique index on `code` is the
-     * actual guarantee against ever storing a collision.
+     * code FOR THIS BRANCH, preserving its prefix/padding) and creates the
+     * shift with it — mirrors BranchController::createWithGeneratedCode()
+     * exactly, except scoped per branch (branch A's 5th shift and branch
+     * B's 1st shift can both be "SH0001" — see the composite (branch_id,
+     * code) unique index). A row lock on the latest shift IN THIS BRANCH
+     * serializes concurrent creations, and the retry loop is a defensive
+     * fallback against the rare duplicate-key race the lock doesn't cover.
      */
     private function createWithGeneratedCode(array $data): Shift
     {
@@ -118,17 +127,21 @@ class ShiftController extends Controller
         // raw 500 to the user.
         //
         // withTrashed() here is load-bearing, not optional: the database's
-        // unique index on `code` has no concept of "soft deleted" — a
-        // deleted Shift's code is still permanently reserved. Looking only
-        // at non-deleted rows (or worse, "whichever row has the highest
-        // id") can compute a code that a deleted row already holds,
-        // guaranteeing a duplicate-key failure every single time (the
-        // retry loop can't help — it would recompute the exact same wrong
-        // answer on every attempt, since nothing about that flaw changes).
+        // unique index on (branch_id, code) has no concept of "soft
+        // deleted" — a deleted Shift's code is still permanently reserved
+        // within its branch. Looking only at non-deleted rows (or worse,
+        // "whichever row has the highest id") can compute a code that a
+        // deleted row already holds, guaranteeing a duplicate-key failure
+        // every single time (the retry loop can't help — it would
+        // recompute the exact same wrong answer on every attempt, since
+        // nothing about that flaw changes).
         for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 return DB::transaction(function () use ($data) {
-                    $allCodes = Shift::withTrashed()->lockForUpdate()->pluck('code');
+                    $allCodes = Shift::withTrashed()
+                        ->where('branch_id', $data['branch_id'] ?? null)
+                        ->lockForUpdate()
+                        ->pluck('code');
                     $lastCode = SequentialCodeGenerator::highestCode($allCodes);
                     $data['code'] = SequentialCodeGenerator::next($lastCode, 'SH0001');
 

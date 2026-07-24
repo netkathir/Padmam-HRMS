@@ -2,9 +2,10 @@
 /**
  * File: app/Http/Controllers/Masters/ContractorController.php
  * Purpose: CRUD and management for Contractors — labour assignment, contractor-wise attendance and payroll views.
- *          Contractor is a single, global master (no branch scoping). The
- *          labour/attendance/payroll sub-views remain scoped via the linked
- *          Employee's own branch_id, independent of the contractor.
+ *          Contractor is per-branch (branch_id) — the same contractor name/
+ *          code may exist in different branches, but not twice within one.
+ *          The labour/attendance/payroll sub-views remain scoped via the
+ *          linked Employee's own branch_id, independent of the contractor.
  * Author: System
  * Date: 2026-07-01
  */
@@ -12,6 +13,7 @@
 namespace App\Http\Controllers\Masters;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Contractor;
 use App\Models\ContractorDocument;
 use App\Models\Employee;
@@ -29,7 +31,7 @@ class ContractorController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Contractor::query()->orderBy('name');
+        $query = BranchScope::scopeQuery(Contractor::with('branch'))->orderBy('name');
 
         if ($request->filled('search')) {
             $s = '%' . $request->search . '%';
@@ -37,19 +39,23 @@ class ContractorController extends Controller
                 ->orWhere('code', 'like', $s)
                 ->orWhere('contact_person', 'like', $s));
         }
+        if (BranchScope::currentBranchId() === null && $request->filled('branch_id')) {
+            $query->where('branch_id', $request->branch_id);
+        }
 
         $contractors = $query->paginate(20)->withQueryString();
+        $branches    = BranchScope::currentBranchId() === null ? Branch::orderBy('name')->get() : collect();
 
         // FSD 9.1 — "system shall warn users before contractor agreement or
         // licence expiry" — a lightweight summary banner over the active set.
-        $expiringSoonCount = Contractor::where('is_active', true)
+        $expiringSoonCount = BranchScope::scopeQuery(Contractor::where('is_active', true))
             ->where(function ($q) {
                 $soon = now()->addDays(30)->toDateString();
                 $q->whereBetween('license_expiry', [now()->toDateString(), $soon])
                     ->orWhereBetween('agreement_end_date', [now()->toDateString(), $soon]);
             })->count();
 
-        return view('masters.contractors.index', compact('contractors', 'expiringSoonCount'));
+        return view('masters.contractors.index', compact('contractors', 'expiringSoonCount', 'branches'));
     }
 
     private function formOptions(): array
@@ -59,22 +65,28 @@ class ContractorController extends Controller
 
     public function create()
     {
-        return view('masters.contractors.create', $this->formOptions());
+        $currentBranch = BranchScope::currentBranch();
+        return view('masters.contractors.create', array_merge($this->formOptions(), compact('currentBranch')));
     }
 
     private function rules(?int $contractorId = null): array
     {
+        $branchId = BranchScope::currentBranchId() ?? request()->input('branch_id');
+
         return [
+            'branch_id'      => ['required', 'exists:branches,id'],
             // whereNull('deleted_at') is load-bearing on both of these:
             // Rule::unique() has no built-in awareness of soft deletes —
             // without it, a deleted contractor's name/code stays
-            // permanently "taken" and can never be reused.
-            'name'           => ['required', 'string', 'max:100', Rule::unique('contractors', 'name')->whereNull('deleted_at')->ignore($contractorId)],
+            // permanently "taken" and can never be reused. Scoped per
+            // branch (not global) — two different branches may
+            // legitimately create a contractor with the same name/code.
+            'name'           => ['required', 'string', 'max:100', Rule::unique('contractors', 'name')->where('branch_id', $branchId)->whereNull('deleted_at')->ignore($contractorId)],
             // `code` is auto-generated on create (see createWithGeneratedCode())
             // and never accepted from the client there; still required/unique/
             // editable on update, preserving today's Edit behavior.
             'code'           => $contractorId
-                ? ['required', 'string', 'max:20', Rule::unique('contractors', 'code')->whereNull('deleted_at')->ignore($contractorId)]
+                ? ['required', 'string', 'max:20', Rule::unique('contractors', 'code')->where('branch_id', $branchId)->whereNull('deleted_at')->ignore($contractorId)]
                 : ['nullable', 'string', 'max:20'],
             'contact_person' => ['required', 'string', 'max:100'],
             'phone'          => ['required', 'digits:10'],
@@ -115,8 +127,11 @@ class ContractorController extends Controller
 
     /**
      * Generates the next Contractor Code (one higher than the latest
-     * existing code, preserving its prefix/padding) and creates the
-     * contractor with it — mirrors BranchController::createWithGeneratedCode().
+     * existing code IN THIS BRANCH, preserving its prefix/padding) and
+     * creates the contractor with it — mirrors
+     * ShiftController::createWithGeneratedCode(), scoped per branch (not
+     * global) — branch A's 5th contractor and branch B's 1st contractor
+     * can both be "CN0001".
      */
     private function createWithGeneratedCode(array $data): Contractor
     {
@@ -124,14 +139,17 @@ class ContractorController extends Controller
         // more than a couple of retries plus a jittered backoff, AND why
         // withTrashed() here is load-bearing: a soft-deleted Contractor's
         // code is still permanently reserved by the database's unique
-        // index, so the "last code" lookup must include deleted rows or it
-        // can recompute a code that's already taken — a failure the retry
-        // loop can never actually recover from, since it would keep
-        // recomputing that same wrong answer.
+        // index within its branch, so the "last code" lookup must include
+        // deleted rows or it can recompute a code that's already taken — a
+        // failure the retry loop can never actually recover from, since it
+        // would keep recomputing that same wrong answer.
         for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 return DB::transaction(function () use ($data) {
-                    $allCodes = Contractor::withTrashed()->lockForUpdate()->pluck('code');
+                    $allCodes = Contractor::withTrashed()
+                        ->where('branch_id', $data['branch_id'] ?? null)
+                        ->lockForUpdate()
+                        ->pluck('code');
                     $lastCode = SequentialCodeGenerator::highestCode($allCodes);
                     $data['code'] = SequentialCodeGenerator::next($lastCode, 'CN0001');
 
@@ -154,6 +172,10 @@ class ContractorController extends Controller
         $data = $request->validate($this->rules(), $this->messages());
         unset($data['code']);
 
+        $data = BranchScope::stampBranchId($data);
+        BranchScope::assertBranchAccess($data['branch_id']);
+        BranchScope::assertBranchIsActive($data['branch_id']);
+
         $contractor = $this->createWithGeneratedCode($data);
 
         return redirect()->route('masters.contractors.index')
@@ -162,13 +184,21 @@ class ContractorController extends Controller
 
     public function edit(Contractor $contractor)
     {
+        BranchScope::assertBranchAccess($contractor->branch_id);
         $contractor->load('documents');
-        return view('masters.contractors.edit', array_merge(compact('contractor'), $this->formOptions()));
+        $currentBranch = $contractor->branch;
+        return view('masters.contractors.edit', array_merge(compact('contractor', 'currentBranch'), $this->formOptions()));
     }
 
     public function update(Request $request, Contractor $contractor)
     {
+        BranchScope::assertBranchAccess($contractor->branch_id);
+
         $data = $request->validate($this->rules($contractor->id), $this->messages());
+
+        $data = BranchScope::stampBranchId($data);
+        BranchScope::assertBranchAccess($data['branch_id']);
+
         $contractor->update($data);
 
         return redirect()->route('masters.contractors.index')
@@ -177,6 +207,8 @@ class ContractorController extends Controller
 
     public function destroy(Contractor $contractor)
     {
+        BranchScope::assertBranchAccess($contractor->branch_id);
+
         // FSD 9.1 — "A contractor with active Contract Labour shall not be
         // deleted." Checked across BOTH contract-labour mechanisms this app
         // uses (Employee.contractor_id and the separate ContractWorker model).
@@ -228,7 +260,8 @@ class ContractorController extends Controller
      */
     public function contractLabourIndex(Request $request)
     {
-        $contractors = Contractor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        $contractors = BranchScope::scopeQuery(Contractor::where('is_active', true))
+            ->orderBy('name')->get(['id', 'name', 'code', 'branch_id']);
 
         $contractor          = null;
         $employees           = collect();

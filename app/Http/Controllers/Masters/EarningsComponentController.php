@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Masters;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\EarningsComponent;
+use App\Support\BranchScope;
 use App\Support\SequentialCodeGenerator;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -13,20 +15,25 @@ class EarningsComponentController extends Controller
 {
     public function index(Request $request)
     {
-        $query = EarningsComponent::orderBy('sort_order');
+        $query = BranchScope::scopeQuery(EarningsComponent::with('branch'))->orderBy('sort_order');
 
         if ($request->filled('search')) {
             $s = '%' . $request->search . '%';
             $query->where(fn($q) => $q->where('name', 'like', $s)->orWhere('code', 'like', $s));
         }
+        if (BranchScope::currentBranchId() === null && $request->filled('branch_id')) {
+            $query->where('branch_id', $request->branch_id);
+        }
 
         $components = $query->paginate(20)->withQueryString();
-        return view('masters.earnings.index', compact('components'));
+        $branches   = BranchScope::currentBranchId() === null ? Branch::orderBy('name')->get() : collect();
+        return view('masters.earnings.index', compact('components', 'branches'));
     }
 
     public function create()
     {
-        return view('masters.earnings.create');
+        $currentBranch = BranchScope::currentBranch();
+        return view('masters.earnings.create', compact('currentBranch'));
     }
 
     /**
@@ -39,6 +46,7 @@ class EarningsComponentController extends Controller
     private function rules(): array
     {
         return [
+            'branch_id'  => ['required', 'exists:branches,id'],
             'name'       => ['required', 'string', 'max:100'],
             'is_active'  => ['required', 'boolean'],
         ];
@@ -46,12 +54,15 @@ class EarningsComponentController extends Controller
 
     /**
      * Generates the next Earnings Component Code (one higher than the
-     * latest existing code, preserving its prefix/padding) and creates the
-     * component with it — mirrors BranchController::createWithGeneratedCode()
-     * exactly. A row lock on the latest component serializes concurrent
-     * creations; the retry loop is a defensive fallback against the rare
-     * duplicate-key race the lock doesn't cover — the unique index on
-     * `code` is the actual guarantee against ever storing a collision.
+     * latest existing code IN THIS BRANCH, preserving its prefix/padding)
+     * and creates the component with it — mirrors
+     * ShiftController::createWithGeneratedCode(), scoped per branch (not
+     * global) — branch A's 5th component and branch B's 1st component can
+     * both be "EC0001". A row lock on the latest component in this branch
+     * serializes concurrent creations; the retry loop is a defensive
+     * fallback against the rare duplicate-key race the lock doesn't cover —
+     * the unique index on (branch_id, code) is the actual guarantee
+     * against ever storing a collision.
      */
     private function createWithGeneratedCode(array $data): EarningsComponent
     {
@@ -64,7 +75,8 @@ class EarningsComponentController extends Controller
         for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
                 return DB::transaction(function () use ($data) {
-                    $allCodes = EarningsComponent::lockForUpdate()->pluck('code');
+                    $allCodes = EarningsComponent::where('branch_id', $data['branch_id'] ?? null)
+                        ->lockForUpdate()->pluck('code');
                     $lastCode = SequentialCodeGenerator::highestCode($allCodes);
                     $data['code'] = SequentialCodeGenerator::next($lastCode, 'EC0001');
                     $data['type'] = 'percentage';
@@ -87,6 +99,10 @@ class EarningsComponentController extends Controller
     {
         $data = $request->validate($this->rules());
 
+        $data = BranchScope::stampBranchId($data);
+        BranchScope::assertBranchAccess($data['branch_id']);
+        BranchScope::assertBranchIsActive($data['branch_id']);
+
         $this->createWithGeneratedCode($data);
 
         return redirect()->route('masters.earnings.index')
@@ -95,12 +111,19 @@ class EarningsComponentController extends Controller
 
     public function edit(EarningsComponent $earningsComponent)
     {
-        return view('masters.earnings.edit', compact('earningsComponent'));
+        BranchScope::assertBranchAccess($earningsComponent->branch_id);
+        $currentBranch = $earningsComponent->branch;
+        return view('masters.earnings.edit', compact('earningsComponent', 'currentBranch'));
     }
 
     public function update(Request $request, EarningsComponent $earningsComponent)
     {
+        BranchScope::assertBranchAccess($earningsComponent->branch_id);
+
         $data = $request->validate($this->rules());
+
+        $data = BranchScope::stampBranchId($data);
+        BranchScope::assertBranchAccess($data['branch_id']);
 
         $earningsComponent->update($data);
 
@@ -110,6 +133,8 @@ class EarningsComponentController extends Controller
 
     public function destroy(EarningsComponent $earningsComponent)
     {
+        BranchScope::assertBranchAccess($earningsComponent->branch_id);
+
         $earningsComponent->delete();
         return redirect()->route('masters.earnings.index')
             ->with('success', 'Earnings component deleted successfully.');

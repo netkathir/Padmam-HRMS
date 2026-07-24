@@ -11,7 +11,7 @@ class SalarySlab extends Model
 
     protected $table = 'salary_slabs';
     protected $fillable = [
-        'name', 'salary_from', 'salary_to',
+        'branch_id', 'name', 'salary_from', 'salary_to',
         'tds_percentage', 'pf_employee_percentage', 'pf_employer_percentage',
         'esi_employee_percentage', 'esi_employer_percentage',
         'is_active',
@@ -29,6 +29,7 @@ class SalarySlab extends Model
             'is_active' => 'boolean',
         ];
     }
+    public function branch() { return $this->belongsTo(Branch::class); }
     public function salaryStructures() { return $this->hasMany(EmployeeSalaryStructure::class, 'salary_slab_id'); }
     public function employees() { return $this->hasMany(Employee::class, 'salary_slab_id'); }
     public function components() { return $this->hasMany(SalarySlabComponent::class); }

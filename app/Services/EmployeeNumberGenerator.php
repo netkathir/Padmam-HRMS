@@ -184,7 +184,7 @@ class EmployeeNumberGenerator
             return $data['employee_code'] ?? null;
         }
 
-        return ($data['employee_code'] ?? null) ?: $this->generateDefaultCode($data['employee_type_id'] ?? null);
+        return ($data['employee_code'] ?? null) ?: $this->generateDefaultCode($data['employee_type_id'] ?? null, $data['branch_id'] ?? null);
     }
 
     /**
@@ -192,14 +192,15 @@ class EmployeeNumberGenerator
      * configured — prefixed with the first two letters of the selected
      * Employee Type's name (e.g. "Permanent" -> "PE0001", "PE0002"...; a
      * generic "EMP" prefix when even the Employee Type isn't known yet),
-     * continuing sequentially across every branch that has ever used that
-     * same prefix. A row lock on the latest matching employee serializes
-     * concurrent creations under the same prefix; the retry loop is a
-     * defensive fallback against the rare duplicate-key race the lock
-     * doesn't cover — the composite unique index on (branch_id,
-     * employee_code) is the actual guarantee.
+     * restarting from 0001 in EACH branch — branch_id scopes the "last
+     * code" lookup, matching the composite unique index on (branch_id,
+     * employee_code): branch A's 5th employee and branch B's 1st employee
+     * must both be able to be "0001" under the same prefix. A row lock on
+     * the latest matching employee (within this branch) serializes
+     * concurrent creations; the retry loop is a defensive fallback against
+     * the rare duplicate-key race the lock doesn't cover.
      */
-    public function generateDefaultCode(?int $employeeTypeId): string
+    public function generateDefaultCode(?int $employeeTypeId, ?int $branchId = null): string
     {
         $prefix = $this->typePrefix($employeeTypeId);
 
@@ -213,9 +214,10 @@ class EmployeeNumberGenerator
         // after the newest surviving one).
         for ($attempt = 1; $attempt <= 10; $attempt++) {
             try {
-                return DB::transaction(function () use ($prefix) {
+                return DB::transaction(function () use ($prefix, $branchId) {
                     $allCodes = Employee::withTrashed()
                         ->where('employee_code', 'like', $prefix . '%')
+                        ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                         ->lockForUpdate()
                         ->pluck('employee_code');
                     $lastCode = SequentialCodeGenerator::highestCode($allCodes);

@@ -68,7 +68,9 @@ return new class extends Migration
             $seen[$name] = true;
         }
 
-        $indexes = collect(DB::select('SHOW INDEX FROM contractors'))->pluck('Key_name');
+        // Schema::getIndexes() (not a raw SHOW INDEX query) so this runs on
+        // both MySQL (production) and SQLite (the in-memory test suite).
+        $indexes = collect(Schema::getIndexes('contractors'))->pluck('name');
         if (! $indexes->contains('contractors_name_unique')) {
             Schema::table('contractors', function (Blueprint $table) {
                 $table->unique('name');

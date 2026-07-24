@@ -28,8 +28,12 @@ class ResetLeaveBalancesForNewYear extends Command
     {
         $year = (int) ($this->option('year') ?: now()->year);
 
-        $leaveTypes = LeaveType::where('is_active', true)->get();
-        if ($leaveTypes->isEmpty()) {
+        // LeaveType is per-branch (see LeaveTypeController) — grouped here
+        // so each employee is only ever matched against their OWN branch's
+        // leave types, never another branch's, even though every branch's
+        // "Casual Leave" etc. now exists as a separate row with its own id.
+        $leaveTypesByBranch = LeaveType::where('is_active', true)->get()->groupBy('branch_id');
+        if ($leaveTypesByBranch->isEmpty()) {
             $this->warn('No active leave types found — nothing to do.');
             return self::SUCCESS;
         }
@@ -38,9 +42,10 @@ class ResetLeaveBalancesForNewYear extends Command
         $skipped = 0;
 
         Employee::where('status', 'active')
-            ->select(['id', 'primary_employee_type', 'labour_type'])
-            ->chunkById(200, function ($employees) use ($leaveTypes, $year, &$created, &$skipped) {
+            ->select(['id', 'branch_id', 'primary_employee_type', 'labour_type'])
+            ->chunkById(200, function ($employees) use ($leaveTypesByBranch, $year, &$created, &$skipped) {
                 foreach ($employees as $employee) {
+                    $leaveTypes = $leaveTypesByBranch->get($employee->branch_id, collect());
                     foreach ($leaveTypes as $leaveType) {
                         if (! $leaveType->appliesToEmployeeType($employee->primary_employee_type, $employee->labour_type)) {
                             continue;

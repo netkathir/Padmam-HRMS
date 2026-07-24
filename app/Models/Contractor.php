@@ -16,7 +16,7 @@ class Contractor extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'name', 'code', 'contact_person', 'phone', 'alternate_phone', 'email',
+        'branch_id', 'name', 'code', 'contact_person', 'phone', 'alternate_phone', 'email',
         'address', 'state', 'district', 'pincode',
         'license_number', 'gst_number', 'pan_number', 'pf_registration_number', 'esi_registration_number',
         'license_expiry', 'agreement_start_date', 'agreement_end_date', 'max_labour_count', 'is_active',
@@ -32,6 +32,7 @@ class Contractor extends Model
         ];
     }
 
+    public function branch()         { return $this->belongsTo(Branch::class); }
     public function employees()      { return $this->hasMany(Employee::class); }
     public function contractWorkers(){ return $this->hasMany(ContractWorker::class); }
     public function documents()      { return $this->hasMany(ContractorDocument::class); }

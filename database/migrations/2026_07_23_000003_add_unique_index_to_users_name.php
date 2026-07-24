@@ -19,7 +19,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        $indexExists = collect(DB::select("SHOW INDEX FROM users WHERE Key_name = 'users_name_unique'"))->isNotEmpty();
+        // Schema::getIndexes() (not a raw SHOW INDEX query) so this runs on
+        // both MySQL (production) and SQLite (the in-memory test suite).
+        $indexExists = collect(Schema::getIndexes('users'))->pluck('name')->contains('users_name_unique');
         if ($indexExists) {
             return;
         }
@@ -42,7 +44,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        $indexExists = collect(DB::select("SHOW INDEX FROM users WHERE Key_name = 'users_name_unique'"))->isNotEmpty();
+        $indexExists = collect(Schema::getIndexes('users'))->pluck('name')->contains('users_name_unique');
         if ($indexExists) {
             Schema::table('users', function (Blueprint $table) {
                 $table->dropUnique(['name']);

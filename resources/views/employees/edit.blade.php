@@ -195,6 +195,64 @@
         wireYesNoToggle('is_tds_applicable', 'tds-number-field');
         wireYesNoToggle('is_ot_applicable', 'ot-rate-field');
 
+        // ── Tab 5: Basic Salary auto-matches a Salary Slab and offers its
+        // earnings back as a Yes/No multi-select. ──
+        (function () {
+            const basicSalaryInput = document.getElementById('basic_salary');
+            const slabDisplay = document.getElementById('matched_slab_display');
+            const earningsFields = document.getElementById('salary-earnings-fields');
+            const earningsRows = document.getElementById('salary-earnings-rows');
+            if (!basicSalaryInput || !slabDisplay || !earningsRows) return;
+
+            const selectedEarnings = new Set((JSON.parse(earningsRows.dataset.selectedEarnings || '[]')).map(String));
+            let debounceTimer = null;
+
+            function renderEarnings(earnings) {
+                if (!earnings.length) {
+                    earningsFields.style.display = 'none';
+                    earningsRows.innerHTML = '';
+                    return;
+                }
+                earningsFields.style.display = '';
+                earningsRows.innerHTML = earnings.map(function (e) {
+                    const checked = selectedEarnings.has(String(e.component_id)) ? 'checked' : '';
+                    return '<div class="col"><div class="form-check">'
+                        + '<input type="checkbox" class="form-check-input" name="salary_earnings[]" value="' + e.component_id + '" id="earning_' + e.component_id + '" ' + checked + '>'
+                        + '<label class="form-check-label" for="earning_' + e.component_id + '">' + e.name + ' (' + e.rate + '%  ≈ ₹' + e.amount + ')</label>'
+                        + '</div></div>';
+                }).join('');
+            }
+
+            function lookupSlab() {
+                const basicSalary = parseFloat(basicSalaryInput.value);
+                if (!basicSalary || basicSalary <= 0) {
+                    slabDisplay.value = '';
+                    earningsFields.style.display = 'none';
+                    earningsRows.innerHTML = '';
+                    return;
+                }
+                fetch('{{ route('employees.salary-slab-breakdown') }}?basic_salary=' + encodeURIComponent(basicSalary))
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data.matched) {
+                            slabDisplay.value = 'No matching slab for this amount';
+                            earningsFields.style.display = 'none';
+                            earningsRows.innerHTML = '';
+                            return;
+                        }
+                        slabDisplay.value = data.slab.name;
+                        renderEarnings(data.earnings || []);
+                    })
+                    .catch(function () { slabDisplay.value = ''; });
+            }
+
+            basicSalaryInput.addEventListener('input', function () {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(lookupSlab, 400);
+            });
+            if (basicSalaryInput.value) lookupSlab();
+        })();
+
         // ── Tab 5: selecting a Contractor auto-fills Contract Start/End Date ──
         const contractorSelect = document.getElementById('contractor_id');
         const contractStartInput = document.getElementById('contract_start_date');

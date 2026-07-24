@@ -10,9 +10,19 @@
 <div class="card">
     <div class="card-body">
         <form method="GET" class="row g-2 mb-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <input type="text" name="search" class="form-control form-control-sm" placeholder="Search name, code…" value="{{ request('search') }}">
             </div>
+            @if ($branches->isNotEmpty())
+            <div class="col-md-3">
+                <select name="branch_id" class="form-select form-select-sm">
+                    <option value="">All Branches</option>
+                    @foreach($branches as $b)
+                        <option value="{{ $b->id }}" {{ request('branch_id') == $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            @endif
             <div class="col-md-2">
                 <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i> Search</button>
             </div>
@@ -22,13 +32,14 @@
         </form>
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Branch</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @forelse($banks as $bank)
                     <tr>
                         <td>{{ $banks->firstItem() + $loop->index }}</td>
                         <td><span class="badge bg-secondary">{{ $bank->code ?? '—' }}</span></td>
                         <td>{{ $bank->name }}</td>
+                        <td>{{ $bank->branch->name ?? '—' }}</td>
                         <td><span class="badge bg-{{ $bank->is_active ? 'success' : 'danger' }}-subtle text-{{ $bank->is_active ? 'success' : 'danger' }}">{{ $bank->is_active ? 'Active' : 'Inactive' }}</span></td>
                         <td>
                             <a href="{{ route('masters.generic.show', ['module' => 'banks', 'id' => $bank->id]) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
@@ -40,7 +51,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="5" class="text-center text-muted py-4">No banks found.</td></tr>
+                    <tr><td colspan="6" class="text-center text-muted py-4">No banks found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

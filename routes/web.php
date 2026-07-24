@@ -103,7 +103,7 @@ Route::middleware(['auth', 'force.password.change', 'require.branch'])->group(fu
     Route::delete('/employees/{employee}/bank-details/{bankDetail}', [EmployeeController::class, 'destroyBankDetail'])->name('employees.bank-details.destroy')->middleware('permission:employees.full');
     Route::get('/employees/{employee}/salary',     [EmployeeController::class, 'salary'])->name('employees.salary')->middleware('permission:employees.read');
     Route::post('/employees/{employee}/salary',    [EmployeeController::class, 'storeSalary'])->name('employees.salary.store')->middleware('permission:employees.full');
-    Route::get('/salary-slab-breakdown/{salarySlab}', [EmployeeController::class, 'salarySlabBreakdown'])->name('employees.salary-slab-breakdown')->middleware('permission:employees.read');
+    Route::get('/salary-slab-breakdown', [EmployeeController::class, 'salarySlabBreakdown'])->name('employees.salary-slab-breakdown')->middleware('permission:employees.read');
     Route::get('/employees/{employee}/exit',       [EmployeeController::class, 'exit'])->name('employees.exit')->middleware('permission:employees.read');
     Route::post('/employees/{employee}/exit',      [EmployeeController::class, 'processExit'])->name('employees.exit.store')->middleware('permission:employees.full');
 
@@ -119,9 +119,6 @@ Route::middleware(['auth', 'force.password.change', 'require.branch'])->group(fu
     Route::get('/attendance',                    [AttendanceController::class, 'index'])->name('attendance.index')->middleware('permission:attendance.read');
     Route::get('/attendance/mark',               [AttendanceController::class, 'markForm'])->name('attendance.mark')->middleware('permission:attendance.read');
     Route::post('/attendance/mark',              [AttendanceController::class, 'mark'])->name('attendance.mark.post')->middleware('permission:attendance.create');
-    Route::get('/attendance/manual',             [AttendanceController::class, 'manualForm'])->name('attendance.manual')->middleware('permission:attendance.read');
-    Route::post('/attendance/manual',            [AttendanceController::class, 'manual'])->name('attendance.manual.post')->middleware('permission:attendance.create');
-    Route::get('/attendance/pending',            [AttendanceController::class, 'pending'])->name('attendance.pending')->middleware('permission:attendance.read');
     Route::get('/attendance/report',             [AttendanceController::class, 'report'])->name('attendance.report')->middleware('permission:attendance.read');
     Route::get('/attendance/summary',            [AttendanceController::class, 'summary'])->name('attendance.summary')->middleware('permission:attendance.read');
 
@@ -142,7 +139,6 @@ Route::middleware(['auth', 'force.password.change', 'require.branch'])->group(fu
     Route::get('/attendance/correction',          [AttendanceController::class, 'correctionForm'])->name('attendance.correction.form')->middleware('permission:attendance.read');
     Route::post('/attendance/correction',         [AttendanceController::class, 'correction'])->name('attendance.correction.post')->middleware('permission:attendance.create');
 
-    Route::post('/attendance/{attendance}/approve',    [AttendanceController::class, 'approve'])->name('attendance.approve')->middleware('permission:attendance.full');
     Route::post('/attendance/{attendance}/ot-approve', [AttendanceController::class, 'approveOvertime'])->name('attendance.ot.approve')->middleware('permission:attendance.full');
     Route::get('/attendance/{attendance}',        [AttendanceController::class, 'show'])->name('attendance.show')->middleware('permission:attendance.read');
 
